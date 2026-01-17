@@ -189,32 +189,31 @@ bool LogWindow::ShouldShow(const char* entry)
 
 void LogWindow::AddLogEntry(const char* entry)
 {
-    if (LockLooper()) {
-        // Check if this entry should be shown based on current filters
-        if (ShouldShow(entry)) {
-            fTextView->Insert(fTextView->TextLength(), entry, strlen(entry));
-            fTextView->Insert(fTextView->TextLength(), "\n", 1);
+    // Check if this entry should be shown based on current filters
+    if (!ShouldShow(entry))
+        return;
 
-            // Scroll to bottom
-            fTextView->ScrollToOffset(fTextView->TextLength());
+    // Insert the entry
+    fTextView->Insert(fTextView->TextLength(), entry, strlen(entry));
+    fTextView->Insert(fTextView->TextLength(), "\n", 1);
 
-            // Limit log size (keep last ~40000 characters)
-            int32 textLen = fTextView->TextLength();
-            if (textLen > 50000) {
-                fTextView->Delete(0, textLen - 40000);
-            }
-        }
+    // Scroll to bottom
+    fTextView->ScrollToOffset(fTextView->TextLength());
 
-        UnlockLooper();
+    // Limit log size (keep last ~40000 characters)
+    int32 textLen = fTextView->TextLength();
+    if (textLen > 50000) {
+        fTextView->Delete(0, textLen - 40000);
     }
+
+    // Force redraw
+    fTextView->Invalidate();
 }
 
 void LogWindow::Clear()
 {
-    if (LockLooper()) {
-        fTextView->SetText("");
-        UnlockLooper();
-    }
+    fTextView->SetText("");
+    fTextView->Invalidate();
 }
 
 void LogWindow::MessageReceived(BMessage* message)
