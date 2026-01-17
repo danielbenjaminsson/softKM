@@ -1,6 +1,7 @@
 #include "LogWindow.h"
 
 #include <Application.h>
+#include <Autolock.h>
 #include <Button.h>
 #include <LayoutBuilder.h>
 #include <StringView.h>
