@@ -74,7 +74,11 @@ LogWindow::LogWindow()
     fScrollView = new BScrollView("scrollView", fTextView,
         B_WILL_DRAW | B_FRAME_EVENTS, true, true);
 
-    // Create clear button
+    // Create buttons
+    BButton* closeButton = new BButton("close", "Close",
+        new BMessage(B_QUIT_REQUESTED));
+    closeButton->MakeDefault(true);
+
     BButton* clearButton = new BButton("clear", "Clear",
         new BMessage(LOG_WINDOW_CLEAR));
 
@@ -83,8 +87,9 @@ LogWindow::LogWindow()
         .SetInsets(B_USE_WINDOW_SPACING)
         .Add(fScrollView, 1.0)
         .AddGroup(B_HORIZONTAL)
-            .AddGlue()
+            .Add(closeButton)
             .Add(clearButton)
+            .AddGlue()
         .End()
     .End();
 
