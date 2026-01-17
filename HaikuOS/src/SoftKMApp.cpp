@@ -82,6 +82,25 @@ void SoftKMApp::MessageReceived(BMessage* message)
             ShowLogWindow();
             break;
 
+        case MSG_TOGGLE_LOG:
+            if (fLogWindow != nullptr) {
+                if (fLogWindow->IsHidden()) {
+                    fLogWindow->Show();
+                } else {
+                    fLogWindow->Hide();
+                }
+            }
+            break;
+
+        case MSG_QUERY_LOG_VISIBLE:
+        {
+            BMessage reply(B_REPLY);
+            bool visible = (fLogWindow != nullptr && !fLogWindow->IsHidden());
+            reply.AddBool("visible", visible);
+            message->SendReply(&reply);
+            break;
+        }
+
         case MSG_CLIENT_CONNECTED:
             SetClientConnected(true);
             break;

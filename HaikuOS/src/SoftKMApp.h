@@ -13,6 +13,8 @@ class LogWindow;
 enum {
     MSG_SHOW_SETTINGS = 'sset',
     MSG_SHOW_LOG = 'slog',
+    MSG_TOGGLE_LOG = 'tlog',
+    MSG_QUERY_LOG_VISIBLE = 'qlog',
     MSG_CONNECTION_STATUS = 'csts',
     MSG_CLIENT_CONNECTED = 'ccon',
     MSG_CLIENT_DISCONNECTED = 'cdis',
