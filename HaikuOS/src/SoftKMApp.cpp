@@ -5,6 +5,8 @@
 #include "input/InputInjector.h"
 #include "settings/Settings.h"
 
+#include <cstdio>
+
 #include <Deskbar.h>
 #include <Roster.h>
 #include <Alert.h>
