@@ -1,16 +1,13 @@
 /*
- * SoftKM Input Server Device Add-on
+ * SoftKM Mouse Device Add-on
  *
- * This add-on receives input events from the main softKM app
+ * This add-on receives mouse events from the main softKM app
  * and injects them into the system via EnqueueMessage().
  */
 
 #include <InputServerDevice.h>
 #include <Message.h>
-#include <Messenger.h>
-#include <String.h>
 #include <OS.h>
-#include <string.h>
 
 #include <stdio.h>
 
@@ -20,17 +17,15 @@ enum {
     SOFTKM_INJECT_MOUSE_UP = 'sMup',
     SOFTKM_INJECT_MOUSE_MOVE = 'sMmv',
     SOFTKM_INJECT_MOUSE_WHEEL = 'sMwh',
-    SOFTKM_INJECT_KEY_DOWN = 'sKdn',
-    SOFTKM_INJECT_KEY_UP = 'sKup',
 };
 
-// Device name for registration
-static const char* kDeviceName = "SoftKM Virtual Input";
+static const char* kDeviceName = "SoftKM Mouse";
+static const char* kPortName = "softKM_mouse_port";
 
-class SoftKMDevice : public BInputServerDevice {
+class SoftKMMouse : public BInputServerDevice {
 public:
-    SoftKMDevice();
-    virtual ~SoftKMDevice();
+    SoftKMMouse();
+    virtual ~SoftKMMouse();
 
     virtual status_t InitCheck();
     virtual status_t Start(const char* device, void* cookie);
@@ -49,7 +44,7 @@ private:
 };
 
 
-SoftKMDevice::SoftKMDevice()
+SoftKMMouse::SoftKMMouse()
     : BInputServerDevice(),
       fPort(-1),
       fWatcherThread(-1),
@@ -57,7 +52,7 @@ SoftKMDevice::SoftKMDevice()
 {
 }
 
-SoftKMDevice::~SoftKMDevice()
+SoftKMMouse::~SoftKMMouse()
 {
     fRunning = false;
     if (fPort >= 0) {
@@ -70,41 +65,40 @@ SoftKMDevice::~SoftKMDevice()
     }
 }
 
-status_t SoftKMDevice::InitCheck()
+status_t SoftKMMouse::InitCheck()
 {
-    // Create a port for receiving events from the main app
-    fPort = create_port(100, "softKM_input_port");
+    // Create a port for receiving mouse events
+    fPort = create_port(100, kPortName);
     if (fPort < 0) {
-        fprintf(stderr, "SoftKMDevice: Failed to create port\n");
+        fprintf(stderr, "SoftKMMouse: Failed to create port\n");
         return B_ERROR;
     }
 
-    fprintf(stderr, "SoftKMDevice: Created port %d\n", fPort);
+    fprintf(stderr, "SoftKMMouse: Created port %d\n", fPort);
 
-    // Register our virtual device with input_server
-    // We register as undefined type since we inject both keyboard and mouse events
+    // Register as pointing device
     input_device_ref* devices[2];
     input_device_ref device = {
         (char*)kDeviceName,
-        B_UNDEFINED_DEVICE,
+        B_POINTING_DEVICE,
         (void*)this
     };
     devices[0] = &device;
     devices[1] = NULL;
 
     RegisterDevices(devices);
-    fprintf(stderr, "SoftKMDevice: Registered device '%s'\n", kDeviceName);
+    fprintf(stderr, "SoftKMMouse: Registered device '%s'\n", kDeviceName);
 
-    // Start the watcher thread immediately - we're a virtual device, always active
+    // Start the watcher thread immediately
     fRunning = true;
-    fWatcherThread = spawn_thread(_WatcherThread, "softKM_watcher",
+    fWatcherThread = spawn_thread(_WatcherThread, "softKM_mouse_watcher",
         B_REAL_TIME_PRIORITY, this);
 
     if (fWatcherThread >= 0) {
         resume_thread(fWatcherThread);
-        fprintf(stderr, "SoftKMDevice: Watcher thread started\n");
+        fprintf(stderr, "SoftKMMouse: Watcher thread started\n");
     } else {
-        fprintf(stderr, "SoftKMDevice: Failed to start watcher thread\n");
+        fprintf(stderr, "SoftKMMouse: Failed to start watcher thread\n");
         fRunning = false;
         return B_ERROR;
     }
@@ -112,36 +106,33 @@ status_t SoftKMDevice::InitCheck()
     return B_OK;
 }
 
-status_t SoftKMDevice::Start(const char* device, void* cookie)
+status_t SoftKMMouse::Start(const char* device, void* cookie)
 {
-    fprintf(stderr, "SoftKMDevice: Start called for '%s'\n", device ? device : "NULL");
+    fprintf(stderr, "SoftKMMouse: Start called for '%s'\n", device ? device : "NULL");
 
-    // Only start if not already running
     if (fRunning && fWatcherThread >= 0)
         return B_OK;
 
     fRunning = true;
-    fWatcherThread = spawn_thread(_WatcherThread, "softKM_watcher",
+    fWatcherThread = spawn_thread(_WatcherThread, "softKM_mouse_watcher",
         B_REAL_TIME_PRIORITY, this);
 
     if (fWatcherThread < 0) {
-        fprintf(stderr, "SoftKMDevice: Failed to spawn watcher thread\n");
+        fprintf(stderr, "SoftKMMouse: Failed to spawn watcher thread\n");
         fRunning = false;
         return B_ERROR;
     }
 
     resume_thread(fWatcherThread);
-    fprintf(stderr, "SoftKMDevice: Watcher thread started\n");
     return B_OK;
 }
 
-status_t SoftKMDevice::Stop(const char* device, void* cookie)
+status_t SoftKMMouse::Stop(const char* device, void* cookie)
 {
-    fprintf(stderr, "SoftKMDevice: Stop called\n");
+    fprintf(stderr, "SoftKMMouse: Stop called\n");
 
     fRunning = false;
     if (fPort >= 0) {
-        // Write a dummy message to wake up the watcher
         write_port(fPort, 0, NULL, 0);
     }
 
@@ -154,20 +145,20 @@ status_t SoftKMDevice::Stop(const char* device, void* cookie)
     return B_OK;
 }
 
-status_t SoftKMDevice::Control(const char* device, void* cookie,
+status_t SoftKMMouse::Control(const char* device, void* cookie,
     uint32 code, BMessage* message)
 {
     return B_OK;
 }
 
-int32 SoftKMDevice::_WatcherThread(void* data)
+int32 SoftKMMouse::_WatcherThread(void* data)
 {
-    SoftKMDevice* device = (SoftKMDevice*)data;
+    SoftKMMouse* device = (SoftKMMouse*)data;
     device->_WatchPort();
     return 0;
 }
 
-void SoftKMDevice::_WatchPort()
+void SoftKMMouse::_WatchPort()
 {
     while (fRunning) {
         int32 code;
@@ -183,7 +174,6 @@ void SoftKMDevice::_WatchPort()
         if (size == 0 || code == 0)
             continue;
 
-        // Unflatten the BMessage
         BMessage msg;
         if (msg.Unflatten(buffer) == B_OK) {
             _ProcessMessage(&msg);
@@ -191,7 +181,7 @@ void SoftKMDevice::_WatchPort()
     }
 }
 
-void SoftKMDevice::_ProcessMessage(BMessage* msg)
+void SoftKMMouse::_ProcessMessage(BMessage* msg)
 {
     BMessage* event = NULL;
 
@@ -218,7 +208,7 @@ void SoftKMDevice::_ProcessMessage(BMessage* msg)
                 event->AddInt32("buttons", msg->GetInt32("buttons", 0));
                 event->AddInt32("modifiers", 0);
                 event->AddInt32("clicks", msg->GetInt32("clicks", 1));
-                fprintf(stderr, "SoftKMDevice: MOUSE_DOWN at (%.0f,%.0f) btns=0x%x\n",
+                fprintf(stderr, "SoftKMMouse: MOUSE_DOWN at (%.0f,%.0f) btns=0x%x\n",
                     where.x, where.y, msg->GetInt32("buttons", 0));
             }
             break;
@@ -233,7 +223,7 @@ void SoftKMDevice::_ProcessMessage(BMessage* msg)
                 event->AddPoint("where", where);
                 event->AddInt32("buttons", msg->GetInt32("buttons", 0));
                 event->AddInt32("modifiers", 0);
-                fprintf(stderr, "SoftKMDevice: MOUSE_UP at (%.0f,%.0f)\n",
+                fprintf(stderr, "SoftKMMouse: MOUSE_UP at (%.0f,%.0f)\n",
                     where.x, where.y);
             }
             break;
@@ -247,43 +237,15 @@ void SoftKMDevice::_ProcessMessage(BMessage* msg)
             event->AddFloat("be:wheel_delta_y", msg->GetFloat("delta_y", 0.0f));
             break;
         }
-
-        case SOFTKM_INJECT_KEY_DOWN:
-        {
-            event = new BMessage(B_KEY_DOWN);
-            event->AddInt64("when", system_time());
-            event->AddInt32("key", msg->GetInt32("key", 0));
-            event->AddInt32("modifiers", msg->GetInt32("modifiers", 0));
-            event->AddInt32("raw_char", msg->GetInt32("raw_char", 0));
-
-            const char* bytes;
-            if (msg->FindString("bytes", &bytes) == B_OK) {
-                event->AddString("bytes", bytes);
-            }
-            break;
-        }
-
-        case SOFTKM_INJECT_KEY_UP:
-        {
-            event = new BMessage(B_KEY_UP);
-            event->AddInt64("when", system_time());
-            event->AddInt32("key", msg->GetInt32("key", 0));
-            event->AddInt32("modifiers", msg->GetInt32("modifiers", 0));
-            event->AddInt32("raw_char", 0);
-            event->AddString("bytes", "");
-            break;
-        }
     }
 
     if (event != NULL) {
-        // EnqueueMessage takes ownership of the message
         EnqueueMessage(event);
     }
 }
 
 
-// Export functions for input_server to load this add-on
 extern "C" BInputServerDevice* instantiate_input_device()
 {
-    return new SoftKMDevice();
+    return new SoftKMMouse();
 }

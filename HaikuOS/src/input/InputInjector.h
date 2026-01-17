@@ -33,14 +33,17 @@ public:
 private:
     uint32 TranslateKeyCode(uint32 macKeyCode);
     void UpdateMousePosition(float x, float y, bool relative);
-    bool SendToAddon(BMessage* msg);
-    port_id FindAddonPort();
+    bool SendToKeyboardAddon(BMessage* msg);
+    bool SendToMouseAddon(BMessage* msg);
+    port_id FindKeyboardPort();
+    port_id FindMousePort();
 
     BPoint fMousePosition;
     uint32 fCurrentButtons;
     uint32 fCurrentModifiers;
     bool fActive;
-    port_id fAddonPort;
+    port_id fKeyboardPort;
+    port_id fMousePort;
     NetworkServer* fNetworkServer;
     bigtime_t fEdgeDwellStart;
     bigtime_t fDwellTime;  // configurable dwell time in microseconds

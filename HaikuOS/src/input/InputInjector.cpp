@@ -149,7 +149,8 @@ InputInjector::InputInjector()
       fCurrentButtons(0),
       fCurrentModifiers(0),
       fActive(false),
-      fAddonPort(-1),
+      fKeyboardPort(-1),
+      fMousePort(-1),
       fNetworkServer(nullptr),
       fEdgeDwellStart(0),
       fDwellTime(300000),  // default 300ms
@@ -160,51 +161,93 @@ InputInjector::InputInjector()
     BRect frame = screen.Frame();
     fMousePosition.Set(frame.Width() / 2, frame.Height() / 2);
 
-    // Try to find the addon port
-    fAddonPort = FindAddonPort();
-    if (fAddonPort >= 0) {
-        LOG("Found input addon port: %ld", fAddonPort);
+    // Try to find the addon ports
+    fKeyboardPort = FindKeyboardPort();
+    if (fKeyboardPort >= 0) {
+        LOG("Found keyboard addon port: %ld", fKeyboardPort);
     } else {
-        LOG("Input addon not found - clicks/scroll won't work");
+        LOG("Keyboard addon not found - keys won't work");
+    }
+
+    fMousePort = FindMousePort();
+    if (fMousePort >= 0) {
+        LOG("Found mouse addon port: %ld", fMousePort);
+    } else {
+        LOG("Mouse addon not found - clicks/scroll won't work");
     }
 }
 
-port_id InputInjector::FindAddonPort()
+port_id InputInjector::FindKeyboardPort()
 {
-    return find_port("softKM_input_port");
+    return find_port("softKM_keyboard_port");
 }
 
-bool InputInjector::SendToAddon(BMessage* msg)
+port_id InputInjector::FindMousePort()
 {
-    // Always verify port is still valid
+    return find_port("softKM_mouse_port");
+}
+
+bool InputInjector::SendToKeyboardAddon(BMessage* msg)
+{
     port_info info;
-    if (fAddonPort < 0 || get_port_info(fAddonPort, &info) != B_OK) {
-        // Try to find port again
-        fAddonPort = FindAddonPort();
-        if (fAddonPort < 0) {
-            LOG("Addon port not found - is input_server addon loaded?");
+    if (fKeyboardPort < 0 || get_port_info(fKeyboardPort, &info) != B_OK) {
+        fKeyboardPort = FindKeyboardPort();
+        if (fKeyboardPort < 0) {
+            LOG("Keyboard addon port not found");
             return false;
         }
-        LOG("Re-acquired addon port: %ld", fAddonPort);
+        LOG("Re-acquired keyboard addon port: %ld", fKeyboardPort);
     }
 
     ssize_t flatSize = msg->FlattenedSize();
     char* buffer = new char[flatSize];
 
     if (msg->Flatten(buffer, flatSize) == B_OK) {
-        status_t result = write_port_etc(fAddonPort, msg->what, buffer, flatSize,
-                                          B_RELATIVE_TIMEOUT, 100000); // 100ms timeout
+        status_t result = write_port_etc(fKeyboardPort, msg->what, buffer, flatSize,
+                                          B_RELATIVE_TIMEOUT, 100000);
         delete[] buffer;
         if (result != B_OK) {
-            LOG("write_port failed: %s", strerror(result));
-            fAddonPort = -1;  // Force re-acquisition next time
+            LOG("write_port (keyboard) failed: %s", strerror(result));
+            fKeyboardPort = -1;
             return false;
         }
         return true;
     }
 
     delete[] buffer;
-    LOG("Failed to flatten message");
+    LOG("Failed to flatten keyboard message");
+    return false;
+}
+
+bool InputInjector::SendToMouseAddon(BMessage* msg)
+{
+    port_info info;
+    if (fMousePort < 0 || get_port_info(fMousePort, &info) != B_OK) {
+        fMousePort = FindMousePort();
+        if (fMousePort < 0) {
+            LOG("Mouse addon port not found");
+            return false;
+        }
+        LOG("Re-acquired mouse addon port: %ld", fMousePort);
+    }
+
+    ssize_t flatSize = msg->FlattenedSize();
+    char* buffer = new char[flatSize];
+
+    if (msg->Flatten(buffer, flatSize) == B_OK) {
+        status_t result = write_port_etc(fMousePort, msg->what, buffer, flatSize,
+                                          B_RELATIVE_TIMEOUT, 100000);
+        delete[] buffer;
+        if (result != B_OK) {
+            LOG("write_port (mouse) failed: %s", strerror(result));
+            fMousePort = -1;
+            return false;
+        }
+        return true;
+    }
+
+    delete[] buffer;
+    LOG("Failed to flatten mouse message");
     return false;
 }
 
@@ -315,8 +358,8 @@ void InputInjector::InjectKeyDown(uint32 keyCode, uint32 modifiers,
         msg.AddString("bytes", "");
     }
 
-    // Send through input_server add-on
-    if (!SendToAddon(&msg)) {
+    // Send through keyboard add-on
+    if (!SendToKeyboardAddon(&msg)) {
         LOG("Failed to send KeyDown to addon");
     }
 }
@@ -333,8 +376,8 @@ void InputInjector::InjectKeyUp(uint32 keyCode, uint32 modifiers)
     msg.AddInt32("key", haikuKey);
     msg.AddInt32("modifiers", modifiers);
 
-    // Send through input_server add-on
-    if (!SendToAddon(&msg)) {
+    // Send through keyboard add-on
+    if (!SendToKeyboardAddon(&msg)) {
         LOG("Failed to send KeyUp to addon");
     }
 }
@@ -401,7 +444,7 @@ void InputInjector::InjectMouseDown(uint32 buttons, float x, float y)
     msg.AddInt32("buttons", fCurrentButtons);
     msg.AddInt32("clicks", 1);
 
-    if (SendToAddon(&msg)) {
+    if (SendToMouseAddon(&msg)) {
         LOG("MouseDown sent to addon successfully");
     } else {
         LOG("Failed to send MouseDown to addon");
@@ -421,7 +464,7 @@ void InputInjector::InjectMouseUp(uint32 buttons, float x, float y)
     msg.AddPoint("where", fMousePosition);
     msg.AddInt32("buttons", fCurrentButtons);
 
-    if (!SendToAddon(&msg)) {
+    if (!SendToMouseAddon(&msg)) {
         LOG("Failed to send MouseUp to addon");
     }
 }
@@ -437,7 +480,7 @@ void InputInjector::InjectMouseWheel(float deltaX, float deltaY)
     msg.AddFloat("delta_x", deltaX);
     msg.AddFloat("delta_y", deltaY);
 
-    if (!SendToAddon(&msg)) {
+    if (!SendToMouseAddon(&msg)) {
         LOG("Failed to send MouseWheel to addon");
     }
 }

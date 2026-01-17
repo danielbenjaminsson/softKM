@@ -125,19 +125,25 @@ jobs:
 
             echo "Build successful: $BINARY"
 
-            echo "Building input_server addon..."
+            echo "Building input_server addons..."
             cd addon
             make clean
             make
 
-            echo "Installing addon..."
+            echo "Installing addons..."
             mkdir -p ~/config/non-packaged/add-ons/input_server/devices
-            ADDON=$(find objects.* -name "SoftKMDevice" -type f 2>/dev/null | head -1)
-            if [ -n "$ADDON" ]; then
-              cp "$ADDON" ~/config/non-packaged/add-ons/input_server/devices/
-              echo "Addon installed: $ADDON"
+            # Remove old combined addon if it exists
+            rm -f ~/config/non-packaged/add-ons/input_server/devices/SoftKMDevice 2>/dev/null || true
 
-              echo "Restarting input_server to load addon..."
+            KEYBOARD_ADDON=$(find objects.* -name "SoftKMKeyboard" -type f 2>/dev/null | head -1)
+            MOUSE_ADDON=$(find objects.* -name "SoftKMMouse" -type f 2>/dev/null | head -1)
+
+            if [ -n "$KEYBOARD_ADDON" ] && [ -n "$MOUSE_ADDON" ]; then
+              cp "$KEYBOARD_ADDON" ~/config/non-packaged/add-ons/input_server/devices/
+              cp "$MOUSE_ADDON" ~/config/non-packaged/add-ons/input_server/devices/
+              echo "Addons installed: $KEYBOARD_ADDON, $MOUSE_ADDON"
+
+              echo "Restarting input_server to load addons..."
               /system/servers/input_server -q
               sleep 3
               # Verify input_server restarted
