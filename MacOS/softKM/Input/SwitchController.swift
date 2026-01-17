@@ -277,7 +277,19 @@ class SwitchController {
         case .rightMouseDown, .rightMouseUp:
             return 0x02  // B_SECONDARY_MOUSE_BUTTON
         case .otherMouseDown, .otherMouseUp:
-            return 0x04  // B_TERTIARY_MOUSE_BUTTON
+            // Get the actual button number for "other" buttons
+            // macOS: 2=middle, 3=button4 (back), 4=button5 (forward)
+            let buttonNumber = event.getIntegerValueField(.mouseEventButtonNumber)
+            switch buttonNumber {
+            case 2:
+                return 0x04  // B_TERTIARY_MOUSE_BUTTON (middle)
+            case 3:
+                return 0x08  // Button 4 (back)
+            case 4:
+                return 0x10  // Button 5 (forward)
+            default:
+                return 0x04  // Default to middle button
+            }
         default:
             return 0
         }
