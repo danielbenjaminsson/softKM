@@ -5,6 +5,10 @@ extension Notification.Name {
     static let switchToMac = Notification.Name("switchToMac")
 }
 
+struct SwitchToMacInfo {
+    let yFromBottom: Float
+}
+
 class NetworkClient: ObservableObject {
     @Published var connectionState: ConnectionManager.ConnectionState = .disconnected
 
@@ -152,12 +156,19 @@ class NetworkClient: ObservableObject {
                 return
             }
             let direction = data[8]  // 0=toHaiku, 1=toMac
-            LOG("Received CONTROL_SWITCH direction=\(direction)")
+
+            // Extract yFromBottom if available (header=8 + direction=1 + yFromBottom=4)
+            var yFromBottom: Float = 0.0
+            if data.count >= 13 {
+                yFromBottom = data.subdata(in: 9..<13).withUnsafeBytes { $0.load(as: Float.self) }
+            }
+            LOG("Received CONTROL_SWITCH direction=\(direction) yFromBottom=\(yFromBottom)")
 
             if direction == 1 {
                 // Switch back to macOS
+                let info = SwitchToMacInfo(yFromBottom: yFromBottom)
                 DispatchQueue.main.async {
-                    NotificationCenter.default.post(name: .switchToMac, object: nil)
+                    NotificationCenter.default.post(name: .switchToMac, object: info)
                 }
             }
         } else if eventType == EventType.screenInfo.rawValue {

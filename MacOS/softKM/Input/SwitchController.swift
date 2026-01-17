@@ -34,9 +34,13 @@ class SwitchController {
         )
     }
 
-    @objc private func handleSwitchToMac() {
-        LOG("Received switch-to-mac notification from Haiku")
-        deactivateCaptureMode()
+    @objc private func handleSwitchToMac(_ notification: Notification) {
+        var yFromBottom: Float = 0.0
+        if let info = notification.object as? SwitchToMacInfo {
+            yFromBottom = info.yFromBottom
+        }
+        LOG("Received switch-to-mac notification from Haiku, yFromBottom=\(yFromBottom)")
+        deactivateCaptureMode(yFromBottom: yFromBottom)
     }
 
     func handleEvent(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
@@ -220,8 +224,8 @@ class SwitchController {
         _ = EventCapture.shared.startCapture()
     }
 
-    private func deactivateCaptureMode() {
-        LOG("Deactivating capture mode - switching back to macOS")
+    private func deactivateCaptureMode(yFromBottom: Float = 0.0) {
+        LOG("Deactivating capture mode - switching back to macOS, yFromBottom=\(yFromBottom)")
         mode = .monitoring
 
         // Reconnect cursor to mouse movement
@@ -230,12 +234,20 @@ class SwitchController {
         // Show cursor
         CGDisplayShowCursor(CGMainDisplayID())
 
-        // Move cursor away from edge to prevent immediate re-trigger
+        // Position cursor based on yFromBottom from Haiku (bottom-aligned monitors)
         if let screen = NSScreen.main {
             let frame = screen.frame
-            // Move cursor 100 pixels away from the switch edge
+            // Move cursor 100 pixels away from the right edge to prevent immediate re-trigger
             let newX = frame.maxX - 100
-            let newY = frame.midY
+
+            // Calculate Y position from yFromBottom
+            // macOS uses bottom-left origin, so yFromBottom maps directly to Y coordinate
+            var newY = CGFloat(yFromBottom) + frame.minY
+            // Clamp to screen bounds
+            if newY < frame.minY { newY = frame.minY }
+            if newY > frame.maxY - 1 { newY = frame.maxY - 1 }
+
+            LOG("Positioning cursor at x=\(newX), y=\(newY) (yFromBottom=\(yFromBottom))")
             CGWarpMouseCursorPosition(CGPoint(x: newX, y: newY))
         }
 

@@ -223,17 +223,25 @@ void InputInjector::SetActive(bool active, float yFromBottom)
             // Use yFromBottom for smooth vertical transition (bottom-aligned monitors)
             BScreen screen;
             BRect frame = screen.Frame();
+            float screenHeight = frame.Height() + 1;  // BRect Height() returns h-1
             float startX = 50.0f;  // 50 pixels from left edge
+
             // Haiku Y is top-down, so convert from bottom-up:
-            // Haiku Y = screenHeight - yFromBottom
-            float startY = frame.Height() - yFromBottom;
-            // Clamp to screen bounds
+            // Haiku Y = (screenHeight - 1) - yFromBottom
+            // But we also need to clamp yFromBottom to our screen height first
+            if (yFromBottom >= screenHeight) {
+                yFromBottom = screenHeight - 1;  // Clamp to top
+            }
+            float startY = (screenHeight - 1) - yFromBottom;
+
+            // Clamp to screen bounds (shouldn't be needed but safety)
             if (startY < 0) startY = 0;
-            if (startY > frame.Height()) startY = frame.Height();
+            if (startY > screenHeight - 1) startY = screenHeight - 1;
+
             fMousePosition.Set(startX, startY);
             set_mouse_position((int32)fMousePosition.x, (int32)fMousePosition.y);
-            LOG("Mouse positioned near left edge: (%.0f, %.0f) yFromBottom=%.0f",
-                fMousePosition.x, fMousePosition.y, yFromBottom);
+            LOG("Mouse positioned near left edge: (%.0f, %.0f) yFromBottom=%.0f screenHeight=%.0f",
+                fMousePosition.x, fMousePosition.y, yFromBottom, screenHeight);
 
             // Reset edge detection state
             fAtLeftEdge = false;
@@ -367,7 +375,12 @@ void InputInjector::InjectMouseMove(float x, float y, bool relative)
             bigtime_t dwellTime = system_time() - fEdgeDwellStart;
             if (dwellTime >= kDwellTime && fNetworkServer != nullptr) {
                 LOG("Left edge dwell complete - switching to macOS");
-                fNetworkServer->SendControlSwitch(1);  // 1 = toMac
+                // Calculate Y from bottom for macOS
+                BScreen screen;
+                BRect frame = screen.Frame();
+                float screenHeight = frame.Height() + 1;
+                float yFromBottom = (screenHeight - 1) - fMousePosition.y;
+                fNetworkServer->SendControlSwitch(1, yFromBottom);  // 1 = toMac
                 fAtLeftEdge = false;
                 fActive = false;
             }

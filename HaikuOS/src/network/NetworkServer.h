@@ -17,7 +17,7 @@ public:
     bool IsRunning() const { return fRunning; }
     bool HasClient() const { return fClientSocket >= 0; }
 
-    void SendControlSwitch(uint8 direction);  // 0=toHaiku, 1=toMac
+    void SendControlSwitch(uint8 direction, float yFromBottom = 0.0f);  // 0=toHaiku, 1=toMac
     void SendScreenInfo();
 
     // Screen dimensions

@@ -409,12 +409,12 @@ void NetworkServer::SendScreenInfo()
     send(fClientSocket, buffer, sizeof(buffer), 0);
 }
 
-void NetworkServer::SendControlSwitch(uint8 direction)
+void NetworkServer::SendControlSwitch(uint8 direction, float yFromBottom)
 {
     if (fClientSocket < 0)
         return;
 
-    LOG("Sending CONTROL_SWITCH direction=%d", direction);
+    LOG("Sending CONTROL_SWITCH direction=%d yFromBottom=%.0f", direction, yFromBottom);
 
     uint8 buffer[sizeof(ProtocolHeader) + sizeof(ControlSwitchPayload)];
     ProtocolHeader* header = (ProtocolHeader*)buffer;
@@ -426,6 +426,7 @@ void NetworkServer::SendControlSwitch(uint8 direction)
     header->length = sizeof(ControlSwitchPayload);
 
     payload->direction = direction;
+    payload->yFromBottom = yFromBottom;
 
     send(fClientSocket, buffer, sizeof(buffer), 0);
 }
