@@ -16,7 +16,12 @@ class EventCapture {
     private init() {}
 
     func startCapture() -> Bool {
-        guard !isRunning else { return true }
+        guard !isRunning else {
+            LOG("Event capture already running")
+            return true
+        }
+
+        LOG("Starting event capture...")
 
         // Build event mask in parts to help the compiler
         var eventMask: CGEventMask = 0
@@ -43,7 +48,7 @@ class EventCapture {
             callback: eventCallback,
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else {
-            print("Failed to create event tap. Check Accessibility permissions.")
+            LOG("Failed to create event tap. Check Accessibility permissions.")
             return false
         }
 
@@ -54,9 +59,11 @@ class EventCapture {
             CFRunLoopAddSource(CFRunLoopGetCurrent(), source, .commonModes)
             CGEvent.tapEnable(tap: tap, enable: true)
             isRunning = true
+            LOG("Event capture started successfully")
             return true
         }
 
+        LOG("Failed to create run loop source")
         return false
     }
 

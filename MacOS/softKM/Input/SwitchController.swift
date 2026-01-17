@@ -155,8 +155,12 @@ class SwitchController {
     }
 
     private func activateCaptureMode() {
-        guard connectionManager.isConnected else { return }
+        guard connectionManager.isConnected else {
+            LOG("Cannot activate capture mode - not connected")
+            return
+        }
 
+        LOG("Activating capture mode - switching to Haiku")
         mode = .capturing
         lastMousePosition = NSEvent.mouseLocation
 
@@ -176,6 +180,7 @@ class SwitchController {
     }
 
     private func deactivateCaptureMode() {
+        LOG("Deactivating capture mode - switching back to macOS")
         mode = .monitoring
 
         // Show and reconnect cursor
