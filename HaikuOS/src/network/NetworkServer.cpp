@@ -359,6 +359,17 @@ void NetworkServer::ProcessMessage(const uint8* data, size_t length)
             break;
         }
 
+        case EVENT_SETTINGS_SYNC:
+        {
+            if (header->length >= sizeof(SettingsSyncPayload)) {
+                const SettingsSyncPayload* settingsPayload = (const SettingsSyncPayload*)payload;
+                float dwellTime = settingsPayload->edgeDwellTime;
+                LOG("Settings sync: edgeDwellTime=%.2fs", dwellTime);
+                fInputInjector->SetDwellTime(dwellTime);
+            }
+            break;
+        }
+
         case EVENT_HEARTBEAT:
             SendHeartbeatAck();
             break;

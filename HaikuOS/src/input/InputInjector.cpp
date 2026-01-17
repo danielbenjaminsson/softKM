@@ -152,6 +152,7 @@ InputInjector::InputInjector()
       fAddonPort(-1),
       fNetworkServer(nullptr),
       fEdgeDwellStart(0),
+      fDwellTime(300000),  // default 300ms
       fAtLeftEdge(false)
 {
     // Initialize mouse position to center of screen
@@ -362,18 +363,17 @@ void InputInjector::InjectMouseMove(float x, float y, bool relative)
 
     // Edge detection for switching back to macOS
     const float kEdgeThreshold = 5.0f;
-    const bigtime_t kDwellTime = 300000;  // 300ms in microseconds
 
     if (fMousePosition.x <= kEdgeThreshold) {
         if (!fAtLeftEdge) {
             // Just entered left edge
             fAtLeftEdge = true;
             fEdgeDwellStart = system_time();
-            LOG("Entered left edge - starting dwell timer");
+            LOG("Entered left edge - starting dwell timer (%.1fs)", fDwellTime / 1000000.0f);
         } else {
             // Still at left edge - check dwell time
             bigtime_t dwellTime = system_time() - fEdgeDwellStart;
-            if (dwellTime >= kDwellTime && fNetworkServer != nullptr) {
+            if (dwellTime >= fDwellTime && fNetworkServer != nullptr) {
                 LOG("Left edge dwell complete - switching to macOS");
                 // Calculate Y from bottom for macOS
                 BScreen screen;

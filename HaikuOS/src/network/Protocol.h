@@ -17,6 +17,7 @@ enum EventType {
     EVENT_MOUSE_WHEEL   = 0x06,
     EVENT_CONTROL_SWITCH = 0x10,
     EVENT_SCREEN_INFO   = 0x11,
+    EVENT_SETTINGS_SYNC = 0x12,
     EVENT_HEARTBEAT     = 0xF0,
     EVENT_HEARTBEAT_ACK = 0xF1
 };
@@ -62,6 +63,10 @@ struct ControlSwitchPayload {
 struct ScreenInfoPayload {
     float   width;
     float   height;
+} __attribute__((packed));
+
+struct SettingsSyncPayload {
+    float   edgeDwellTime;  // dwell time in seconds
 } __attribute__((packed));
 
 // Modifier key mapping (macOS -> Haiku)

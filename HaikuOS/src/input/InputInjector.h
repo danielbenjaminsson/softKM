@@ -28,6 +28,7 @@ public:
     bool IsActive() const { return fActive; }
 
     void SetNetworkServer(NetworkServer* server) { fNetworkServer = server; }
+    void SetDwellTime(float seconds) { fDwellTime = (bigtime_t)(seconds * 1000000); }
 
 private:
     uint32 TranslateKeyCode(uint32 macKeyCode);
@@ -42,6 +43,7 @@ private:
     port_id fAddonPort;
     NetworkServer* fNetworkServer;
     bigtime_t fEdgeDwellStart;
+    bigtime_t fDwellTime;  // configurable dwell time in microseconds
     bool fAtLeftEdge;
 };
 

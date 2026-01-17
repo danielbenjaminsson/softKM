@@ -56,14 +56,6 @@ struct StatusBarView: View {
 
             Divider()
 
-            // Quick access to edge dwell time
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Switch Delay: \(settings.edgeDwellTime, specifier: "%.1f")s")
-                    .font(.caption)
-                Slider(value: $settings.edgeDwellTime, in: 0.1...1.0, step: 0.1)
-            }
-            .padding(.horizontal)
-
             if #available(macOS 14.0, *) {
                 SettingsLink {
                     Label("Settings...", systemImage: "gear")

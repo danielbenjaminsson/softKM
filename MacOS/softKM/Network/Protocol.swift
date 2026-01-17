@@ -9,6 +9,7 @@ enum EventType: UInt8 {
     case mouseWheel = 0x06
     case controlSwitch = 0x10
     case screenInfo = 0x11
+    case settingsSync = 0x12
     case heartbeat = 0xF0
     case heartbeatAck = 0xF1
 }
@@ -22,6 +23,7 @@ enum InputEvent {
     case mouseWheel(deltaX: Float, deltaY: Float)
     case controlSwitch(toHaiku: Bool, yFromBottom: Float)
     case screenInfo(width: Float, height: Float)
+    case settingsSync(edgeDwellTime: Float)  // dwell time in seconds
     case heartbeat
     case heartbeatAck
 
@@ -35,6 +37,7 @@ enum InputEvent {
         case .mouseWheel: return .mouseWheel
         case .controlSwitch: return .controlSwitch
         case .screenInfo: return .screenInfo
+        case .settingsSync: return .settingsSync
         case .heartbeat: return .heartbeat
         case .heartbeatAck: return .heartbeatAck
         }
@@ -103,6 +106,9 @@ struct Protocol {
         case .screenInfo(let width, let height):
             appendFloat(&payload, width)
             appendFloat(&payload, height)
+
+        case .settingsSync(let edgeDwellTime):
+            appendFloat(&payload, edgeDwellTime)
 
         case .heartbeat, .heartbeatAck:
             break

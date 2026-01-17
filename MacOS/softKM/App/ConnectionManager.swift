@@ -39,6 +39,7 @@ class ConnectionManager: ObservableObject {
     private init() {
         networkClient = NetworkClient()
         setupBindings()
+        observeSettings()
     }
 
     private func setupBindings() {
@@ -50,10 +51,22 @@ class ConnectionManager: ObservableObject {
                 self.connectionState = state
                 self.isConnected = (state == .connected)
 
-                // Send screen info when newly connected
+                // Send screen info and settings when newly connected
                 if !wasConnected && self.isConnected {
                     self.sendScreenInfo()
+                    self.sendSettings()
                 }
+            }
+            .store(in: &cancellables)
+    }
+
+    private func observeSettings() {
+        // Observe edge dwell time changes and sync to Haiku
+        NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
+            .debounce(for: .milliseconds(200), scheduler: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self = self, self.isConnected else { return }
+                self.sendSettings()
             }
             .store(in: &cancellables)
     }
@@ -68,6 +81,13 @@ class ConnectionManager: ObservableObject {
             send(event: event)
             LOG("Sent screen info: \(localScreenSize.width)x\(localScreenSize.height)")
         }
+    }
+
+    private func sendSettings() {
+        let settings = SettingsManager.shared
+        let event = InputEvent.settingsSync(edgeDwellTime: Float(settings.edgeDwellTime))
+        send(event: event)
+        LOG("Sent settings sync: edgeDwellTime=\(settings.edgeDwellTime)s")
     }
 
     func setRemoteScreenSize(width: Float, height: Float) {
