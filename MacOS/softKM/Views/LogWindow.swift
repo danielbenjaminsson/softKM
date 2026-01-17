@@ -78,7 +78,7 @@ struct LogWindow: View {
                     LazyVStack(alignment: .leading, spacing: 2) {
                         ForEach(filteredEntries, id: \.0) { index, entry in
                             Text(entry)
-                                .font(.system(size: 11, design: .monospaced))
+                                .font(.system(size: 14, design: .monospaced))
                                 .textSelection(.enabled)
                                 .id(index)
                         }
