@@ -1,9 +1,14 @@
 import Cocoa
 
 class EdgeDetector {
-    var edgeThreshold: CGFloat = 5.0
-    var activationDelay: TimeInterval = 0.3
-    var activeEdge: ScreenEdge = .right
+    // Read settings directly so changes take effect immediately
+    private var settings: SettingsManager { SettingsManager.shared }
+    var edgeThreshold: CGFloat { settings.edgeThresholdAsCGFloat }
+    var activationDelay: TimeInterval { settings.edgeDwellTime }
+    var activeEdge: ScreenEdge {
+        get { settings.switchEdge }
+        set { settings.switchEdge = newValue }
+    }
 
     private var edgeEntryTime: Date?
     private var lastPosition: CGPoint = .zero

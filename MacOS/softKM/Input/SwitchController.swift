@@ -16,12 +16,6 @@ class SwitchController {
     private var connectionManager: ConnectionManager { ConnectionManager.shared }
 
     private init() {
-        // Load settings
-        let settings = SettingsManager.shared
-        edgeDetector.activeEdge = settings.switchEdge
-        edgeDetector.activationDelay = settings.edgeDwellTime
-        edgeDetector.edgeThreshold = settings.edgeThresholdAsCGFloat
-
         // Ensure cursor is visible on startup (reset any stale state)
         CGAssociateMouseAndMouseCursorPosition(1)
         CGDisplayShowCursor(CGMainDisplayID())
