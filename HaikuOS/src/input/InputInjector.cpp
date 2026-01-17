@@ -255,8 +255,9 @@ void InputInjector::InjectMouseMove(float x, float y, bool relative)
 
     UpdateMousePosition(x, y, relative);
 
-    // Use set_mouse_position to move the cursor
-    set_mouse_position((int32)fMousePosition.x, (int32)fMousePosition.y);
+    // Use BScreen to move the cursor
+    BScreen screen;
+    screen.SetMousePosition(fMousePosition);
 }
 
 void InputInjector::InjectMouseDown(uint32 buttons, float x, float y)
