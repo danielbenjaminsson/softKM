@@ -97,7 +97,7 @@ void SettingsWindow::SaveSettings()
 {
     uint16 port = (uint16)atoi(fPortControl->Text());
     if (port == 0) {
-        port = 24800;  // Default port
+        port = 31337;  // Default port (leet!)
     }
     Settings::SetPort(port);
 
