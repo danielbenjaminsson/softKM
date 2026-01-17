@@ -262,17 +262,8 @@ void InputInjector::InjectMouseMove(float x, float y, bool relative)
     LOG("MouseMove: rel=%d pos=(%.1f,%.1f)",
         relative, fMousePosition.x, fMousePosition.y);
 
-    // Send B_MOUSE_MOVED message to move the cursor
-    BMessage msg(B_MOUSE_MOVED);
-    msg.AddInt64("when", system_time());
-    msg.AddPoint("where", fMousePosition);
-    msg.AddInt32("buttons", fCurrentButtons);
-    msg.AddInt32("modifiers", fCurrentModifiers);
-
-    BMessenger inputServer("application/x-vnd.Be-input_server");
-    if (inputServer.IsValid()) {
-        inputServer.SendMessage(&msg);
-    }
+    // Use set_mouse_position to actually move the cursor
+    set_mouse_position((int32)fMousePosition.x, (int32)fMousePosition.y);
 }
 
 void InputInjector::InjectMouseDown(uint32 buttons, float x, float y)
