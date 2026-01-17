@@ -56,7 +56,7 @@ jobs:
             clean build
 
       - name: Install macOS App
-        if: (steps.changes.outputs.macos_changed != '0' || github.event_name == 'workflow_dispatch') && github.ref_name == 'main'
+        if: steps.changes.outputs.macos_changed != '0' || github.event_name == 'workflow_dispatch'
         run: |
           APP_PATH="MacOS/build/Build/Products/Release/softKM.app"
           if [ -d "$APP_PATH" ]; then
@@ -71,13 +71,13 @@ jobs:
           fi
 
       - name: Launch macOS App
-        if: (steps.changes.outputs.macos_changed != '0' || github.event_name == 'workflow_dispatch') && github.ref_name == 'main'
+        if: steps.changes.outputs.macos_changed != '0' || github.event_name == 'workflow_dispatch'
         run: |
           open /Applications/softKM.app
           echo "macOS app launched"
 
       - name: Deploy to Haiku
-        if: (steps.changes.outputs.haiku_changed != '0' || github.event_name == 'workflow_dispatch') && github.ref_name == 'main'
+        if: steps.changes.outputs.haiku_changed != '0' || github.event_name == 'workflow_dispatch'
         run: |
           ssh -o StrictHostKeyChecking=no $HAIKU_USER@$HAIKU_HOST << 'ENDSSH'
             set -e
@@ -90,9 +90,10 @@ jobs:
               exit 1
             }
 
-            echo "Pulling latest changes..."
+            echo "Pulling latest changes from ${{ github.ref_name }}..."
             git fetch origin
-            git reset --hard origin/main
+            git checkout ${{ github.ref_name }} 2>/dev/null || git checkout -b ${{ github.ref_name }} origin/${{ github.ref_name }}
+            git reset --hard origin/${{ github.ref_name }}
 
             echo "Stopping existing softKM..."
             pkill -x softKM 2>/dev/null || true
@@ -138,5 +139,4 @@ jobs:
           echo "Branch: ${{ github.ref_name }}"
           echo "MacOS changes: ${{ steps.changes.outputs.macos_changed != '0' }}"
           echo "Haiku changes: ${{ steps.changes.outputs.haiku_changed != '0' }}"
-          echo "Deploy enabled: ${{ github.ref_name == 'main' }}"
           echo "Job status: ${{ job.status }}"
