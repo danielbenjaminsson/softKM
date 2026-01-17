@@ -1,0 +1,142 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  HAIKU_HOST: taurus.microgeni.synology.me
+  HAIKU_USER: user
+  HAIKU_PROJECT_PATH: /Data/Code/Projects/softKM
+
+jobs:
+  build:
+    name: Build
+    runs-on: macos-arm64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check for changes
+        id: changes
+        run: |
+          # Check what directories have changes
+          MACOS_CHANGED=$(git diff --name-only HEAD~1 -- MacOS/ 2>/dev/null | wc -l | tr -d ' ')
+          HAIKU_CHANGED=$(git diff --name-only HEAD~1 -- HaikuOS/ 2>/dev/null | wc -l | tr -d ' ')
+
+          # If workflow file changed, build both
+          WORKFLOW_CHANGED=$(git diff --name-only HEAD~1 -- .gitea/workflows/ 2>/dev/null | wc -l | tr -d ' ')
+
+          if [ "$WORKFLOW_CHANGED" -gt 0 ]; then
+            MACOS_CHANGED=1
+            HAIKU_CHANGED=1
+          fi
+
+          echo "macos_changed=$MACOS_CHANGED" >> $GITHUB_OUTPUT
+          echo "haiku_changed=$HAIKU_CHANGED" >> $GITHUB_OUTPUT
+          echo "branch=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          echo "MacOS changes: $MACOS_CHANGED, Haiku changes: $HAIKU_CHANGED, Branch: ${{ github.ref_name }}"
+
+      - name: Build macOS App
+        if: steps.changes.outputs.macos_changed != '0' || github.event_name == 'workflow_dispatch'
+        run: |
+          cd MacOS
+          xcodebuild -project softKM.xcodeproj \
+            -scheme softKM \
+            -configuration Release \
+            -derivedDataPath build \
+            clean build
+
+      - name: Install macOS App
+        if: (steps.changes.outputs.macos_changed != '0' || github.event_name == 'workflow_dispatch') && github.ref_name == 'main'
+        run: |
+          APP_PATH="MacOS/build/Build/Products/Release/softKM.app"
+          if [ -d "$APP_PATH" ]; then
+            pkill -x softKM || true
+            sleep 1
+            rm -rf /Applications/softKM.app
+            cp -R "$APP_PATH" /Applications/
+            echo "macOS app installed to /Applications/softKM.app"
+          else
+            echo "Build output not found at $APP_PATH"
+            exit 1
+          fi
+
+      - name: Launch macOS App
+        if: (steps.changes.outputs.macos_changed != '0' || github.event_name == 'workflow_dispatch') && github.ref_name == 'main'
+        run: |
+          open /Applications/softKM.app
+          echo "macOS app launched"
+
+      - name: Deploy to Haiku
+        if: (steps.changes.outputs.haiku_changed != '0' || github.event_name == 'workflow_dispatch') && github.ref_name == 'main'
+        run: |
+          ssh -o StrictHostKeyChecking=no $HAIKU_USER@$HAIKU_HOST << 'ENDSSH'
+            set -e
+            echo "=== Deploying softKM to Haiku ==="
+
+            cd /Data/Code/Projects/softKM || {
+              echo "ERROR: Project not found at /Data/Code/Projects/softKM"
+              echo "Please clone the repo manually first:"
+              echo "  cd /Data/Code/Projects && git clone <repo-url> softKM"
+              exit 1
+            }
+
+            echo "Pulling latest changes..."
+            git fetch origin
+            git reset --hard origin/main
+
+            echo "Stopping existing softKM..."
+            pkill -x softKM 2>/dev/null || true
+            sleep 2
+
+            cd HaikuOS
+            if [ -d "objects.x86_64-release" ]; then
+              cp -r objects.x86_64-release objects.x86_64-release.backup 2>/dev/null || true
+            fi
+
+            echo "Building Haiku app..."
+            make clean
+            make
+
+            BINARY=$(find objects.* -name "softKM" -type f 2>/dev/null | head -1)
+            if [ -z "$BINARY" ]; then
+              echo "Build failed - no binary found"
+              if [ -d "objects.x86_64-release.backup" ]; then
+                mv objects.x86_64-release.backup objects.x86_64-release
+              fi
+              exit 1
+            fi
+
+            echo "Build successful: $BINARY"
+            echo "Launching softKM..."
+            nohup $BINARY > /dev/null 2>&1 &
+
+            sleep 3
+            if pgrep -x softKM > /dev/null; then
+              echo "softKM is running!"
+            else
+              echo "Warning: softKM may not have started correctly"
+            fi
+
+            rm -rf objects.x86_64-release.backup 2>/dev/null || true
+            echo "=== Deployment complete ==="
+          ENDSSH
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "=== Build Summary ==="
+          echo "Branch: ${{ github.ref_name }}"
+          echo "MacOS changes: ${{ steps.changes.outputs.macos_changed != '0' }}"
+          echo "Haiku changes: ${{ steps.changes.outputs.haiku_changed != '0' }}"
+          echo "Deploy enabled: ${{ github.ref_name == 'main' }}"
+          echo "Job status: ${{ job.status }}"
