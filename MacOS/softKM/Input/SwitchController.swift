@@ -186,15 +186,13 @@ class SwitchController {
 
         LOG("Activating capture mode - switching to Haiku")
 
-        // Calculate Y position as percentage for smooth handoff
-        var yPercent: Float = 0.5
+        // Calculate Y position from bottom for smooth handoff (bottom-aligned monitors)
+        var yFromBottom: Float = 0.0
         if let screen = NSScreen.main {
             let frame = screen.frame
             let mouseLocation = NSEvent.mouseLocation
-            // NSEvent.mouseLocation uses bottom-left origin, convert to percentage
-            yPercent = Float((mouseLocation.y - frame.minY) / frame.height)
-            // Clamp to valid range
-            yPercent = max(0.0, min(1.0, yPercent))
+            // NSEvent.mouseLocation uses bottom-left origin, so Y is already from bottom
+            yFromBottom = Float(mouseLocation.y - frame.minY)
 
             // Warp cursor to edge
             let edgePoint = CGPoint(x: frame.maxX - 1, y: mouseLocation.y)
@@ -210,9 +208,9 @@ class SwitchController {
         // Now set mode after cursor is locked
         mode = .capturing
 
-        // Notify Haiku with Y position for smooth cursor transition
-        connectionManager.sendControlSwitch(toHaiku: true, yPercent: yPercent)
-        LOG("Sending control switch with yPercent=\(yPercent)")
+        // Notify Haiku with Y position (pixels from bottom) for smooth cursor transition
+        connectionManager.sendControlSwitch(toHaiku: true, yFromBottom: yFromBottom)
+        LOG("Sending control switch with yFromBottom=\(yFromBottom)")
 
         DispatchQueue.main.async {
             ConnectionManager.shared.isCapturing = true

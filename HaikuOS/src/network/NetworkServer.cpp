@@ -5,6 +5,7 @@
 #include "../Logger.h"
 
 #include <Messenger.h>
+#include <Screen.h>
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -22,8 +23,18 @@ NetworkServer::NetworkServer(uint16 port, InputInjector* injector)
       fClientSocket(-1),
       fListenThread(-1),
       fClientThread(-1),
-      fRunning(false)
+      fRunning(false),
+      fLocalWidth(0),
+      fLocalHeight(0),
+      fRemoteWidth(0),
+      fRemoteHeight(0)
 {
+    // Get local screen size
+    BScreen screen;
+    BRect frame = screen.Frame();
+    fLocalWidth = frame.Width() + 1;
+    fLocalHeight = frame.Height() + 1;
+    LOG("Local screen size: %.0fx%.0f", fLocalWidth, fLocalHeight);
 }
 
 NetworkServer::~NetworkServer()
@@ -162,6 +173,9 @@ void NetworkServer::AcceptConnections()
         // Notify app of connection
         BMessenger messenger(be_app);
         messenger.SendMessage(MSG_CLIENT_CONNECTED);
+
+        // Send our screen info to macOS
+        SendScreenInfo();
 
         // Start client handling thread
         fClientThread = spawn_thread(ClientThreadFunc, "softKM client",
@@ -322,11 +336,25 @@ void NetworkServer::ProcessMessage(const uint8* data, size_t length)
             if (header->length >= 1) {  // At minimum, direction byte
                 const ControlSwitchPayload* switchPayload = (const ControlSwitchPayload*)payload;
                 bool toHaiku = (switchPayload->direction == 0);
-                float yPercent = 0.5f;  // Default to center
+                float yFromBottom = fLocalHeight / 2;  // Default to center
                 if (header->length >= sizeof(ControlSwitchPayload)) {
-                    yPercent = switchPayload->yPercent;
+                    yFromBottom = switchPayload->yFromBottom;
+                    // Clamp to local screen height
+                    if (yFromBottom > fLocalHeight) yFromBottom = fLocalHeight;
+                    if (yFromBottom < 0) yFromBottom = 0;
                 }
-                fInputInjector->SetActive(toHaiku, yPercent);
+                fInputInjector->SetActive(toHaiku, yFromBottom);
+            }
+            break;
+        }
+
+        case EVENT_SCREEN_INFO:
+        {
+            if (header->length >= sizeof(ScreenInfoPayload)) {
+                const ScreenInfoPayload* screenPayload = (const ScreenInfoPayload*)payload;
+                fRemoteWidth = screenPayload->width;
+                fRemoteHeight = screenPayload->height;
+                LOG("Remote (macOS) screen size: %.0fx%.0f", fRemoteWidth, fRemoteHeight);
             }
             break;
         }
@@ -357,6 +385,28 @@ void NetworkServer::SendHeartbeatAck()
     header.length = 0;
 
     send(fClientSocket, &header, sizeof(header), 0);
+}
+
+void NetworkServer::SendScreenInfo()
+{
+    if (fClientSocket < 0)
+        return;
+
+    LOG("Sending screen info: %.0fx%.0f", fLocalWidth, fLocalHeight);
+
+    uint8 buffer[sizeof(ProtocolHeader) + sizeof(ScreenInfoPayload)];
+    ProtocolHeader* header = (ProtocolHeader*)buffer;
+    ScreenInfoPayload* payload = (ScreenInfoPayload*)(buffer + sizeof(ProtocolHeader));
+
+    header->magic = PROTOCOL_MAGIC;
+    header->version = PROTOCOL_VERSION;
+    header->eventType = EVENT_SCREEN_INFO;
+    header->length = sizeof(ScreenInfoPayload);
+
+    payload->width = fLocalWidth;
+    payload->height = fLocalHeight;
+
+    send(fClientSocket, buffer, sizeof(buffer), 0);
 }
 
 void NetworkServer::SendControlSwitch(uint8 direction)

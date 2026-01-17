@@ -16,6 +16,7 @@ enum EventType {
     EVENT_MOUSE_UP      = 0x05,
     EVENT_MOUSE_WHEEL   = 0x06,
     EVENT_CONTROL_SWITCH = 0x10,
+    EVENT_SCREEN_INFO   = 0x11,
     EVENT_HEARTBEAT     = 0xF0,
     EVENT_HEARTBEAT_ACK = 0xF1
 };
@@ -55,7 +56,12 @@ struct MouseWheelPayload {
 
 struct ControlSwitchPayload {
     uint8   direction;  // 0 = toHaiku, 1 = toMac
-    float   yPercent;   // Y position as percentage (0.0-1.0) for smooth transition
+    float   yFromBottom;  // Y position in pixels from bottom for smooth transition
+} __attribute__((packed));
+
+struct ScreenInfoPayload {
+    float   width;
+    float   height;
 } __attribute__((packed));
 
 // Modifier key mapping (macOS -> Haiku)

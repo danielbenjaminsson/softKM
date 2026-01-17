@@ -211,7 +211,7 @@ InputInjector::~InputInjector()
 {
 }
 
-void InputInjector::SetActive(bool active, float yPercent)
+void InputInjector::SetActive(bool active, float yFromBottom)
 {
     if (fActive != active) {
         fActive = active;
@@ -220,20 +220,20 @@ void InputInjector::SetActive(bool active, float yPercent)
         if (active) {
             // Position mouse near left edge (where user is coming from)
             // but not too close to trigger immediate switch back (50px from edge)
-            // Use yPercent for smooth vertical transition from macOS
+            // Use yFromBottom for smooth vertical transition (bottom-aligned monitors)
             BScreen screen;
             BRect frame = screen.Frame();
             float startX = 50.0f;  // 50 pixels from left edge
-            // Note: macOS Y is bottom-up (0=bottom), Haiku Y is top-down (0=top)
-            // So we need to invert: Haiku Y = height * (1 - yPercent)
-            float startY = frame.Height() * (1.0f - yPercent);
+            // Haiku Y is top-down, so convert from bottom-up:
+            // Haiku Y = screenHeight - yFromBottom
+            float startY = frame.Height() - yFromBottom;
             // Clamp to screen bounds
             if (startY < 0) startY = 0;
             if (startY > frame.Height()) startY = frame.Height();
             fMousePosition.Set(startX, startY);
             set_mouse_position((int32)fMousePosition.x, (int32)fMousePosition.y);
-            LOG("Mouse positioned near left edge: (%.0f, %.0f) yPercent=%.2f",
-                fMousePosition.x, fMousePosition.y, yPercent);
+            LOG("Mouse positioned near left edge: (%.0f, %.0f) yFromBottom=%.0f",
+                fMousePosition.x, fMousePosition.y, yFromBottom);
 
             // Reset edge detection state
             fAtLeftEdge = false;

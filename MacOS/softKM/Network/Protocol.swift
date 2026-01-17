@@ -8,6 +8,7 @@ enum EventType: UInt8 {
     case mouseUp = 0x05
     case mouseWheel = 0x06
     case controlSwitch = 0x10
+    case screenInfo = 0x11
     case heartbeat = 0xF0
     case heartbeatAck = 0xF1
 }
@@ -19,7 +20,8 @@ enum InputEvent {
     case mouseDown(buttons: UInt32, x: Float, y: Float)
     case mouseUp(buttons: UInt32, x: Float, y: Float)
     case mouseWheel(deltaX: Float, deltaY: Float)
-    case controlSwitch(toHaiku: Bool, yPercent: Float)
+    case controlSwitch(toHaiku: Bool, yFromBottom: Float)
+    case screenInfo(width: Float, height: Float)
     case heartbeat
     case heartbeatAck
 
@@ -32,6 +34,7 @@ enum InputEvent {
         case .mouseUp: return .mouseUp
         case .mouseWheel: return .mouseWheel
         case .controlSwitch: return .controlSwitch
+        case .screenInfo: return .screenInfo
         case .heartbeat: return .heartbeat
         case .heartbeatAck: return .heartbeatAck
         }
@@ -93,9 +96,13 @@ struct Protocol {
             appendFloat(&payload, deltaX)
             appendFloat(&payload, deltaY)
 
-        case .controlSwitch(let toHaiku, let yPercent):
+        case .controlSwitch(let toHaiku, let yFromBottom):
             payload.append(toHaiku ? 0 : 1)
-            appendFloat(&payload, yPercent)
+            appendFloat(&payload, yFromBottom)
+
+        case .screenInfo(let width, let height):
+            appendFloat(&payload, width)
+            appendFloat(&payload, height)
 
         case .heartbeat, .heartbeatAck:
             break

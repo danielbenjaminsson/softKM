@@ -24,7 +24,7 @@ public:
 
     void ProcessEvent(BMessage* message);
 
-    void SetActive(bool active, float yPercent = 0.5f);
+    void SetActive(bool active, float yFromBottom = 0.0f);
     bool IsActive() const { return fActive; }
 
     void SetNetworkServer(NetworkServer* server) { fNetworkServer = server; }

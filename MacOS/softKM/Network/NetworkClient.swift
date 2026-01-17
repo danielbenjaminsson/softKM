@@ -160,6 +160,19 @@ class NetworkClient: ObservableObject {
                     NotificationCenter.default.post(name: .switchToMac, object: nil)
                 }
             }
+        } else if eventType == EventType.screenInfo.rawValue {
+            // Haiku is sending its screen dimensions
+            guard data.count >= 16 else {  // header(8) + width(4) + height(4)
+                LOG("SCREEN_INFO message too short")
+                return
+            }
+            let width = data.subdata(in: 8..<12).withUnsafeBytes { $0.load(as: Float.self) }
+            let height = data.subdata(in: 12..<16).withUnsafeBytes { $0.load(as: Float.self) }
+            LOG("Received remote screen info: \(width)x\(height)")
+
+            DispatchQueue.main.async {
+                ConnectionManager.shared.setRemoteScreenSize(width: width, height: height)
+            }
         } else {
             LOG("Received event type: 0x\(String(format: "%02X", eventType))")
         }
