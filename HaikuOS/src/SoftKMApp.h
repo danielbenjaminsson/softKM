@@ -1,0 +1,49 @@
+#ifndef SOFTKM_APP_H
+#define SOFTKM_APP_H
+
+#include <Application.h>
+#include <Messenger.h>
+
+class NetworkServer;
+class InputInjector;
+class SettingsWindow;
+
+// Application messages
+enum {
+    MSG_SHOW_SETTINGS = 'sset',
+    MSG_CONNECTION_STATUS = 'csts',
+    MSG_CLIENT_CONNECTED = 'ccon',
+    MSG_CLIENT_DISCONNECTED = 'cdis',
+    MSG_INPUT_EVENT = 'inev',
+    MSG_INSTALL_REPLICANT = 'irep',
+    MSG_QUIT_REQUESTED = 'quit'
+};
+
+class SoftKMApp : public BApplication {
+public:
+    SoftKMApp();
+    virtual ~SoftKMApp();
+
+    virtual void ReadyToRun() override;
+    virtual void MessageReceived(BMessage* message) override;
+    virtual bool QuitRequested() override;
+
+    bool IsClientConnected() const { return fClientConnected; }
+    void SetClientConnected(bool connected);
+
+    static SoftKMApp* GetInstance() { return sInstance; }
+
+private:
+    void InstallDeskbarReplicant();
+    void RemoveDeskbarReplicant();
+    void ShowSettingsWindow();
+
+    NetworkServer* fNetworkServer;
+    InputInjector* fInputInjector;
+    SettingsWindow* fSettingsWindow;
+    bool fClientConnected;
+
+    static SoftKMApp* sInstance;
+};
+
+#endif // SOFTKM_APP_H
