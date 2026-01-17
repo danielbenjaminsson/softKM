@@ -19,7 +19,7 @@ enum InputEvent {
     case mouseDown(buttons: UInt32, x: Float, y: Float)
     case mouseUp(buttons: UInt32, x: Float, y: Float)
     case mouseWheel(deltaX: Float, deltaY: Float)
-    case controlSwitch(toHaiku: Bool)
+    case controlSwitch(toHaiku: Bool, yPercent: Float)
     case heartbeat
     case heartbeatAck
 
@@ -93,8 +93,9 @@ struct Protocol {
             appendFloat(&payload, deltaX)
             appendFloat(&payload, deltaY)
 
-        case .controlSwitch(let toHaiku):
+        case .controlSwitch(let toHaiku, let yPercent):
             payload.append(toHaiku ? 0 : 1)
+            appendFloat(&payload, yPercent)
 
         case .heartbeat, .heartbeatAck:
             break

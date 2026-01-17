@@ -319,9 +319,14 @@ void NetworkServer::ProcessMessage(const uint8* data, size_t length)
 
         case EVENT_CONTROL_SWITCH:
         {
-            if (header->length >= sizeof(ControlSwitchPayload)) {
+            if (header->length >= 1) {  // At minimum, direction byte
                 const ControlSwitchPayload* switchPayload = (const ControlSwitchPayload*)payload;
-                fInputInjector->SetActive(switchPayload->direction == 0);  // 0 = toHaiku
+                bool toHaiku = (switchPayload->direction == 0);
+                float yPercent = 0.5f;  // Default to center
+                if (header->length >= sizeof(ControlSwitchPayload)) {
+                    yPercent = switchPayload->yPercent;
+                }
+                fInputInjector->SetActive(toHaiku, yPercent);
             }
             break;
         }

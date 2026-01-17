@@ -55,6 +55,7 @@ struct MouseWheelPayload {
 
 struct ControlSwitchPayload {
     uint8   direction;  // 0 = toHaiku, 1 = toMac
+    float   yPercent;   // Y position as percentage (0.0-1.0) for smooth transition
 } __attribute__((packed));
 
 // Modifier key mapping (macOS -> Haiku)

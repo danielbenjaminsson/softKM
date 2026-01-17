@@ -186,10 +186,18 @@ class SwitchController {
 
         LOG("Activating capture mode - switching to Haiku")
 
-        // Warp cursor to edge and lock it there
+        // Calculate Y position as percentage for smooth handoff
+        var yPercent: Float = 0.5
         if let screen = NSScreen.main {
             let frame = screen.frame
-            let edgePoint = CGPoint(x: frame.maxX - 1, y: frame.midY)
+            let mouseLocation = NSEvent.mouseLocation
+            // NSEvent.mouseLocation uses bottom-left origin, convert to percentage
+            yPercent = Float((mouseLocation.y - frame.minY) / frame.height)
+            // Clamp to valid range
+            yPercent = max(0.0, min(1.0, yPercent))
+
+            // Warp cursor to edge
+            let edgePoint = CGPoint(x: frame.maxX - 1, y: mouseLocation.y)
             CGWarpMouseCursorPosition(edgePoint)
         }
 
@@ -202,8 +210,9 @@ class SwitchController {
         // Now set mode after cursor is locked
         mode = .capturing
 
-        // Notify Haiku
-        connectionManager.sendControlSwitch(toHaiku: true)
+        // Notify Haiku with Y position for smooth cursor transition
+        connectionManager.sendControlSwitch(toHaiku: true, yPercent: yPercent)
+        LOG("Sending control switch with yPercent=\(yPercent)")
 
         DispatchQueue.main.async {
             ConnectionManager.shared.isCapturing = true

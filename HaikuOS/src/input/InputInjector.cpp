@@ -211,19 +211,29 @@ InputInjector::~InputInjector()
 {
 }
 
-void InputInjector::SetActive(bool active)
+void InputInjector::SetActive(bool active, float yPercent)
 {
     if (fActive != active) {
         fActive = active;
         LOG("Input injection %s", active ? "ACTIVATED" : "DEACTIVATED");
 
         if (active) {
-            // Reset mouse position to center of screen to prevent immediate edge trigger
+            // Position mouse near left edge (where user is coming from)
+            // but not too close to trigger immediate switch back (50px from edge)
+            // Use yPercent for smooth vertical transition from macOS
             BScreen screen;
             BRect frame = screen.Frame();
-            fMousePosition.Set(frame.Width() / 2, frame.Height() / 2);
+            float startX = 50.0f;  // 50 pixels from left edge
+            // Note: macOS Y is bottom-up (0=bottom), Haiku Y is top-down (0=top)
+            // So we need to invert: Haiku Y = height * (1 - yPercent)
+            float startY = frame.Height() * (1.0f - yPercent);
+            // Clamp to screen bounds
+            if (startY < 0) startY = 0;
+            if (startY > frame.Height()) startY = frame.Height();
+            fMousePosition.Set(startX, startY);
             set_mouse_position((int32)fMousePosition.x, (int32)fMousePosition.y);
-            LOG("Reset mouse to center: (%.0f, %.0f)", fMousePosition.x, fMousePosition.y);
+            LOG("Mouse positioned near left edge: (%.0f, %.0f) yPercent=%.2f",
+                fMousePosition.x, fMousePosition.y, yPercent);
 
             // Reset edge detection state
             fAtLeftEdge = false;
