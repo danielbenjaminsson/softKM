@@ -231,6 +231,26 @@ void SoftKMKeyboard::_ProcessMessage(BMessage* msg)
 
     if (event != NULL) {
         EnqueueMessage(event);
+
+        // For modifier keys, also send B_MODIFIERS_CHANGED
+        int32 key = msg->GetInt32("key", 0);
+        int32 modifiers = msg->GetInt32("modifiers", 0);
+
+        // Check if this is a modifier key (Alt, Control, Shift, Option/Win)
+        bool isModifierKey = (key == 0x4b || key == 0x56 ||  // Shift
+                              key == 0x5c || key == 0x60 ||  // Control
+                              key == 0x5d || key == 0x5f ||  // Alt (Command)
+                              key == 0x66 || key == 0x67 ||  // Win (Option)
+                              key == 0x3b);                   // Caps Lock
+
+        if (isModifierKey) {
+            BMessage* modMsg = new BMessage(B_MODIFIERS_CHANGED);
+            modMsg->AddInt64("when", system_time());
+            modMsg->AddInt32("modifiers", modifiers);
+            modMsg->AddInt32("be:old_modifiers", 0);  // We don't track old state
+            fprintf(stderr, "SoftKMKeyboard: MODIFIERS_CHANGED mods=0x%02x\n", modifiers);
+            EnqueueMessage(modMsg);
+        }
     }
 }
 
