@@ -16,8 +16,6 @@ resource app_version {
 
 resource app_flags B_SINGLE_LAUNCH;
 
-resource(1, "BEOS:APP_SIG") #'MIMS' "application/x-vnd.softKM";
-
 resource file_types message {
     "types" = "application/x-vnd.softKM"
 };
