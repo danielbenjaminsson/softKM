@@ -81,11 +81,12 @@ public:
         // Print to stdout
         printf("%s\n", logEntry);
 
-        // Send to log window if available
+        // Send to log window if available (async to avoid blocking network thread)
         if (fLogWindowMessenger.IsValid()) {
             BMessage msg('LWae');  // LOG_WINDOW_ADD_ENTRY
             msg.AddString("entry", logEntry);
-            fLogWindowMessenger.SendMessage(&msg);
+            // Use SendMessage with timeout=0 for non-blocking send
+            fLogWindowMessenger.SendMessage(&msg, (BHandler*)NULL, 0);
         }
     }
 

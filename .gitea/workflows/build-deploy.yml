@@ -124,6 +124,27 @@ jobs:
             fi
 
             echo "Build successful: $BINARY"
+
+            echo "Building input_server addon..."
+            cd addon
+            make clean
+            make
+
+            echo "Installing addon..."
+            mkdir -p ~/config/non-packaged/add-ons/input_server/devices
+            ADDON=$(find objects.* -name "SoftKMDevice" -type f 2>/dev/null | head -1)
+            if [ -n "$ADDON" ]; then
+              cp "$ADDON" ~/config/non-packaged/add-ons/input_server/devices/
+              echo "Addon installed: $ADDON"
+
+              echo "Restarting input_server..."
+              /system/servers/input_server -q &
+              sleep 2
+            else
+              echo "Warning: Addon build failed"
+            fi
+            cd ..
+
             echo "Launching softKM..."
             nohup $BINARY > /dev/null 2>&1 &
 
