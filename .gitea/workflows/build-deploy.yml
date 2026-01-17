@@ -63,7 +63,10 @@ jobs:
             pkill -x softKM || true
             sleep 1
             rm -rf /Applications/softKM.app
-            cp -R "$APP_PATH" /Applications/
+            # Use ditto to preserve code signature and extended attributes
+            ditto "$APP_PATH" /Applications/softKM.app
+            # Verify signature after copy
+            codesign -v /Applications/softKM.app && echo "Code signature valid" || echo "WARNING: Code signature invalid"
             echo "macOS app installed to /Applications/softKM.app"
           else
             echo "Build output not found at $APP_PATH"
