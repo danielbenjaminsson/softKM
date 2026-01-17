@@ -7,18 +7,18 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A1000001 /* softKMApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000001; };
-		A1000002 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000002; };
-		A1000003 /* ConnectionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000003; };
-		A1000004 /* StatusBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000004; };
-		A1000005 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000005; };
-		A1000006 /* SettingsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000006; };
-		A1000007 /* Protocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000007; };
-		A1000008 /* NetworkClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000008; };
-		A1000009 /* EventCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000009; };
-		A1000010 /* EdgeDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000010; };
-		A1000011 /* SwitchController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000011; };
-		A1000012 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000014; };
+		A1000001 /* softKMApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000001 /* softKMApp.swift */; };
+		A1000002 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000002 /* AppDelegate.swift */; };
+		A1000003 /* ConnectionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000003 /* ConnectionManager.swift */; };
+		A1000004 /* StatusBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000004 /* StatusBarView.swift */; };
+		A1000005 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000005 /* SettingsView.swift */; };
+		A1000006 /* SettingsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000006 /* SettingsManager.swift */; };
+		A1000007 /* Protocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000007 /* Protocol.swift */; };
+		A1000008 /* NetworkClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000008 /* NetworkClient.swift */; };
+		A1000009 /* EventCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000009 /* EventCapture.swift */; };
+		A1000010 /* EdgeDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000010 /* EdgeDetector.swift */; };
+		A1000011 /* SwitchController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000011 /* SwitchController.swift */; };
+		A1000012 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000014 /* Logger.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -348,6 +348,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = Z5DSCKN2W6;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = softKM/Info.plist;
 				INFOPLIST_KEY_LSUIElement = YES;
@@ -373,6 +374,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = Z5DSCKN2W6;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = softKM/Info.plist;
 				INFOPLIST_KEY_LSUIElement = YES;
