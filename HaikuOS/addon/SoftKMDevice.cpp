@@ -77,16 +77,18 @@ status_t SoftKMDevice::InitCheck()
 
     fprintf(stderr, "SoftKMDevice: Created port %ld\n", fPort);
 
-    // Register ourselves as a device so Start() gets called
-    input_device_ref* devices[2];
-    input_device_ref softkmDevice = { "softKM Virtual Input",
-                                       B_POINTING_DEVICE,
-                                       (void*)this };
-    devices[0] = &softkmDevice;
-    devices[1] = NULL;
+    // Start the watcher thread immediately (we're a virtual device, no hardware to wait for)
+    fRunning = true;
+    fWatcherThread = spawn_thread(_WatcherThread, "softKM_watcher",
+        B_REAL_TIME_PRIORITY, this);
 
-    RegisterDevices(devices);
-    fprintf(stderr, "SoftKMDevice: Registered device\n");
+    if (fWatcherThread >= 0) {
+        resume_thread(fWatcherThread);
+        fprintf(stderr, "SoftKMDevice: Watcher thread started\n");
+    } else {
+        fprintf(stderr, "SoftKMDevice: Failed to start watcher thread\n");
+        fRunning = false;
+    }
 
     return B_OK;
 }
