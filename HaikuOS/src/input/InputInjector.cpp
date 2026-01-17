@@ -175,23 +175,35 @@ port_id InputInjector::FindAddonPort()
 
 bool InputInjector::SendToAddon(BMessage* msg)
 {
-    if (fAddonPort < 0) {
-        // Try to find port again (addon might have started later)
+    // Always verify port is still valid
+    port_info info;
+    if (fAddonPort < 0 || get_port_info(fAddonPort, &info) != B_OK) {
+        // Try to find port again
         fAddonPort = FindAddonPort();
-        if (fAddonPort < 0)
+        if (fAddonPort < 0) {
+            LOG("Addon port not found - is input_server addon loaded?");
             return false;
+        }
+        LOG("Re-acquired addon port: %ld", fAddonPort);
     }
 
     ssize_t flatSize = msg->FlattenedSize();
     char* buffer = new char[flatSize];
 
     if (msg->Flatten(buffer, flatSize) == B_OK) {
-        status_t result = write_port(fAddonPort, msg->what, buffer, flatSize);
+        status_t result = write_port_etc(fAddonPort, msg->what, buffer, flatSize,
+                                          B_RELATIVE_TIMEOUT, 100000); // 100ms timeout
         delete[] buffer;
-        return result == B_OK;
+        if (result != B_OK) {
+            LOG("write_port failed: %s", strerror(result));
+            fAddonPort = -1;  // Force re-acquisition next time
+            return false;
+        }
+        return true;
     }
 
     delete[] buffer;
+    LOG("Failed to flatten message");
     return false;
 }
 
@@ -374,7 +386,9 @@ void InputInjector::InjectMouseDown(uint32 buttons, float x, float y)
     msg.AddInt32("buttons", fCurrentButtons);
     msg.AddInt32("clicks", 1);
 
-    if (!SendToAddon(&msg)) {
+    if (SendToAddon(&msg)) {
+        LOG("MouseDown sent to addon successfully");
+    } else {
         LOG("Failed to send MouseDown to addon");
     }
 }
