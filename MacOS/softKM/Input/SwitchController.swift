@@ -241,13 +241,14 @@ class SwitchController {
             let newX = frame.maxX - 100
 
             // Calculate Y position from yFromBottom
-            // macOS uses bottom-left origin, so yFromBottom maps directly to Y coordinate
-            var newY = CGFloat(yFromBottom) + frame.minY
-            // Clamp to screen bounds
-            if newY < frame.minY { newY = frame.minY }
-            if newY > frame.maxY - 1 { newY = frame.maxY - 1 }
+            // CGWarpMouseCursorPosition uses Quartz coordinates (origin top-left, Y down)
+            // yFromBottom is distance from bottom, so: quartzY = screenHeight - yFromBottom
+            var newY = frame.height - CGFloat(yFromBottom)
+            // Clamp to screen bounds (0 = top, height-1 = bottom in Quartz coords)
+            if newY < 0 { newY = 0 }
+            if newY > frame.height - 1 { newY = frame.height - 1 }
 
-            LOG("Positioning cursor at x=\(newX), y=\(newY) (yFromBottom=\(yFromBottom))")
+            LOG("Positioning cursor at x=\(newX), y=\(newY) (yFromBottom=\(yFromBottom), screenHeight=\(frame.height))")
             CGWarpMouseCursorPosition(CGPoint(x: newX, y: newY))
         }
 
