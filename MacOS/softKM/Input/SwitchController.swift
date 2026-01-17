@@ -12,6 +12,7 @@ class SwitchController {
     private(set) var mode: Mode = .monitoring
     private let edgeDetector = EdgeDetector()
     private var lastMousePosition: CGPoint = .zero
+    private var lockedCursorPosition: CGPoint = .zero  // Position to lock cursor during capture
     private var connectionManager: ConnectionManager { ConnectionManager.shared }
 
     private init() {
@@ -97,7 +98,7 @@ class SwitchController {
             return Unmanaged.passUnretained(event)
 
         case .capturing:
-            // Use raw device deltas from the event (works correctly with CGAssociateMouseAndMouseCursorPosition(0))
+            // Use raw device deltas from the event
             let deltaX = Float(event.getDoubleValueField(.mouseEventDeltaX))
             let deltaY = Float(event.getDoubleValueField(.mouseEventDeltaY))
 
@@ -105,6 +106,9 @@ class SwitchController {
                 LOG("Mouse delta: (\(deltaX), \(deltaY))")
                 connectionManager.send(event: .mouseMove(x: deltaX, y: deltaY, relative: true))
             }
+
+            // Keep cursor locked at the edge position
+            CGWarpMouseCursorPosition(lockedCursorPosition)
 
             return nil  // Consume event
         }
@@ -198,9 +202,9 @@ class SwitchController {
             // NSEvent.mouseLocation uses bottom-left origin, so Y is already from bottom
             yFromBottom = Float(mouseLocation.y - frame.minY)
 
-            // Warp cursor to edge
-            let edgePoint = CGPoint(x: frame.maxX - 1, y: mouseLocation.y)
-            CGWarpMouseCursorPosition(edgePoint)
+            // Set and warp cursor to edge - this position will be maintained during capture
+            lockedCursorPosition = CGPoint(x: frame.maxX - 1, y: mouseLocation.y)
+            CGWarpMouseCursorPosition(lockedCursorPosition)
         }
 
         // Disconnect cursor from mouse movement (must be after warp)
@@ -241,14 +245,13 @@ class SwitchController {
             let newX = frame.maxX - 100
 
             // Calculate Y position from yFromBottom
-            // CGWarpMouseCursorPosition uses Quartz coordinates (origin top-left, Y down)
-            // yFromBottom is distance from bottom, so: quartzY = screenHeight - yFromBottom
-            var newY = frame.height - CGFloat(yFromBottom)
-            // Clamp to screen bounds (0 = top, height-1 = bottom in Quartz coords)
-            if newY < 0 { newY = 0 }
-            if newY > frame.height - 1 { newY = frame.height - 1 }
+            // Use same coordinate system as activateCaptureMode: newY = yFromBottom + frame.minY
+            var newY = CGFloat(yFromBottom) + frame.minY
+            // Clamp to screen bounds
+            if newY < frame.minY { newY = frame.minY }
+            if newY > frame.maxY - 1 { newY = frame.maxY - 1 }
 
-            LOG("Positioning cursor at x=\(newX), y=\(newY) (yFromBottom=\(yFromBottom), screenHeight=\(frame.height))")
+            LOG("Positioning cursor at x=\(newX), y=\(newY) (yFromBottom=\(yFromBottom), frame.minY=\(frame.minY), frame.maxY=\(frame.maxY))")
             CGWarpMouseCursorPosition(CGPoint(x: newX, y: newY))
         }
 
