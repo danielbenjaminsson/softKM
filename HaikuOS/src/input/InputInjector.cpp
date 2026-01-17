@@ -84,14 +84,14 @@ static const struct KeyMapping {
     { 0x31, 0x5e },  // Space
     { 0x33, 0x1e },  // Backspace
     { 0x35, 0x01 },  // Escape
-    { 0x36, 0x5d },  // Right Command -> Right Option
-    { 0x37, 0x5c },  // Left Command
+    { 0x36, 0x5f },  // Right Command -> Right Alt (B_COMMAND_KEY)
+    { 0x37, 0x5d },  // Left Command -> Left Alt (B_COMMAND_KEY)
     { 0x38, 0x4b },  // Left Shift
     { 0x39, 0x3b },  // Caps Lock
-    { 0x3A, 0x5d },  // Left Option
+    { 0x3A, 0x66 },  // Left Option -> Left Win (B_OPTION_KEY)
     { 0x3B, 0x5c },  // Left Control
     { 0x3C, 0x56 },  // Right Shift
-    { 0x3D, 0x60 },  // Right Option
+    { 0x3D, 0x67 },  // Right Option -> Right Win (B_OPTION_KEY)
     { 0x3E, 0x60 },  // Right Control
     { 0x3F, 0x68 },  // Function
 

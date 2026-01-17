@@ -71,15 +71,16 @@ struct SettingsSyncPayload {
 
 // Modifier key mapping (macOS -> Haiku)
 // macOS:  Shift=0x01, Option=0x02, Control=0x04, Fn=0x10, CapsLock=0x20, Command=0x40
-// Haiku:  B_SHIFT_KEY=0x01, B_COMMAND_KEY=0x02, B_CONTROL_KEY=0x04, B_OPTION_KEY=0x40
+// Haiku:  B_SHIFT_KEY=0x01, B_COMMAND_KEY=0x02, B_CONTROL_KEY=0x04,
+//         B_CAPS_LOCK=0x10, B_NUM_LOCK=0x40, B_OPTION_KEY=0x80
 inline uint32 MapModifiers(uint32 macModifiers)
 {
     uint32 haikuModifiers = 0;
 
     if (macModifiers & 0x01) haikuModifiers |= 0x01;  // Shift -> B_SHIFT_KEY
-    if (macModifiers & 0x02) haikuModifiers |= 0x40;  // Option -> B_OPTION_KEY
+    if (macModifiers & 0x02) haikuModifiers |= 0x80;  // Option -> B_OPTION_KEY
     if (macModifiers & 0x04) haikuModifiers |= 0x04;  // Control -> B_CONTROL_KEY
-    if (macModifiers & 0x20) haikuModifiers |= 0x20;  // CapsLock -> B_CAPS_LOCK
+    if (macModifiers & 0x20) haikuModifiers |= 0x10;  // CapsLock -> B_CAPS_LOCK
     if (macModifiers & 0x40) haikuModifiers |= 0x02;  // Command -> B_COMMAND_KEY
 
     return haikuModifiers;
