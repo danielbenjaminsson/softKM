@@ -22,7 +22,9 @@
       "Bash(# Check for accessibility messages in the log find /var/folders -name \"\"softKM.log\"\")",
       "Bash(xcodebuild:*)",
       "Bash(tccutil reset Accessibility:*)",
-      "Bash(codesign:*)"
+      "Bash(codesign:*)",
+      "Bash(sqlite3:*)",
+      "Bash(xattr:*)"
     ]
   }
 }
