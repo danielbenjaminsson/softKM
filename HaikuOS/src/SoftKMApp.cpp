@@ -1,9 +1,11 @@
 #include "SoftKMApp.h"
 #include "ui/DeskbarReplicant.h"
 #include "ui/SettingsWindow.h"
+#include "ui/LogWindow.h"
 #include "network/NetworkServer.h"
 #include "input/InputInjector.h"
 #include "settings/Settings.h"
+#include "Logger.h"
 
 #include <cstdio>  // For fprintf, stderr
 
@@ -18,12 +20,20 @@ SoftKMApp::SoftKMApp()
       fNetworkServer(nullptr),
       fInputInjector(nullptr),
       fSettingsWindow(nullptr),
+      fLogWindow(nullptr),
       fClientConnected(false)
 {
     sInstance = this;
 
     // Load settings
     Settings::Load();
+
+    // Create and show log window (for development)
+    fLogWindow = LogWindow::GetInstance();
+    fLogWindow->Show();
+
+    // Set up logger to send to log window
+    Logger::Instance().SetLogWindow(BMessenger(fLogWindow));
 
     // Create input injector
     fInputInjector = new InputInjector();
@@ -66,6 +76,10 @@ void SoftKMApp::MessageReceived(BMessage* message)
     switch (message->what) {
         case MSG_SHOW_SETTINGS:
             ShowSettingsWindow();
+            break;
+
+        case MSG_SHOW_LOG:
+            ShowLogWindow();
             break;
 
         case MSG_CLIENT_CONNECTED:
@@ -160,5 +174,18 @@ void SoftKMApp::ShowSettingsWindow()
         fSettingsWindow->Show();
     } else {
         fSettingsWindow->Activate();
+    }
+}
+
+void SoftKMApp::ShowLogWindow()
+{
+    if (fLogWindow == nullptr) {
+        fLogWindow = LogWindow::GetInstance();
+    }
+
+    if (fLogWindow->IsHidden()) {
+        fLogWindow->Show();
+    } else {
+        fLogWindow->Activate();
     }
 }

@@ -40,6 +40,12 @@ struct StatusBarView: View {
 
             Divider()
 
+            Button(action: { LogWindowController.shared.toggle() }) {
+                Label("Show Log", systemImage: "doc.text")
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal)
+
             if #available(macOS 14.0, *) {
                 SettingsLink {
                     Label("Settings...", systemImage: "gear")

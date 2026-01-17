@@ -7,10 +7,12 @@
 class NetworkServer;
 class InputInjector;
 class SettingsWindow;
+class LogWindow;
 
 // Application messages
 enum {
     MSG_SHOW_SETTINGS = 'sset',
+    MSG_SHOW_LOG = 'slog',
     MSG_CONNECTION_STATUS = 'csts',
     MSG_CLIENT_CONNECTED = 'ccon',
     MSG_CLIENT_DISCONNECTED = 'cdis',
@@ -37,10 +39,12 @@ private:
     void InstallDeskbarReplicant();
     void RemoveDeskbarReplicant();
     void ShowSettingsWindow();
+    void ShowLogWindow();
 
     NetworkServer* fNetworkServer;
     InputInjector* fInputInjector;
     SettingsWindow* fSettingsWindow;
+    LogWindow* fLogWindow;
     bool fClientConnected;
 
     static SoftKMApp* sInstance;

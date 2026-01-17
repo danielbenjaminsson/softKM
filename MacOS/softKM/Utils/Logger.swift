@@ -1,11 +1,16 @@
 import Foundation
+import Combine
 
-class Logger {
+class Logger: ObservableObject {
     static let shared = Logger()
+
+    @Published var logEntries: [String] = []
+    private let maxEntries = 1000
 
     private let logFileURL: URL
     private let fileHandle: FileHandle?
     private let dateFormatter: DateFormatter
+    private let queue = DispatchQueue(label: "com.softkm.logger")
 
     private init() {
         dateFormatter = DateFormatter()
@@ -32,16 +37,32 @@ class Logger {
     func log(_ message: String, file: String = #file, function: String = #function, line: Int = #line) {
         let timestamp = dateFormatter.string(from: Date())
         let fileName = URL(fileURLWithPath: file).lastPathComponent
-        let logMessage = "[\(timestamp)] [\(fileName):\(line)] \(message)\n"
+        let logMessage = "[\(timestamp)] [\(fileName):\(line)] \(message)"
 
         // Write to file
-        if let data = logMessage.data(using: .utf8) {
+        if let data = (logMessage + "\n").data(using: .utf8) {
             fileHandle?.write(data)
             try? fileHandle?.synchronize()
         }
 
         // Also print to console for debugging
-        print(logMessage, terminator: "")
+        print(logMessage)
+
+        // Add to observable log entries on main thread
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.logEntries.append(logMessage)
+            // Keep only the last maxEntries
+            if self.logEntries.count > self.maxEntries {
+                self.logEntries.removeFirst(self.logEntries.count - self.maxEntries)
+            }
+        }
+    }
+
+    func clear() {
+        DispatchQueue.main.async { [weak self] in
+            self?.logEntries.removeAll()
+        }
     }
 }
 

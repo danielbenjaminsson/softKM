@@ -6,6 +6,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var switchController: SwitchController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Show log window on start (for development)
+        LogWindowController.shared.show()
+
         // Request accessibility permissions
         requestAccessibilityPermission()
 

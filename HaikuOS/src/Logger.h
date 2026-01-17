@@ -2,6 +2,7 @@
 #define LOGGER_H
 
 #include <SupportDefs.h>
+#include <Messenger.h>
 #include <cstdio>
 #include <cstdarg>
 #include <ctime>
@@ -12,6 +13,10 @@ public:
     static Logger& Instance() {
         static Logger instance;
         return instance;
+    }
+
+    void SetLogWindow(BMessenger messenger) {
+        fLogWindowMessenger = messenger;
     }
 
     void OpenNextToBinary(const char* binaryPath) {
@@ -50,32 +55,38 @@ public:
     }
 
     void Log(const char* format, ...) {
-        if (!fFile) return;
-
         // Get timestamp
         time_t now = time(nullptr);
         struct tm* tm_info = localtime(&now);
         char timeStr[32];
         strftime(timeStr, sizeof(timeStr), "%H:%M:%S", tm_info);
 
-        // Write timestamp
-        fprintf(fFile, "[%s] ", timeStr);
-
-        // Write message
+        // Format message
+        char msgBuffer[2048];
         va_list args;
         va_start(args, format);
-        vfprintf(fFile, format, args);
+        vsnprintf(msgBuffer, sizeof(msgBuffer), format, args);
         va_end(args);
 
-        fprintf(fFile, "\n");
-        fflush(fFile);
+        // Create full log entry
+        char logEntry[2200];
+        snprintf(logEntry, sizeof(logEntry), "[%s] %s", timeStr, msgBuffer);
 
-        // Also print to stdout for debugging
-        printf("[%s] ", timeStr);
-        va_start(args, format);
-        vprintf(format, args);
-        va_end(args);
-        printf("\n");
+        // Write to file
+        if (fFile) {
+            fprintf(fFile, "%s\n", logEntry);
+            fflush(fFile);
+        }
+
+        // Print to stdout
+        printf("%s\n", logEntry);
+
+        // Send to log window if available
+        if (fLogWindowMessenger.IsValid()) {
+            BMessage msg('LWae');  // LOG_WINDOW_ADD_ENTRY
+            msg.AddString("entry", logEntry);
+            fLogWindowMessenger.SendMessage(&msg);
+        }
     }
 
 private:
@@ -86,6 +97,7 @@ private:
     Logger& operator=(const Logger&) = delete;
 
     FILE* fFile;
+    BMessenger fLogWindowMessenger;
 };
 
 #define LOG(fmt, ...) Logger::Instance().Log(fmt, ##__VA_ARGS__)

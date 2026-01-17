@@ -9,6 +9,7 @@ SRCS = \
 	src/SoftKMApp.cpp \
 	src/ui/DeskbarReplicant.cpp \
 	src/ui/SettingsWindow.cpp \
+	src/ui/LogWindow.cpp \
 	src/network/NetworkServer.cpp \
 	src/network/Protocol.cpp \
 	src/input/InputInjector.cpp \
