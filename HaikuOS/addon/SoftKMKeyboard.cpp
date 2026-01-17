@@ -10,12 +10,16 @@
 #include <OS.h>
 
 #include <stdio.h>
+#include <string.h>
 
 // Message codes for communication with main app
 enum {
     SOFTKM_INJECT_KEY_DOWN = 'sKdn',
     SOFTKM_INJECT_KEY_UP = 'sKup',
 };
+
+// Key state array size (128 keys = 16 bytes)
+#define KEY_STATES_SIZE 16
 
 static const char* kDeviceName = "SoftKM Keyboard";
 static const char* kPortName = "softKM_keyboard_port";
@@ -35,10 +39,12 @@ private:
     static int32 _WatcherThread(void* data);
     void _WatchPort();
     void _ProcessMessage(BMessage* msg);
+    void _SetKeyState(int32 key, bool pressed);
 
     port_id fPort;
     thread_id fWatcherThread;
     bool fRunning;
+    uint8 fKeyStates[KEY_STATES_SIZE];  // Bit array of key states
 };
 
 
@@ -48,6 +54,7 @@ SoftKMKeyboard::SoftKMKeyboard()
       fWatcherThread(-1),
       fRunning(false)
 {
+    memset(fKeyStates, 0, sizeof(fKeyStates));
 }
 
 SoftKMKeyboard::~SoftKMKeyboard()
@@ -179,6 +186,21 @@ void SoftKMKeyboard::_WatchPort()
     }
 }
 
+void SoftKMKeyboard::_SetKeyState(int32 key, bool pressed)
+{
+    if (key < 0 || key >= KEY_STATES_SIZE * 8)
+        return;
+
+    int byteIndex = key / 8;
+    int bitIndex = key % 8;
+
+    if (pressed) {
+        fKeyStates[byteIndex] |= (1 << bitIndex);
+    } else {
+        fKeyStates[byteIndex] &= ~(1 << bitIndex);
+    }
+}
+
 void SoftKMKeyboard::_ProcessMessage(BMessage* msg)
 {
     BMessage* event = NULL;
@@ -190,6 +212,9 @@ void SoftKMKeyboard::_ProcessMessage(BMessage* msg)
             int32 modifiers = msg->GetInt32("modifiers", 0);
             int32 rawChar = msg->GetInt32("raw_char", 0);
 
+            // Update key state
+            _SetKeyState(key, true);
+
             fprintf(stderr, "SoftKMKeyboard: KEY_DOWN key=0x%02x mods=0x%02x raw=0x%02x\n",
                 key, modifiers, rawChar);
 
@@ -198,15 +223,19 @@ void SoftKMKeyboard::_ProcessMessage(BMessage* msg)
             event->AddInt32("key", key);
             event->AddInt32("modifiers", modifiers);
             event->AddInt32("raw_char", rawChar);
+            event->AddInt32("key_repeat", 1);
 
             const char* bytes;
-            if (msg->FindString("bytes", &bytes) == B_OK) {
+            if (msg->FindString("bytes", &bytes) == B_OK && bytes[0] != '\0') {
                 event->AddString("bytes", bytes);
                 event->AddInt8("byte", bytes[0]);
             } else {
                 event->AddString("bytes", "");
                 event->AddInt8("byte", 0);
             }
+
+            // Add key states array - this is what makes it look like a real keyboard
+            event->AddData("states", B_UINT8_TYPE, fKeyStates, KEY_STATES_SIZE);
             break;
         }
 
@@ -214,6 +243,9 @@ void SoftKMKeyboard::_ProcessMessage(BMessage* msg)
         {
             int32 key = msg->GetInt32("key", 0);
             int32 modifiers = msg->GetInt32("modifiers", 0);
+
+            // Update key state
+            _SetKeyState(key, false);
 
             fprintf(stderr, "SoftKMKeyboard: KEY_UP key=0x%02x mods=0x%02x\n",
                 key, modifiers);
@@ -225,6 +257,9 @@ void SoftKMKeyboard::_ProcessMessage(BMessage* msg)
             event->AddInt32("raw_char", 0);
             event->AddString("bytes", "");
             event->AddInt8("byte", 0);
+
+            // Add key states array
+            event->AddData("states", B_UINT8_TYPE, fKeyStates, KEY_STATES_SIZE);
             break;
         }
     }
@@ -247,8 +282,7 @@ void SoftKMKeyboard::_ProcessMessage(BMessage* msg)
             BMessage* modMsg = new BMessage(B_MODIFIERS_CHANGED);
             modMsg->AddInt64("when", system_time());
             modMsg->AddInt32("modifiers", modifiers);
-            modMsg->AddInt32("be:old_modifiers", 0);  // We don't track old state
-            fprintf(stderr, "SoftKMKeyboard: MODIFIERS_CHANGED mods=0x%02x\n", modifiers);
+            modMsg->AddInt32("be:old_modifiers", 0);
             EnqueueMessage(modMsg);
         }
     }
