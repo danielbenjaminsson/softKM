@@ -47,8 +47,8 @@ OBJDIR := objects.$(CPU)-$(if $(DEBUGGER),debug,release)
 BUILDHOME = /boot/system/develop
 include $(BUILDHOME)/etc/makefile-engine
 
-# Installation target
-install: $(TARGET)
+# Installation target (use different name to avoid conflict)
+addon_install: $(TARGET)
 	mkdir -p ~/config/non-packaged/add-ons/input_server/devices
 	cp $(TARGET) ~/config/non-packaged/add-ons/input_server/devices/
 	@echo "Add-on installed. Restart input_server with: /system/servers/input_server -q"
