@@ -297,17 +297,13 @@ void InputInjector::InjectKeyDown(uint32 keyCode, uint32 modifiers,
     LOG("KeyDown: mac=0x%02X haiku=0x%02X mods=0x%02X",
         keyCode, haikuKey, modifiers);
 
-    BMessage msg(B_KEY_DOWN);
-    msg.AddInt64("when", system_time());
+    BMessage msg(SOFTKM_INJECT_KEY_DOWN);
     msg.AddInt32("key", haikuKey);
     msg.AddInt32("modifiers", modifiers);
 
     // Add raw character
     if (numBytes > 0 && bytes != nullptr) {
         msg.AddInt32("raw_char", (int32)(uint8)bytes[0]);
-        for (int i = 0; i < numBytes; i++) {
-            msg.AddInt8("byte", bytes[i]);
-        }
         // Add null-terminated string
         char str[16];
         size_t len = numBytes < sizeof(str) - 1 ? numBytes : sizeof(str) - 1;
@@ -319,12 +315,9 @@ void InputInjector::InjectKeyDown(uint32 keyCode, uint32 modifiers,
         msg.AddString("bytes", "");
     }
 
-    // Send to the active window via input server
-    // We use set_mouse_position as a side effect to find the window
-    // and then send key events to the app_server
-    BMessenger inputServer("application/x-vnd.Be-input_server");
-    if (inputServer.IsValid()) {
-        inputServer.SendMessage(&msg);
+    // Send through input_server add-on
+    if (!SendToAddon(&msg)) {
+        LOG("Failed to send KeyDown to addon");
     }
 }
 
@@ -336,16 +329,13 @@ void InputInjector::InjectKeyUp(uint32 keyCode, uint32 modifiers)
     uint32 haikuKey = TranslateKeyCode(keyCode);
     fCurrentModifiers = modifiers;
 
-    BMessage msg(B_KEY_UP);
-    msg.AddInt64("when", system_time());
+    BMessage msg(SOFTKM_INJECT_KEY_UP);
     msg.AddInt32("key", haikuKey);
     msg.AddInt32("modifiers", modifiers);
-    msg.AddInt32("raw_char", 0);
-    msg.AddString("bytes", "");
 
-    BMessenger inputServer("application/x-vnd.Be-input_server");
-    if (inputServer.IsValid()) {
-        inputServer.SendMessage(&msg);
+    // Send through input_server add-on
+    if (!SendToAddon(&msg)) {
+        LOG("Failed to send KeyUp to addon");
     }
 }
 
