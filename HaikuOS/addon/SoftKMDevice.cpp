@@ -10,6 +10,7 @@
 #include <Messenger.h>
 #include <String.h>
 #include <OS.h>
+#include <string.h>
 
 #include <stdio.h>
 
@@ -22,6 +23,9 @@ enum {
     SOFTKM_INJECT_KEY_DOWN = 'sKdn',
     SOFTKM_INJECT_KEY_UP = 'sKup',
 };
+
+// Device name for registration
+static const char* kDeviceName = "SoftKM Virtual Input";
 
 class SoftKMDevice : public BInputServerDevice {
 public:
@@ -75,38 +79,45 @@ status_t SoftKMDevice::InitCheck()
         return B_ERROR;
     }
 
-    fprintf(stderr, "SoftKMDevice: Created port %ld\n", fPort);
+    fprintf(stderr, "SoftKMDevice: Created port %d\n", fPort);
 
-    // Start the watcher thread immediately (we're a virtual device, no hardware to wait for)
-    fRunning = true;
-    fWatcherThread = spawn_thread(_WatcherThread, "softKM_watcher",
-        B_REAL_TIME_PRIORITY, this);
+    // Register our virtual device with input_server
+    // This is a combined keyboard+pointing device
+    input_device_ref* devices[2];
+    input_device_ref device = {
+        (char*)kDeviceName,
+        B_KEYBOARD_DEVICE | B_POINTING_DEVICE,
+        (void*)this
+    };
+    devices[0] = &device;
+    devices[1] = NULL;
 
-    if (fWatcherThread >= 0) {
-        resume_thread(fWatcherThread);
-        fprintf(stderr, "SoftKMDevice: Watcher thread started\n");
-    } else {
-        fprintf(stderr, "SoftKMDevice: Failed to start watcher thread\n");
-        fRunning = false;
-    }
+    RegisterDevices(devices);
+    fprintf(stderr, "SoftKMDevice: Registered device '%s'\n", kDeviceName);
 
     return B_OK;
 }
 
 status_t SoftKMDevice::Start(const char* device, void* cookie)
 {
-    fprintf(stderr, "SoftKMDevice: Start called\n");
+    fprintf(stderr, "SoftKMDevice: Start called for '%s'\n", device ? device : "NULL");
+
+    // Only start if not already running
+    if (fRunning && fWatcherThread >= 0)
+        return B_OK;
 
     fRunning = true;
     fWatcherThread = spawn_thread(_WatcherThread, "softKM_watcher",
         B_REAL_TIME_PRIORITY, this);
 
     if (fWatcherThread < 0) {
+        fprintf(stderr, "SoftKMDevice: Failed to spawn watcher thread\n");
         fRunning = false;
         return B_ERROR;
     }
 
     resume_thread(fWatcherThread);
+    fprintf(stderr, "SoftKMDevice: Watcher thread started\n");
     return B_OK;
 }
 
