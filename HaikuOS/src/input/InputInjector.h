@@ -28,11 +28,14 @@ public:
 private:
     uint32 TranslateKeyCode(uint32 macKeyCode);
     void UpdateMousePosition(float x, float y, bool relative);
+    bool SendToAddon(BMessage* msg);
+    port_id FindAddonPort();
 
     BPoint fMousePosition;
     uint32 fCurrentButtons;
     uint32 fCurrentModifiers;
     bool fActive;
+    port_id fAddonPort;
 };
 
 #endif // INPUT_INJECTOR_H

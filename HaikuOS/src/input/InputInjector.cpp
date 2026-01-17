@@ -7,9 +7,20 @@
 #include <Screen.h>
 #include <InterfaceDefs.h>
 #include <game/WindowScreen.h>
+#include <OS.h>
 
 #include <cstring>
 #include <cstdio>
+
+// Message codes for communication with input_server add-on
+enum {
+    SOFTKM_INJECT_MOUSE_DOWN = 'sMdn',
+    SOFTKM_INJECT_MOUSE_UP = 'sMup',
+    SOFTKM_INJECT_MOUSE_MOVE = 'sMmv',
+    SOFTKM_INJECT_MOUSE_WHEEL = 'sMwh',
+    SOFTKM_INJECT_KEY_DOWN = 'sKdn',
+    SOFTKM_INJECT_KEY_UP = 'sKup',
+};
 
 // macOS to Haiku keycode mapping table
 // macOS virtual key codes -> Haiku key codes
@@ -136,12 +147,48 @@ InputInjector::InputInjector()
     : fMousePosition(0, 0),
       fCurrentButtons(0),
       fCurrentModifiers(0),
-      fActive(false)
+      fActive(false),
+      fAddonPort(-1)
 {
     // Initialize mouse position to center of screen
     BScreen screen;
     BRect frame = screen.Frame();
     fMousePosition.Set(frame.Width() / 2, frame.Height() / 2);
+
+    // Try to find the addon port
+    fAddonPort = FindAddonPort();
+    if (fAddonPort >= 0) {
+        LOG("Found input addon port: %ld", fAddonPort);
+    } else {
+        LOG("Input addon not found - clicks/scroll won't work");
+    }
+}
+
+port_id InputInjector::FindAddonPort()
+{
+    return find_port("softKM_input_port");
+}
+
+bool InputInjector::SendToAddon(BMessage* msg)
+{
+    if (fAddonPort < 0) {
+        // Try to find port again (addon might have started later)
+        fAddonPort = FindAddonPort();
+        if (fAddonPort < 0)
+            return false;
+    }
+
+    ssize_t flatSize = msg->FlattenedSize();
+    char* buffer = new char[flatSize];
+
+    if (msg->Flatten(buffer, flatSize) == B_OK) {
+        status_t result = write_port(fAddonPort, msg->what, buffer, flatSize);
+        delete[] buffer;
+        return result == B_OK;
+    }
+
+    delete[] buffer;
+    return false;
 }
 
 InputInjector::~InputInjector()
@@ -272,19 +319,17 @@ void InputInjector::InjectMouseDown(uint32 buttons, float x, float y)
     if (!fActive)
         return;
 
-    UpdateMousePosition(x, y, false);
     fCurrentButtons |= buttons;
+    LOG("MouseDown: buttons=0x%02X at (%.1f,%.1f)", fCurrentButtons,
+        fMousePosition.x, fMousePosition.y);
 
-    BMessage msg(B_MOUSE_DOWN);
-    msg.AddInt64("when", system_time());
+    BMessage msg(SOFTKM_INJECT_MOUSE_DOWN);
     msg.AddPoint("where", fMousePosition);
     msg.AddInt32("buttons", fCurrentButtons);
-    msg.AddInt32("modifiers", fCurrentModifiers);
     msg.AddInt32("clicks", 1);
 
-    BMessenger inputServer("application/x-vnd.Be-input_server");
-    if (inputServer.IsValid()) {
-        inputServer.SendMessage(&msg);
+    if (!SendToAddon(&msg)) {
+        LOG("Failed to send MouseDown to addon");
     }
 }
 
@@ -293,18 +338,16 @@ void InputInjector::InjectMouseUp(uint32 buttons, float x, float y)
     if (!fActive)
         return;
 
-    UpdateMousePosition(x, y, false);
     fCurrentButtons &= ~buttons;
+    LOG("MouseUp: buttons=0x%02X at (%.1f,%.1f)", fCurrentButtons,
+        fMousePosition.x, fMousePosition.y);
 
-    BMessage msg(B_MOUSE_UP);
-    msg.AddInt64("when", system_time());
+    BMessage msg(SOFTKM_INJECT_MOUSE_UP);
     msg.AddPoint("where", fMousePosition);
     msg.AddInt32("buttons", fCurrentButtons);
-    msg.AddInt32("modifiers", fCurrentModifiers);
 
-    BMessenger inputServer("application/x-vnd.Be-input_server");
-    if (inputServer.IsValid()) {
-        inputServer.SendMessage(&msg);
+    if (!SendToAddon(&msg)) {
+        LOG("Failed to send MouseUp to addon");
     }
 }
 
@@ -313,14 +356,14 @@ void InputInjector::InjectMouseWheel(float deltaX, float deltaY)
     if (!fActive)
         return;
 
-    BMessage msg(B_MOUSE_WHEEL_CHANGED);
-    msg.AddInt64("when", system_time());
-    msg.AddFloat("be:wheel_delta_x", deltaX);
-    msg.AddFloat("be:wheel_delta_y", deltaY);
+    LOG("MouseWheel: delta=(%.2f,%.2f)", deltaX, deltaY);
 
-    BMessenger inputServer("application/x-vnd.Be-input_server");
-    if (inputServer.IsValid()) {
-        inputServer.SendMessage(&msg);
+    BMessage msg(SOFTKM_INJECT_MOUSE_WHEEL);
+    msg.AddFloat("delta_x", deltaX);
+    msg.AddFloat("delta_y", deltaY);
+
+    if (!SendToAddon(&msg)) {
+        LOG("Failed to send MouseWheel to addon");
     }
 }
 
