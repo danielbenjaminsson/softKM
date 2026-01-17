@@ -4,7 +4,15 @@
       "Bash(ps:*)",
       "Bash(lsof:*)",
       "Bash(launchctl unload:*)",
-      "Bash(launchctl load:*)"
+      "Bash(launchctl load:*)",
+      "Bash(nc:*)",
+      "Bash(open:*)",
+      "Bash(ssh user@taurus.microgeni.synology.me \"pgrep softKM && ps aux | grep softKM | grep -v grep\")",
+      "Bash(ssh:*)",
+      "Bash(xxd:*)",
+      "Bash(# Quick test - send heartbeat and capture response immediately\n{ printf ''\\\\x4B\\\\x53\\\\x01\\\\xF0\\\\x00\\\\x00\\\\x00\\\\x00''; sleep 1; })",
+      "Bash(# Check various possible log locations ls -la /tmp/softKM.log || echo \"\"Not in /tmp\"\" ls -la $TMPDIR/softKM.log || echo \"\"Not in TMPDIR\"\" echo \"\"TMPDIR is: $TMPDIR\"\" ps aux)",
+      "Bash(# Find any softKM logs find /var/folders -name \"\"softKM.log\"\")"
     ]
   }
 }

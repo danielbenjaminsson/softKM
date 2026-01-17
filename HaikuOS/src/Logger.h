@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstdarg>
 #include <ctime>
+#include <cstring>
 
 class Logger {
 public:
@@ -13,13 +14,30 @@ public:
         return instance;
     }
 
+    void OpenNextToBinary(const char* binaryPath) {
+        // Extract directory from binary path
+        char logPath[1024];
+        strncpy(logPath, binaryPath, sizeof(logPath) - 1);
+        logPath[sizeof(logPath) - 1] = '\0';
+
+        // Find last '/' and replace filename with log filename
+        char* lastSlash = strrchr(logPath, '/');
+        if (lastSlash) {
+            strcpy(lastSlash + 1, "softKM.log");
+        } else {
+            strcpy(logPath, "softKM.log");
+        }
+
+        Open(logPath);
+    }
+
     void Open(const char* path) {
         if (fFile) {
             fclose(fFile);
         }
         fFile = fopen(path, "a");
         if (fFile) {
-            Log("=== softKM started ===");
+            Log("=== softKM started (log: %s) ===", path);
         }
     }
 

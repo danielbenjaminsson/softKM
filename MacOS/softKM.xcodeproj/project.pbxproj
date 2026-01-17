@@ -18,6 +18,7 @@
 		A1000009 /* EventCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000009; };
 		A1000010 /* EdgeDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000010; };
 		A1000011 /* SwitchController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000011; };
+		A1000012 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000014; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -34,6 +35,7 @@
 		A2000011 /* SwitchController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwitchController.swift; sourceTree = "<group>"; };
 		A2000012 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A2000013 /* softKM.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = softKM.entitlements; sourceTree = "<group>"; };
+		A2000014 /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
 		A3000001 /* softKM.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = softKM.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -64,6 +66,7 @@
 				A5000005 /* Input */,
 				A5000006 /* Network */,
 				A5000007 /* Settings */,
+				A5000008 /* Utils */,
 				A2000012 /* Info.plist */,
 				A2000013 /* softKM.entitlements */,
 			);
@@ -114,6 +117,14 @@
 				A2000006 /* SettingsManager.swift */,
 			);
 			path = Settings;
+			sourceTree = "<group>";
+		};
+		A5000008 /* Utils */ = {
+			isa = PBXGroup;
+			children = (
+				A2000014 /* Logger.swift */,
+			);
+			path = Utils;
 			sourceTree = "<group>";
 		};
 		A5000009 /* Products */ = {
@@ -201,6 +212,7 @@
 				A1000007 /* Protocol.swift in Sources */,
 				A1000008 /* NetworkClient.swift in Sources */,
 				A1000009 /* EventCapture.swift in Sources */,
+				A1000012 /* Logger.swift in Sources */,
 				A1000010 /* EdgeDetector.swift in Sources */,
 				A1000011 /* SwitchController.swift in Sources */,
 			);
