@@ -11,6 +11,7 @@ class NetworkClient: ObservableObject {
     func connect(to host: String, port: Int, useTLS: Bool) {
         disconnect()
 
+        print("[softKM] Connecting to \(host):\(port) (TLS: \(useTLS))")
         connectionState = .connecting
 
         let endpoint = NWEndpoint.hostPort(
@@ -63,26 +64,34 @@ class NetworkClient: ObservableObject {
     }
 
     private func handleStateChange(_ state: NWConnection.State) {
+        print("[softKM] Connection state: \(state)")
+
         switch state {
         case .ready:
+            print("[softKM] Connected successfully!")
             connectionState = .connected
             startHeartbeat()
             startReceiving()
 
         case .waiting(let error):
+            print("[softKM] Waiting: \(error)")
             connectionState = .error("Waiting: \(error.localizedDescription)")
 
         case .failed(let error):
+            print("[softKM] Failed: \(error)")
             connectionState = .error(error.localizedDescription)
             scheduleReconnect()
 
         case .cancelled:
+            print("[softKM] Cancelled")
             connectionState = .disconnected
 
         case .preparing:
+            print("[softKM] Preparing connection...")
             connectionState = .connecting
 
         default:
+            print("[softKM] Other state: \(state)")
             break
         }
     }

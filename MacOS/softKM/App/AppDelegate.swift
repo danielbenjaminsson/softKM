@@ -14,6 +14,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Initialize event capture
         eventCapture = EventCapture.shared
+
+        // Auto-connect to Haiku server
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            print("[softKM] Auto-connecting to server...")
+            ConnectionManager.shared.connect()
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
