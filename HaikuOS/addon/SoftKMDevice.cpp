@@ -95,6 +95,20 @@ status_t SoftKMDevice::InitCheck()
     RegisterDevices(devices);
     fprintf(stderr, "SoftKMDevice: Registered device '%s'\n", kDeviceName);
 
+    // Start the watcher thread immediately - we're a virtual device, always active
+    fRunning = true;
+    fWatcherThread = spawn_thread(_WatcherThread, "softKM_watcher",
+        B_REAL_TIME_PRIORITY, this);
+
+    if (fWatcherThread >= 0) {
+        resume_thread(fWatcherThread);
+        fprintf(stderr, "SoftKMDevice: Watcher thread started\n");
+    } else {
+        fprintf(stderr, "SoftKMDevice: Failed to start watcher thread\n");
+        fRunning = false;
+        return B_ERROR;
+    }
+
     return B_OK;
 }
 
