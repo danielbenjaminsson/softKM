@@ -186,27 +186,45 @@ void SoftKMKeyboard::_ProcessMessage(BMessage* msg)
     switch (msg->what) {
         case SOFTKM_INJECT_KEY_DOWN:
         {
+            int32 key = msg->GetInt32("key", 0);
+            int32 modifiers = msg->GetInt32("modifiers", 0);
+            int32 rawChar = msg->GetInt32("raw_char", 0);
+
+            fprintf(stderr, "SoftKMKeyboard: KEY_DOWN key=0x%02x mods=0x%02x raw=0x%02x\n",
+                key, modifiers, rawChar);
+
             event = new BMessage(B_KEY_DOWN);
             event->AddInt64("when", system_time());
-            event->AddInt32("key", msg->GetInt32("key", 0));
-            event->AddInt32("modifiers", msg->GetInt32("modifiers", 0));
-            event->AddInt32("raw_char", msg->GetInt32("raw_char", 0));
+            event->AddInt32("key", key);
+            event->AddInt32("modifiers", modifiers);
+            event->AddInt32("raw_char", rawChar);
 
             const char* bytes;
             if (msg->FindString("bytes", &bytes) == B_OK) {
                 event->AddString("bytes", bytes);
+                event->AddInt8("byte", bytes[0]);
+            } else {
+                event->AddString("bytes", "");
+                event->AddInt8("byte", 0);
             }
             break;
         }
 
         case SOFTKM_INJECT_KEY_UP:
         {
+            int32 key = msg->GetInt32("key", 0);
+            int32 modifiers = msg->GetInt32("modifiers", 0);
+
+            fprintf(stderr, "SoftKMKeyboard: KEY_UP key=0x%02x mods=0x%02x\n",
+                key, modifiers);
+
             event = new BMessage(B_KEY_UP);
             event->AddInt64("when", system_time());
-            event->AddInt32("key", msg->GetInt32("key", 0));
-            event->AddInt32("modifiers", msg->GetInt32("modifiers", 0));
+            event->AddInt32("key", key);
+            event->AddInt32("modifiers", modifiers);
             event->AddInt32("raw_char", 0);
             event->AddString("bytes", "");
+            event->AddInt8("byte", 0);
             break;
         }
     }
