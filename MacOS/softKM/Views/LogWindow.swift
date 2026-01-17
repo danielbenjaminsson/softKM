@@ -99,8 +99,10 @@ struct LogWindow: View {
     }
 }
 
-class LogWindowController: NSWindowController {
+class LogWindowController: NSWindowController, NSWindowDelegate, ObservableObject {
     static let shared = LogWindowController()
+
+    @Published var isVisible: Bool = false
 
     private init() {
         let window = NSWindow(
@@ -115,6 +117,8 @@ class LogWindowController: NSWindowController {
         window.setFrameAutosaveName("LogWindow")
 
         super.init(window: window)
+
+        window.delegate = self
     }
 
     required init?(coder: NSCoder) {
@@ -125,9 +129,11 @@ class LogWindowController: NSWindowController {
         if let window = window {
             if window.isVisible {
                 window.orderOut(nil)
+                isVisible = false
             } else {
                 window.makeKeyAndOrderFront(nil)
                 NSApp.activate(ignoringOtherApps: true)
+                isVisible = true
             }
         }
     }
@@ -135,5 +141,17 @@ class LogWindowController: NSWindowController {
     func show() {
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        isVisible = true
+    }
+
+    func hide() {
+        window?.orderOut(nil)
+        isVisible = false
+    }
+
+    // MARK: - NSWindowDelegate
+
+    func windowWillClose(_ notification: Notification) {
+        isVisible = false
     }
 }

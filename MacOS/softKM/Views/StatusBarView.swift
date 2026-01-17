@@ -3,7 +3,7 @@ import SwiftUI
 struct StatusBarView: View {
     @EnvironmentObject var connectionManager: ConnectionManager
     @StateObject private var settings = SettingsManager.shared
-    @State private var showLog = false
+    @ObservedObject private var logWindowController = LogWindowController.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -41,20 +41,17 @@ struct StatusBarView: View {
 
             Divider()
 
-            Toggle(isOn: $showLog) {
+            Toggle(isOn: $logWindowController.isVisible) {
                 Label("Show Log", systemImage: "doc.text")
             }
             .toggleStyle(.checkbox)
             .padding(.horizontal)
-            .onChange(of: showLog) { newValue in
+            .onChange(of: logWindowController.isVisible) { newValue in
                 if newValue {
-                    LogWindowController.shared.show()
+                    logWindowController.show()
                 } else {
-                    LogWindowController.shared.window?.orderOut(nil)
+                    logWindowController.hide()
                 }
-            }
-            .onAppear {
-                showLog = LogWindowController.shared.window?.isVisible ?? false
             }
 
             if #available(macOS 14.0, *) {
