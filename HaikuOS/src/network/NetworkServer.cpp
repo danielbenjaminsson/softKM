@@ -353,3 +353,24 @@ void NetworkServer::SendHeartbeatAck()
 
     send(fClientSocket, &header, sizeof(header), 0);
 }
+
+void NetworkServer::SendControlSwitch(uint8 direction)
+{
+    if (fClientSocket < 0)
+        return;
+
+    LOG("Sending CONTROL_SWITCH direction=%d", direction);
+
+    uint8 buffer[sizeof(ProtocolHeader) + sizeof(ControlSwitchPayload)];
+    ProtocolHeader* header = (ProtocolHeader*)buffer;
+    ControlSwitchPayload* payload = (ControlSwitchPayload*)(buffer + sizeof(ProtocolHeader));
+
+    header->magic = PROTOCOL_MAGIC;
+    header->version = PROTOCOL_VERSION;
+    header->eventType = EVENT_CONTROL_SWITCH;
+    header->length = sizeof(ControlSwitchPayload);
+
+    payload->direction = direction;
+
+    send(fClientSocket, buffer, sizeof(buffer), 0);
+}

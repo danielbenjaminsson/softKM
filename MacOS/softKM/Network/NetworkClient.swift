@@ -1,6 +1,10 @@
 import Foundation
 import Network
 
+extension Notification.Name {
+    static let switchToMac = Notification.Name("switchToMac")
+}
+
 class NetworkClient: ObservableObject {
     @Published var connectionState: ConnectionManager.ConnectionState = .disconnected
 
@@ -137,6 +141,21 @@ class NetworkClient: ObservableObject {
         let eventType = data[3]
         if eventType == EventType.heartbeatAck.rawValue {
             LOG("Received heartbeat ACK")
+        } else if eventType == EventType.controlSwitch.rawValue {
+            // Haiku is telling us to switch control back to macOS
+            guard data.count >= 9 else {
+                LOG("CONTROL_SWITCH message too short")
+                return
+            }
+            let direction = data[8]  // 0=toHaiku, 1=toMac
+            LOG("Received CONTROL_SWITCH direction=\(direction)")
+
+            if direction == 1 {
+                // Switch back to macOS
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(name: .switchToMac, object: nil)
+                }
+            }
         } else {
             LOG("Received event type: 0x\(String(format: "%02X", eventType))")
         }

@@ -1,4 +1,5 @@
 #include "InputInjector.h"
+#include "../network/NetworkServer.h"
 #include "../Logger.h"
 
 #include <Application.h>
@@ -148,7 +149,10 @@ InputInjector::InputInjector()
       fCurrentButtons(0),
       fCurrentModifiers(0),
       fActive(false),
-      fAddonPort(-1)
+      fAddonPort(-1),
+      fNetworkServer(nullptr),
+      fEdgeDwellStart(0),
+      fAtLeftEdge(false)
 {
     // Initialize mouse position to center of screen
     BScreen screen;
@@ -312,6 +316,35 @@ void InputInjector::InjectMouseMove(float x, float y, bool relative)
 
     // Use set_mouse_position to actually move the cursor
     set_mouse_position((int32)fMousePosition.x, (int32)fMousePosition.y);
+
+    // Edge detection for switching back to macOS
+    const float kEdgeThreshold = 5.0f;
+    const bigtime_t kDwellTime = 300000;  // 300ms in microseconds
+
+    if (fMousePosition.x <= kEdgeThreshold) {
+        if (!fAtLeftEdge) {
+            // Just entered left edge
+            fAtLeftEdge = true;
+            fEdgeDwellStart = system_time();
+            LOG("Entered left edge - starting dwell timer");
+        } else {
+            // Still at left edge - check dwell time
+            bigtime_t dwellTime = system_time() - fEdgeDwellStart;
+            if (dwellTime >= kDwellTime && fNetworkServer != nullptr) {
+                LOG("Left edge dwell complete - switching to macOS");
+                fNetworkServer->SendControlSwitch(1);  // 1 = toMac
+                fAtLeftEdge = false;
+                fActive = false;
+            }
+        }
+    } else {
+        // Not at left edge - reset
+        if (fAtLeftEdge) {
+            LOG("Left edge - dwell cancelled");
+        }
+        fAtLeftEdge = false;
+        fEdgeDwellStart = 0;
+    }
 }
 
 void InputInjector::InjectMouseDown(uint32 buttons, float x, float y)

@@ -20,6 +20,19 @@ class SwitchController {
         edgeDetector.activeEdge = settings.switchEdge
         edgeDetector.activationDelay = settings.edgeDwellTime
         edgeDetector.edgeThreshold = settings.edgeThresholdAsCGFloat
+
+        // Listen for switch-to-mac notifications from Haiku
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleSwitchToMac),
+            name: .switchToMac,
+            object: nil
+        )
+    }
+
+    @objc private func handleSwitchToMac() {
+        LOG("Received switch-to-mac notification from Haiku")
+        deactivateCaptureMode()
     }
 
     func handleEvent(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {

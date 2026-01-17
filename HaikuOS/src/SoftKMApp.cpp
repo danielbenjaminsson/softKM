@@ -30,6 +30,9 @@ SoftKMApp::SoftKMApp()
 
     // Create network server
     fNetworkServer = new NetworkServer(Settings::GetPort(), fInputInjector);
+
+    // Connect injector to server for edge switching
+    fInputInjector->SetNetworkServer(fNetworkServer);
 }
 
 SoftKMApp::~SoftKMApp()

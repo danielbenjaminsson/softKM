@@ -17,6 +17,8 @@ public:
     bool IsRunning() const { return fRunning; }
     bool HasClient() const { return fClientSocket >= 0; }
 
+    void SendControlSwitch(uint8 direction);  // 0=toHaiku, 1=toMac
+
 private:
     static int32 ListenThreadFunc(void* data);
     static int32 ClientThreadFunc(void* data);

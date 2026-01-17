@@ -6,6 +6,7 @@
 #include <OS.h>
 
 class BMessage;
+class NetworkServer;
 
 class InputInjector {
 public:
@@ -26,6 +27,8 @@ public:
     void SetActive(bool active);
     bool IsActive() const { return fActive; }
 
+    void SetNetworkServer(NetworkServer* server) { fNetworkServer = server; }
+
 private:
     uint32 TranslateKeyCode(uint32 macKeyCode);
     void UpdateMousePosition(float x, float y, bool relative);
@@ -37,6 +40,9 @@ private:
     uint32 fCurrentModifiers;
     bool fActive;
     port_id fAddonPort;
+    NetworkServer* fNetworkServer;
+    bigtime_t fEdgeDwellStart;
+    bool fAtLeftEdge;
 };
 
 #endif // INPUT_INJECTOR_H
