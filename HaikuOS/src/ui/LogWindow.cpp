@@ -47,7 +47,8 @@ static BPath GetSettingsPath()
 LogWindow::LogWindow()
     : BWindow(BRect(100, 100, 700, 500), "softKM Log",
         B_TITLED_WINDOW,
-        B_ASYNCHRONOUS_CONTROLS | B_AUTO_UPDATE_SIZE_LIMITS)
+        B_ASYNCHRONOUS_CONTROLS | B_AUTO_UPDATE_SIZE_LIMITS),
+      fInitialized(false)
 {
     // Initialize filters (all enabled by default)
     for (int i = 0; i < LOG_CAT_COUNT; i++) {
@@ -127,8 +128,17 @@ LogWindow::LogWindow()
         .End()
     .End();
 
+    // Set checkbox targets to this window
+    fMouseCheck->SetTarget(this);
+    fKeysCheck->SetTarget(this);
+    fCommCheck->SetTarget(this);
+    fOtherCheck->SetTarget(this);
+
     // Remember position
     SetFlags(Flags() | B_CLOSE_ON_ESCAPE);
+
+    // Mark initialization complete
+    fInitialized = true;
 }
 
 LogWindow::~LogWindow()
@@ -260,6 +270,10 @@ void LogWindow::MessageReceived(BMessage* message)
 
         case LOG_WINDOW_FILTER_CHANGED:
         {
+            // Ignore filter changes during initialization
+            if (!fInitialized)
+                break;
+
             int32 category;
             if (message->FindInt32("category", &category) == B_OK &&
                 category >= 0 && category < LOG_CAT_COUNT) {

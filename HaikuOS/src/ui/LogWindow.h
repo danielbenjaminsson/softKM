@@ -54,6 +54,7 @@ private:
 
     std::vector<LogEntry> fEntries;
     bool fFilters[LOG_CAT_COUNT];
+    bool fInitialized;
 };
 
 // Message codes
