@@ -83,12 +83,13 @@ jobs:
             set -e
             echo "=== Deploying softKM to Haiku ==="
 
-            cd /Data/Code/Projects/softKM || {
-              echo "ERROR: Project not found at /Data/Code/Projects/softKM"
-              echo "Please clone the repo manually first:"
-              echo "  cd /Data/Code/Projects && git clone <repo-url> softKM"
-              exit 1
-            }
+            if [ ! -d "/Data/Code/Projects/softKM" ]; then
+              echo "Project not found. Cloning..."
+              mkdir -p /Data/Code/Projects
+              cd /Data/Code/Projects
+              git clone ssh://git@gitea.microgeni.synology.me:2222/daniel/softKM.git softKM
+            fi
+            cd /Data/Code/Projects/softKM
 
             echo "Pulling latest changes from ${{ github.ref_name }}..."
             git fetch origin
