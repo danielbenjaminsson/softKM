@@ -12,8 +12,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Initialize the switch controller
         switchController = SwitchController.shared
 
-        // Initialize event capture
+        // Initialize and start event capture for edge detection
         eventCapture = EventCapture.shared
+        if eventCapture?.startCapture() == true {
+            LOG("Event capture started for edge detection")
+        } else {
+            LOG("Failed to start event capture - check Accessibility permissions")
+        }
 
         // Auto-connect to Haiku server
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
