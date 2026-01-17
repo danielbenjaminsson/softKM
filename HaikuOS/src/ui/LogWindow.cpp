@@ -3,7 +3,10 @@
 #include <Application.h>
 #include <Autolock.h>
 #include <Button.h>
+#include <File.h>
+#include <FindDirectory.h>
 #include <LayoutBuilder.h>
+#include <Path.h>
 #include <StringView.h>
 
 LogWindow* LogWindow::sInstance = nullptr;
@@ -29,11 +32,32 @@ void LogWindow::DestroyInstance()
     }
 }
 
+static BPath GetSettingsPath()
+{
+    BPath path;
+    find_directory(B_USER_SETTINGS_DIRECTORY, &path);
+    path.Append("softKM_logwindow");
+    return path;
+}
+
 LogWindow::LogWindow()
     : BWindow(BRect(100, 100, 700, 500), "softKM Log",
         B_TITLED_WINDOW,
         B_ASYNCHRONOUS_CONTROLS | B_AUTO_UPDATE_SIZE_LIMITS)
 {
+    // Restore saved frame
+    BFile file(GetSettingsPath().Path(), B_READ_ONLY);
+    if (file.InitCheck() == B_OK) {
+        BMessage settings;
+        if (settings.Unflatten(&file) == B_OK) {
+            BRect frame;
+            if (settings.FindRect("frame", &frame) == B_OK) {
+                MoveTo(frame.LeftTop());
+                ResizeTo(frame.Width(), frame.Height());
+            }
+        }
+    }
+
     // Create text view for log content
     BRect textRect(0, 0, 580, 350);
     fTextView = new BTextView("logText");
@@ -124,6 +148,15 @@ void LogWindow::MessageReceived(BMessage* message)
 
 bool LogWindow::QuitRequested()
 {
+    // Save frame before hiding
+    BMessage settings;
+    settings.AddRect("frame", Frame());
+
+    BFile file(GetSettingsPath().Path(), B_WRITE_ONLY | B_CREATE_FILE | B_ERASE_FILE);
+    if (file.InitCheck() == B_OK) {
+        settings.Flatten(&file);
+    }
+
     // Just hide, don't quit
     Hide();
     return false;
