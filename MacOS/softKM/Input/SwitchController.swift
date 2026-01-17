@@ -202,6 +202,8 @@ class SwitchController {
             // NSEvent.mouseLocation uses bottom-left origin, so Y is already from bottom
             yFromBottom = Float(mouseLocation.y - frame.minY)
 
+            LOG("MAC→HAIKU: mouseY=\(mouseLocation.y) frame.minY=\(frame.minY) frame.height=\(frame.height) yFromBottom=\(yFromBottom)")
+
             // Set and warp cursor to edge - this position will be maintained during capture
             lockedCursorPosition = CGPoint(x: frame.maxX - 1, y: mouseLocation.y)
             CGWarpMouseCursorPosition(lockedCursorPosition)
@@ -251,7 +253,7 @@ class SwitchController {
             if newY < frame.minY { newY = frame.minY }
             if newY > frame.maxY - 1 { newY = frame.maxY - 1 }
 
-            LOG("Positioning cursor at x=\(newX), y=\(newY) (yFromBottom=\(yFromBottom), frame.minY=\(frame.minY), frame.maxY=\(frame.maxY))")
+            LOG("HAIKU→MAC: yFromBottom=\(yFromBottom) frame.height=\(frame.height) frame.minY=\(frame.minY) → newY=\(newY)")
             CGWarpMouseCursorPosition(CGPoint(x: newX, y: newY))
         }
 

@@ -240,8 +240,8 @@ void InputInjector::SetActive(bool active, float yFromBottom)
 
             fMousePosition.Set(startX, startY);
             set_mouse_position((int32)fMousePosition.x, (int32)fMousePosition.y);
-            LOG("Mouse positioned near left edge: (%.0f, %.0f) yFromBottom=%.0f screenHeight=%.0f",
-                fMousePosition.x, fMousePosition.y, yFromBottom, screenHeight);
+            LOG("MAC→HAIKU: yFromBottom=%.0f screenHeight=%.0f → startY=%.0f",
+                yFromBottom, screenHeight, startY);
 
             // Reset edge detection state
             fAtLeftEdge = false;
@@ -380,6 +380,8 @@ void InputInjector::InjectMouseMove(float x, float y, bool relative)
                 BRect frame = screen.Frame();
                 float screenHeight = frame.Height() + 1;
                 float yFromBottom = (screenHeight - 1) - fMousePosition.y;
+                LOG("HAIKU→MAC: mouseY=%.0f screenHeight=%.0f → yFromBottom=%.0f",
+                    fMousePosition.y, screenHeight, yFromBottom);
                 fNetworkServer->SendControlSwitch(1, yFromBottom);  // 1 = toMac
                 fAtLeftEdge = false;
                 fActive = false;
