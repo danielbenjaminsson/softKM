@@ -5,7 +5,7 @@
 #include "input/InputInjector.h"
 #include "settings/Settings.h"
 
-#include <cstdio>
+#include <cstdio>  // For fprintf, stderr
 
 #include <Deskbar.h>
 #include <Roster.h>
