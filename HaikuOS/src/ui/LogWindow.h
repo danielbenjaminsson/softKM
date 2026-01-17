@@ -6,7 +6,6 @@
 #include <ScrollView.h>
 #include <String.h>
 #include <Locker.h>
-#include <vector>
 
 class BCheckBox;
 
@@ -17,11 +16,6 @@ enum LogCategory {
     LOG_CAT_COMM,
     LOG_CAT_OTHER,
     LOG_CAT_COUNT
-};
-
-struct LogEntry {
-    BString text;
-    LogCategory category;
 };
 
 class LogWindow : public BWindow {
@@ -40,7 +34,7 @@ private:
     virtual ~LogWindow();
 
     LogCategory CategorizeEntry(const char* entry);
-    void RefreshDisplay();
+    bool ShouldShow(const char* entry);
 
     static LogWindow* sInstance;
     static BLocker sLock;
@@ -52,9 +46,7 @@ private:
     BCheckBox* fCommCheck;
     BCheckBox* fOtherCheck;
 
-    std::vector<LogEntry> fEntries;
     bool fFilters[LOG_CAT_COUNT];
-    bool fInitialized;
 };
 
 // Message codes

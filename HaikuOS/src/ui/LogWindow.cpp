@@ -47,8 +47,7 @@ static BPath GetSettingsPath()
 LogWindow::LogWindow()
     : BWindow(BRect(100, 100, 700, 500), "softKM Log",
         B_TITLED_WINDOW,
-        B_ASYNCHRONOUS_CONTROLS | B_AUTO_UPDATE_SIZE_LIMITS),
-      fInitialized(false)
+        B_ASYNCHRONOUS_CONTROLS | B_AUTO_UPDATE_SIZE_LIMITS)
 {
     // Initialize filters (all enabled by default)
     for (int i = 0; i < LOG_CAT_COUNT; i++) {
@@ -69,7 +68,6 @@ LogWindow::LogWindow()
     }
 
     // Create text view for log content
-    BRect textRect(0, 0, 580, 350);
     fTextView = new BTextView("logText");
     fTextView->MakeEditable(false);
     fTextView->MakeSelectable(true);
@@ -92,25 +90,17 @@ LogWindow::LogWindow()
     BButton* clearButton = new BButton("clear", "Clear",
         new BMessage(LOG_WINDOW_CLEAR));
 
-    // Create filter checkboxes
-    BMessage* mouseMsg = new BMessage(LOG_WINDOW_FILTER_CHANGED);
-    mouseMsg->AddInt32("category", LOG_CAT_MOUSE);
-    fMouseCheck = new BCheckBox("mouseCheck", "Mouse", mouseMsg);
+    // Create filter checkboxes (filters apply to new entries only)
+    fMouseCheck = new BCheckBox("mouseCheck", "Mouse", nullptr);
     fMouseCheck->SetValue(B_CONTROL_ON);
 
-    BMessage* keysMsg = new BMessage(LOG_WINDOW_FILTER_CHANGED);
-    keysMsg->AddInt32("category", LOG_CAT_KEYS);
-    fKeysCheck = new BCheckBox("keysCheck", "Keys", keysMsg);
+    fKeysCheck = new BCheckBox("keysCheck", "Keys", nullptr);
     fKeysCheck->SetValue(B_CONTROL_ON);
 
-    BMessage* commMsg = new BMessage(LOG_WINDOW_FILTER_CHANGED);
-    commMsg->AddInt32("category", LOG_CAT_COMM);
-    fCommCheck = new BCheckBox("commCheck", "Comm", commMsg);
+    fCommCheck = new BCheckBox("commCheck", "Comm", nullptr);
     fCommCheck->SetValue(B_CONTROL_ON);
 
-    BMessage* otherMsg = new BMessage(LOG_WINDOW_FILTER_CHANGED);
-    otherMsg->AddInt32("category", LOG_CAT_OTHER);
-    fOtherCheck = new BCheckBox("otherCheck", "Other", otherMsg);
+    fOtherCheck = new BCheckBox("otherCheck", "Other", nullptr);
     fOtherCheck->SetValue(B_CONTROL_ON);
 
     // Layout
@@ -128,17 +118,8 @@ LogWindow::LogWindow()
         .End()
     .End();
 
-    // Set checkbox targets to this window
-    fMouseCheck->SetTarget(this);
-    fKeysCheck->SetTarget(this);
-    fCommCheck->SetTarget(this);
-    fOtherCheck->SetTarget(this);
-
     // Remember position
     SetFlags(Flags() | B_CLOSE_ON_ESCAPE);
-
-    // Mark initialization complete
-    fInitialized = true;
 }
 
 LogWindow::~LogWindow()
@@ -194,48 +175,33 @@ LogCategory LogWindow::CategorizeEntry(const char* entry)
     return LOG_CAT_OTHER;
 }
 
-void LogWindow::RefreshDisplay()
+bool LogWindow::ShouldShow(const char* entry)
 {
-    fTextView->SetText("");
+    // Read current checkbox states
+    fFilters[LOG_CAT_MOUSE] = (fMouseCheck->Value() == B_CONTROL_ON);
+    fFilters[LOG_CAT_KEYS] = (fKeysCheck->Value() == B_CONTROL_ON);
+    fFilters[LOG_CAT_COMM] = (fCommCheck->Value() == B_CONTROL_ON);
+    fFilters[LOG_CAT_OTHER] = (fOtherCheck->Value() == B_CONTROL_ON);
 
-    for (const auto& entry : fEntries) {
-        if (fFilters[entry.category]) {
-            fTextView->Insert(fTextView->TextLength(), entry.text.String(),
-                entry.text.Length());
-            fTextView->Insert(fTextView->TextLength(), "\n", 1);
-        }
-    }
-
-    // Scroll to bottom
-    fTextView->ScrollToOffset(fTextView->TextLength());
+    LogCategory cat = CategorizeEntry(entry);
+    return fFilters[cat];
 }
 
 void LogWindow::AddLogEntry(const char* entry)
 {
     if (LockLooper()) {
-        // Store entry with category
-        LogEntry logEntry;
-        logEntry.text = entry;
-        logEntry.category = CategorizeEntry(entry);
-        fEntries.push_back(logEntry);
-
-        // Limit stored entries
-        if (fEntries.size() > 2000) {
-            fEntries.erase(fEntries.begin(), fEntries.begin() + 500);
-        }
-
-        // Only display if filter allows
-        if (fFilters[logEntry.category]) {
+        // Check if this entry should be shown based on current filters
+        if (ShouldShow(entry)) {
             fTextView->Insert(fTextView->TextLength(), entry, strlen(entry));
             fTextView->Insert(fTextView->TextLength(), "\n", 1);
 
             // Scroll to bottom
             fTextView->ScrollToOffset(fTextView->TextLength());
 
-            // Limit display size
+            // Limit log size (keep last ~40000 characters)
             int32 textLen = fTextView->TextLength();
             if (textLen > 50000) {
-                RefreshDisplay();
+                fTextView->Delete(0, textLen - 40000);
             }
         }
 
@@ -246,7 +212,6 @@ void LogWindow::AddLogEntry(const char* entry)
 void LogWindow::Clear()
 {
     if (LockLooper()) {
-        fEntries.clear();
         fTextView->SetText("");
         UnlockLooper();
     }
@@ -264,31 +229,6 @@ void LogWindow::MessageReceived(BMessage* message)
             const char* entry;
             if (message->FindString("entry", &entry) == B_OK) {
                 AddLogEntry(entry);
-            }
-            break;
-        }
-
-        case LOG_WINDOW_FILTER_CHANGED:
-        {
-            // Ignore filter changes during initialization
-            if (!fInitialized)
-                break;
-
-            int32 category;
-            if (message->FindInt32("category", &category) == B_OK &&
-                category >= 0 && category < LOG_CAT_COUNT) {
-                // Get checkbox state
-                BCheckBox* checkBox = nullptr;
-                switch (category) {
-                    case LOG_CAT_MOUSE: checkBox = fMouseCheck; break;
-                    case LOG_CAT_KEYS: checkBox = fKeysCheck; break;
-                    case LOG_CAT_COMM: checkBox = fCommCheck; break;
-                    case LOG_CAT_OTHER: checkBox = fOtherCheck; break;
-                }
-                if (checkBox) {
-                    fFilters[category] = (checkBox->Value() == B_CONTROL_ON);
-                    RefreshDisplay();
-                }
             }
             break;
         }
