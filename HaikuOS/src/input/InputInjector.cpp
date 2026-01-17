@@ -150,7 +150,7 @@ void InputInjector::SetActive(bool active)
 {
     if (fActive != active) {
         fActive = active;
-        printf("Input injection %s\n", active ? "activated" : "deactivated");
+        printf("[softKM] Input injection %s\n", active ? "ACTIVATED" : "DEACTIVATED");
     }
 }
 
@@ -190,11 +190,15 @@ void InputInjector::UpdateMousePosition(float x, float y, bool relative)
 void InputInjector::InjectKeyDown(uint32 keyCode, uint32 modifiers,
     const char* bytes, uint8 numBytes)
 {
-    if (!fActive)
+    if (!fActive) {
+        printf("[softKM] KeyDown ignored (not active)\n");
         return;
+    }
 
     uint32 haikuKey = TranslateKeyCode(keyCode);
     fCurrentModifiers = modifiers;
+    printf("[softKM] KeyDown: mac=0x%02X haiku=0x%02X mods=0x%02X\n",
+        keyCode, haikuKey, modifiers);
 
     BMessage msg(B_KEY_DOWN);
     msg.AddInt64("when", system_time());
@@ -254,6 +258,8 @@ void InputInjector::InjectMouseMove(float x, float y, bool relative)
         return;
 
     UpdateMousePosition(x, y, relative);
+    printf("[softKM] MouseMove: rel=%d pos=(%.1f,%.1f)\n",
+        relative, fMousePosition.x, fMousePosition.y);
 
     // Send B_MOUSE_MOVED message to move the cursor
     BMessage msg(B_MOUSE_MOVED);

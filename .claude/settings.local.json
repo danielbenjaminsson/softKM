@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ps:*)",
+      "Bash(lsof:*)",
+      "Bash(launchctl unload:*)",
+      "Bash(launchctl load:*)"
+    ]
+  }
+}

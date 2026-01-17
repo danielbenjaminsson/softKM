@@ -240,6 +240,19 @@ void NetworkServer::ProcessMessage(const uint8* data, size_t length)
     const ProtocolHeader* header = (const ProtocolHeader*)data;
     const uint8* payload = data + sizeof(ProtocolHeader);
 
+    // Debug: log received event type
+    static const char* eventNames[] = {
+        "unknown", "KEY_DOWN", "KEY_UP", "MOUSE_MOVE", "MOUSE_DOWN",
+        "MOUSE_UP", "MOUSE_WHEEL"
+    };
+    if (header->eventType >= 1 && header->eventType <= 6) {
+        printf("[softKM] Received: %s\n", eventNames[header->eventType]);
+    } else if (header->eventType == EVENT_CONTROL_SWITCH) {
+        printf("[softKM] Received: CONTROL_SWITCH\n");
+    } else if (header->eventType == EVENT_HEARTBEAT) {
+        // Don't log heartbeats (too frequent)
+    }
+
     switch (header->eventType) {
         case EVENT_KEY_DOWN:
         case EVENT_KEY_UP:
