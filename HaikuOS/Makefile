@@ -54,3 +54,4 @@ OBJDIR := objects.$(CPU)-$(if $(DEBUGGER),debug,release)
 # Include the Makefile-Engine
 BUILDHOME = /boot/system/develop
 include $(BUILDHOME)/etc/makefile-engine
+# Build trigger
