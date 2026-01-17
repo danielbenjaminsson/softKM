@@ -21,6 +21,10 @@ class SwitchController {
         edgeDetector.activationDelay = settings.edgeDwellTime
         edgeDetector.edgeThreshold = settings.edgeThresholdAsCGFloat
 
+        // Ensure cursor is visible on startup (reset any stale state)
+        CGAssociateMouseAndMouseCursorPosition(1)
+        CGDisplayShowCursor(CGMainDisplayID())
+
         // Listen for switch-to-mac notifications from Haiku
         NotificationCenter.default.addObserver(
             self,
@@ -195,10 +199,8 @@ class SwitchController {
             // Disconnect cursor from mouse movement (must be after warp)
             CGAssociateMouseAndMouseCursorPosition(0)
 
-            // Hide cursor (call multiple times to ensure it's hidden)
-            for _ in 0..<5 {
-                CGDisplayHideCursor(CGMainDisplayID())
-            }
+            // Hide cursor
+            CGDisplayHideCursor(CGMainDisplayID())
 
             ConnectionManager.shared.isCapturing = true
         }
@@ -219,10 +221,8 @@ class SwitchController {
             // Reconnect cursor to mouse movement
             CGAssociateMouseAndMouseCursorPosition(1)
 
-            // Show cursor (match the hide calls)
-            for _ in 0..<5 {
-                CGDisplayShowCursor(CGMainDisplayID())
-            }
+            // Show cursor
+            CGDisplayShowCursor(CGMainDisplayID())
 
             // Move cursor away from edge to prevent immediate re-trigger
             if let screen = NSScreen.main {
