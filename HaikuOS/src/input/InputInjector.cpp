@@ -1,4 +1,5 @@
 #include "InputInjector.h"
+#include "../Logger.h"
 
 #include <Application.h>
 #include <Message.h>
@@ -150,7 +151,7 @@ void InputInjector::SetActive(bool active)
 {
     if (fActive != active) {
         fActive = active;
-        printf("[softKM] Input injection %s\n", active ? "ACTIVATED" : "DEACTIVATED");
+        LOG("Input injection %s", active ? "ACTIVATED" : "DEACTIVATED");
     }
 }
 
@@ -163,7 +164,7 @@ uint32 InputInjector::TranslateKeyCode(uint32 macKeyCode)
     }
 
     // Return the original code if no mapping found
-    printf("Unknown macOS keycode: 0x%02X\n", macKeyCode);
+    LOG("Unknown macOS keycode: 0x%02X", macKeyCode);
     return macKeyCode;
 }
 
@@ -191,13 +192,13 @@ void InputInjector::InjectKeyDown(uint32 keyCode, uint32 modifiers,
     const char* bytes, uint8 numBytes)
 {
     if (!fActive) {
-        printf("[softKM] KeyDown ignored (not active)\n");
+        LOG("KeyDown ignored (not active)");
         return;
     }
 
     uint32 haikuKey = TranslateKeyCode(keyCode);
     fCurrentModifiers = modifiers;
-    printf("[softKM] KeyDown: mac=0x%02X haiku=0x%02X mods=0x%02X\n",
+    LOG("KeyDown: mac=0x%02X haiku=0x%02X mods=0x%02X",
         keyCode, haikuKey, modifiers);
 
     BMessage msg(B_KEY_DOWN);
@@ -258,7 +259,7 @@ void InputInjector::InjectMouseMove(float x, float y, bool relative)
         return;
 
     UpdateMousePosition(x, y, relative);
-    printf("[softKM] MouseMove: rel=%d pos=(%.1f,%.1f)\n",
+    LOG("MouseMove: rel=%d pos=(%.1f,%.1f)",
         relative, fMousePosition.x, fMousePosition.y);
 
     // Send B_MOUSE_MOVED message to move the cursor

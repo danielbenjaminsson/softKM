@@ -11,7 +11,7 @@ class NetworkClient: ObservableObject {
     func connect(to host: String, port: Int, useTLS: Bool) {
         disconnect()
 
-        print("[softKM] Connecting to \(host):\(port) (TLS: \(useTLS))")
+        LOG("Connecting to \(host):\(port) (TLS: \(useTLS))")
         connectionState = .connecting
 
         let endpoint = NWEndpoint.hostPort(
@@ -64,34 +64,34 @@ class NetworkClient: ObservableObject {
     }
 
     private func handleStateChange(_ state: NWConnection.State) {
-        print("[softKM] Connection state: \(state)")
+        LOG("Connection state: \(state)")
 
         switch state {
         case .ready:
-            print("[softKM] Connected successfully!")
+            LOG("Connected successfully!")
             connectionState = .connected
             startHeartbeat()
             startReceiving()
 
         case .waiting(let error):
-            print("[softKM] Waiting: \(error)")
+            LOG("Waiting: \(error)")
             connectionState = .error("Waiting: \(error.localizedDescription)")
 
         case .failed(let error):
-            print("[softKM] Failed: \(error)")
+            LOG("Failed: \(error)")
             connectionState = .error(error.localizedDescription)
             scheduleReconnect()
 
         case .cancelled:
-            print("[softKM] Cancelled")
+            LOG("Cancelled")
             connectionState = .disconnected
 
         case .preparing:
-            print("[softKM] Preparing connection...")
+            LOG("Preparing connection...")
             connectionState = .connecting
 
         default:
-            print("[softKM] Other state: \(state)")
+            LOG("Other state: \(state)")
             break
         }
     }
@@ -116,21 +116,32 @@ class NetworkClient: ObservableObject {
     }
 
     private func handleReceivedData(_ data: Data) {
+        LOG("Received \(data.count) bytes from server")
+
         // Handle heartbeat ack or other responses from Haiku
-        guard data.count >= 8 else { return }
+        guard data.count >= 8 else {
+            LOG("Data too short, ignoring")
+            return
+        }
 
         let magic = data.subdata(in: 0..<2).withUnsafeBytes { $0.load(as: UInt16.self) }
-        guard magic == Protocol.magic.littleEndian else { return }
+        guard magic == Protocol.magic.littleEndian else {
+            LOG("Invalid magic in response")
+            return
+        }
 
         let eventType = data[3]
         if eventType == EventType.heartbeatAck.rawValue {
-            // Heartbeat acknowledged
+            LOG("Received heartbeat ACK")
+        } else {
+            LOG("Received event type: 0x\(String(format: "%02X", eventType))")
         }
     }
 
     private func startHeartbeat() {
         heartbeatTimer?.invalidate()
         heartbeatTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
+            LOG("Sending heartbeat")
             self?.send(event: .heartbeat)
         }
     }

@@ -17,7 +17,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Auto-connect to Haiku server
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            print("[softKM] Auto-connecting to server...")
+            LOG("Auto-connecting to server...")
             ConnectionManager.shared.connect()
         }
     }
@@ -32,7 +32,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let accessEnabled = AXIsProcessTrustedWithOptions(options)
 
         if !accessEnabled {
-            print("Accessibility permission required. Please grant permission in System Preferences.")
+            LOG("Accessibility permission required. Please grant permission in System Preferences.")
         }
     }
 }

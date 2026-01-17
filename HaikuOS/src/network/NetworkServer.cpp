@@ -2,12 +2,14 @@
 #include "Protocol.h"
 #include "../input/InputInjector.h"
 #include "../SoftKMApp.h"
+#include "../Logger.h"
 
 #include <Messenger.h>
 
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#include <arpa/inet.h>
 #include <unistd.h>
 #include <cstring>
 #include <cstdio>
@@ -37,7 +39,7 @@ status_t NetworkServer::Start()
     // Create server socket
     fServerSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (fServerSocket < 0) {
-        fprintf(stderr, "Failed to create socket: %s\n", strerror(errno));
+        LOG("Failed to create socket: %s", strerror(errno));
         return B_ERROR;
     }
 
@@ -53,7 +55,7 @@ status_t NetworkServer::Start()
     addr.sin_port = htons(fPort);
 
     if (bind(fServerSocket, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-        fprintf(stderr, "Failed to bind to port %d: %s\n", fPort, strerror(errno));
+        LOG("Failed to bind to port %d: %s", fPort, strerror(errno));
         close(fServerSocket);
         fServerSocket = -1;
         return B_ERROR;
@@ -61,7 +63,7 @@ status_t NetworkServer::Start()
 
     // Listen for connections
     if (listen(fServerSocket, 1) < 0) {
-        fprintf(stderr, "Failed to listen: %s\n", strerror(errno));
+        LOG("Failed to listen: %s", strerror(errno));
         close(fServerSocket);
         fServerSocket = -1;
         return B_ERROR;
@@ -82,7 +84,7 @@ status_t NetworkServer::Start()
 
     resume_thread(fListenThread);
 
-    printf("softKM server listening on port %d\n", fPort);
+    LOG("Server listening on port %d", fPort);
     return B_OK;
 }
 
@@ -134,7 +136,7 @@ void NetworkServer::AcceptConnections()
 
         if (clientSocket < 0) {
             if (fRunning) {
-                fprintf(stderr, "Accept failed: %s\n", strerror(errno));
+                LOG("Accept failed: %s", strerror(errno));
             }
             continue;
         }
@@ -154,7 +156,8 @@ void NetworkServer::AcceptConnections()
         int opt = 1;
         setsockopt(fClientSocket, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
 
-        printf("Client connected\n");
+        LOG("Client connected from %s:%d",
+            inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port));
 
         // Notify app of connection
         BMessenger messenger(be_app);
@@ -201,7 +204,7 @@ void NetworkServer::HandleClient(int clientSocket)
 
             // Validate magic
             if (header->magic != PROTOCOL_MAGIC) {
-                fprintf(stderr, "Invalid magic: 0x%04X\n", header->magic);
+                LOG("Invalid magic: 0x%04X", header->magic);
                 bufferOffset = 0;  // Reset buffer
                 break;
             }
@@ -224,7 +227,7 @@ void NetworkServer::HandleClient(int clientSocket)
     }
 
     // Client disconnected
-    printf("Client disconnected\n");
+    LOG("Client disconnected");
 
     BMessenger messenger(be_app);
     messenger.SendMessage(MSG_CLIENT_DISCONNECTED);
@@ -246,11 +249,11 @@ void NetworkServer::ProcessMessage(const uint8* data, size_t length)
         "MOUSE_UP", "MOUSE_WHEEL"
     };
     if (header->eventType >= 1 && header->eventType <= 6) {
-        printf("[softKM] Received: %s\n", eventNames[header->eventType]);
+        LOG("Received: %s", eventNames[header->eventType]);
     } else if (header->eventType == EVENT_CONTROL_SWITCH) {
-        printf("[softKM] Received: CONTROL_SWITCH\n");
+        LOG("Received: CONTROL_SWITCH");
     } else if (header->eventType == EVENT_HEARTBEAT) {
-        // Don't log heartbeats (too frequent)
+        LOG("Received: HEARTBEAT");
     }
 
     switch (header->eventType) {
@@ -332,7 +335,7 @@ void NetworkServer::ProcessMessage(const uint8* data, size_t length)
             break;
 
         default:
-            fprintf(stderr, "Unknown event type: 0x%02X\n", header->eventType);
+            LOG("Unknown event type: 0x%02X", header->eventType);
             break;
     }
 }
