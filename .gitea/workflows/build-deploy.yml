@@ -97,7 +97,9 @@ jobs:
             git reset --hard origin/${{ github.ref_name }}
 
             echo "Stopping existing softKM..."
-            pkill -x softKM 2>/dev/null || true
+            for pid in $(ps | grep softKM | grep -v grep | awk '{print $2}'); do
+              kill $pid 2>/dev/null || true
+            done
             sleep 2
 
             cd HaikuOS
@@ -123,7 +125,7 @@ jobs:
             nohup $BINARY > /dev/null 2>&1 &
 
             sleep 3
-            if pgrep -x softKM > /dev/null; then
+            if ps | grep -v grep | grep -q softKM; then
               echo "softKM is running!"
             else
               echo "Warning: softKM may not have started correctly"
