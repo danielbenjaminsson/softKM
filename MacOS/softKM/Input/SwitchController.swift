@@ -68,18 +68,14 @@ class SwitchController {
             return Unmanaged.passUnretained(event)
 
         case .capturing:
-            // Send relative movement to Haiku
-            let deltaX = Float(location.x - lastMousePosition.x)
-            let deltaY = Float(location.y - lastMousePosition.y)
-            lastMousePosition = location
+            // Use raw device deltas from the event (works correctly with CGAssociateMouseAndMouseCursorPosition(0))
+            let deltaX = Float(event.getDoubleValueField(.mouseEventDeltaX))
+            let deltaY = Float(event.getDoubleValueField(.mouseEventDeltaY))
 
             if deltaX != 0 || deltaY != 0 {
+                LOG("Mouse delta: (\(deltaX), \(deltaY))")
                 connectionManager.send(event: .mouseMove(x: deltaX, y: deltaY, relative: true))
             }
-
-            // Keep cursor trapped at edge
-            let edgePoint = edgeDetector.getEdgePoint()
-            CGWarpMouseCursorPosition(edgePoint)
 
             return nil  // Consume event
         }
@@ -162,7 +158,6 @@ class SwitchController {
 
         LOG("Activating capture mode - switching to Haiku")
         mode = .capturing
-        lastMousePosition = NSEvent.mouseLocation
 
         // Hide and disconnect cursor
         CGDisplayHideCursor(CGMainDisplayID())

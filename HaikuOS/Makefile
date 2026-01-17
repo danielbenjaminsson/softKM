@@ -16,7 +16,7 @@ SRCS = \
 
 RDEFS = resources/SoftKM.rdef
 
-LIBS = be network bnetapi tracker
+LIBS = be network bnetapi tracker game
 
 LIBPATHS =
 

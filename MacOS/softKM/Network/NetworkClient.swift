@@ -51,11 +51,15 @@ class NetworkClient: ObservableObject {
     }
 
     func send(event: InputEvent) {
-        guard connectionState == .connected else { return }
+        guard connectionState == .connected else {
+            LOG("Cannot send - not connected")
+            return
+        }
 
         let data = Protocol.encode(event)
         connection?.send(content: data, completion: .contentProcessed { [weak self] error in
             if let error = error {
+                LOG("Send error: \(error.localizedDescription)")
                 DispatchQueue.main.async {
                     self?.connectionState = .error(error.localizedDescription)
                 }

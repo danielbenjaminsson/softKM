@@ -6,6 +6,7 @@
 #include <Messenger.h>
 #include <Screen.h>
 #include <InterfaceDefs.h>
+#include <game/WindowScreen.h>
 
 #include <cstring>
 #include <cstdio>
