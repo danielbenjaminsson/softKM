@@ -3,6 +3,7 @@
 
 #include <SupportDefs.h>
 #include <Point.h>
+#include <OS.h>
 
 class BMessage;
 
