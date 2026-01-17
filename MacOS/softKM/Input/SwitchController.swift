@@ -183,27 +183,28 @@ class SwitchController {
         LOG("Activating capture mode - switching to Haiku")
         mode = .capturing
 
-        // Warp cursor to edge and lock it there
-        if let screen = NSScreen.main {
-            let frame = screen.frame
-            let edgePoint = CGPoint(x: frame.maxX - 1, y: frame.midY)
-            CGWarpMouseCursorPosition(edgePoint)
-        }
+        // Must run cursor manipulation on main thread
+        DispatchQueue.main.async {
+            // Warp cursor to edge and lock it there
+            if let screen = NSScreen.main {
+                let frame = screen.frame
+                let edgePoint = CGPoint(x: frame.maxX - 1, y: frame.midY)
+                CGWarpMouseCursorPosition(edgePoint)
+            }
 
-        // Disconnect cursor from mouse movement (must be after warp)
-        CGAssociateMouseAndMouseCursorPosition(0)
+            // Disconnect cursor from mouse movement (must be after warp)
+            CGAssociateMouseAndMouseCursorPosition(0)
 
-        // Hide cursor (call multiple times to ensure it's hidden)
-        for _ in 0..<5 {
-            CGDisplayHideCursor(CGMainDisplayID())
+            // Hide cursor (call multiple times to ensure it's hidden)
+            for _ in 0..<5 {
+                CGDisplayHideCursor(CGMainDisplayID())
+            }
+
+            ConnectionManager.shared.isCapturing = true
         }
 
         // Notify Haiku
         connectionManager.sendControlSwitch(toHaiku: true)
-
-        DispatchQueue.main.async {
-            ConnectionManager.shared.isCapturing = true
-        }
 
         // Start event capture if not already
         _ = EventCapture.shared.startCapture()
@@ -213,29 +214,30 @@ class SwitchController {
         LOG("Deactivating capture mode - switching back to macOS")
         mode = .monitoring
 
-        // Reconnect cursor to mouse movement
-        CGAssociateMouseAndMouseCursorPosition(1)
+        // Must run cursor manipulation on main thread
+        DispatchQueue.main.async {
+            // Reconnect cursor to mouse movement
+            CGAssociateMouseAndMouseCursorPosition(1)
 
-        // Show cursor (match the hide calls)
-        for _ in 0..<5 {
-            CGDisplayShowCursor(CGMainDisplayID())
-        }
+            // Show cursor (match the hide calls)
+            for _ in 0..<5 {
+                CGDisplayShowCursor(CGMainDisplayID())
+            }
 
-        // Move cursor away from edge to prevent immediate re-trigger
-        if let screen = NSScreen.main {
-            let frame = screen.frame
-            // Move cursor 100 pixels away from the switch edge
-            let newX = frame.maxX - 100
-            let newY = frame.midY
-            CGWarpMouseCursorPosition(CGPoint(x: newX, y: newY))
+            // Move cursor away from edge to prevent immediate re-trigger
+            if let screen = NSScreen.main {
+                let frame = screen.frame
+                // Move cursor 100 pixels away from the switch edge
+                let newX = frame.maxX - 100
+                let newY = frame.midY
+                CGWarpMouseCursorPosition(CGPoint(x: newX, y: newY))
+            }
+
+            ConnectionManager.shared.isCapturing = false
         }
 
         // Notify Haiku
         connectionManager.sendControlSwitch(toHaiku: false)
-
-        DispatchQueue.main.async {
-            ConnectionManager.shared.isCapturing = false
-        }
 
         edgeDetector.reset()
     }
