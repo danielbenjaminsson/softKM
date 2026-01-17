@@ -183,9 +183,20 @@ class SwitchController {
         LOG("Activating capture mode - switching to Haiku")
         mode = .capturing
 
-        // Hide and disconnect cursor
-        CGDisplayHideCursor(CGMainDisplayID())
+        // Warp cursor to edge and lock it there
+        if let screen = NSScreen.main {
+            let frame = screen.frame
+            let edgePoint = CGPoint(x: frame.maxX - 1, y: frame.midY)
+            CGWarpMouseCursorPosition(edgePoint)
+        }
+
+        // Disconnect cursor from mouse movement (must be after warp)
         CGAssociateMouseAndMouseCursorPosition(0)
+
+        // Hide cursor (call multiple times to ensure it's hidden)
+        for _ in 0..<5 {
+            CGDisplayHideCursor(CGMainDisplayID())
+        }
 
         // Notify Haiku
         connectionManager.sendControlSwitch(toHaiku: true)
@@ -202,9 +213,13 @@ class SwitchController {
         LOG("Deactivating capture mode - switching back to macOS")
         mode = .monitoring
 
-        // Show and reconnect cursor
+        // Reconnect cursor to mouse movement
         CGAssociateMouseAndMouseCursorPosition(1)
-        CGDisplayShowCursor(CGMainDisplayID())
+
+        // Show cursor (match the hide calls)
+        for _ in 0..<5 {
+            CGDisplayShowCursor(CGMainDisplayID())
+        }
 
         // Move cursor away from edge to prevent immediate re-trigger
         if let screen = NSScreen.main {
