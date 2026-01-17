@@ -138,6 +138,26 @@ jobs:
         run: |
           echo "=== Build Summary ==="
           echo "Branch: ${{ github.ref_name }}"
-          echo "MacOS changes: ${{ steps.changes.outputs.macos_changed != '0' }}"
-          echo "Haiku changes: ${{ steps.changes.outputs.haiku_changed != '0' }}"
-          echo "Job status: ${{ job.status }}"
+
+          MACOS_CHANGES="${{ steps.changes.outputs.macos_changed != '0' }}"
+          HAIKU_CHANGES="${{ steps.changes.outputs.haiku_changed != '0' }}"
+
+          if [ "$MACOS_CHANGES" = "true" ]; then
+            echo "macOS: Built and installed"
+          else
+            echo "macOS: Skipped (no changes)"
+          fi
+
+          if [ "$HAIKU_CHANGES" = "true" ]; then
+            echo "Haiku: Built and deployed"
+          else
+            echo "Haiku: Skipped (no changes)"
+          fi
+
+          if [ "$MACOS_CHANGES" = "false" ] && [ "$HAIKU_CHANGES" = "false" ]; then
+            echo ""
+            echo "Status: No builds performed (no relevant changes detected)"
+          else
+            echo ""
+            echo "Status: ${{ job.status }}"
+          fi
