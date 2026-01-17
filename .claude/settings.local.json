@@ -21,7 +21,8 @@
       "Bash(# Check the latest macOS log for accessibility status find /var/folders -name \"\"softKM.log\"\")",
       "Bash(# Check for accessibility messages in the log find /var/folders -name \"\"softKM.log\"\")",
       "Bash(xcodebuild:*)",
-      "Bash(tccutil reset Accessibility:*)"
+      "Bash(tccutil reset Accessibility:*)",
+      "Bash(codesign:*)"
     ]
   }
 }
