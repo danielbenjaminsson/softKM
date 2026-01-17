@@ -24,7 +24,8 @@
       "Bash(tccutil reset Accessibility:*)",
       "Bash(codesign:*)",
       "Bash(sqlite3:*)",
-      "Bash(xattr:*)"
+      "Bash(xattr:*)",
+      "Bash(ls:*)"
     ]
   }
 }

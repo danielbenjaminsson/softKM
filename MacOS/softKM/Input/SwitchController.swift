@@ -240,14 +240,22 @@ class SwitchController {
             // Move cursor 100 pixels away from the right edge to prevent immediate re-trigger
             let newX = frame.maxX - 100
 
-            // Calculate Y position from yFromBottom
+            // Scale yFromBottom from Haiku coordinates to macOS coordinates
+            var scaledYFromBottom = CGFloat(yFromBottom)
+            let remoteHeight = connectionManager.remoteScreenSize.height
+            if remoteHeight > 0 {
+                scaledYFromBottom = CGFloat(yFromBottom) * frame.height / remoteHeight
+                LOG("Scaling yFromBottom: \(yFromBottom) * \(frame.height) / \(remoteHeight) = \(scaledYFromBottom)")
+            }
+
+            // Calculate Y position from scaled yFromBottom
             // Use same coordinate system as activateCaptureMode: newY = yFromBottom + frame.minY
-            var newY = CGFloat(yFromBottom) + frame.minY
+            var newY = scaledYFromBottom + frame.minY
             // Clamp to screen bounds
             if newY < frame.minY { newY = frame.minY }
             if newY > frame.maxY - 1 { newY = frame.maxY - 1 }
 
-            LOG("HAIKU→MAC: yFromBottom=\(yFromBottom) frame.height=\(frame.height) frame.minY=\(frame.minY) → newY=\(newY)")
+            LOG("HAIKU→MAC: yFromBottom=\(yFromBottom) scaled=\(scaledYFromBottom) frame.height=\(frame.height) frame.minY=\(frame.minY) → newY=\(newY)")
             CGWarpMouseCursorPosition(CGPoint(x: newX, y: newY))
         }
 

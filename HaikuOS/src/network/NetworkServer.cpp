@@ -339,6 +339,12 @@ void NetworkServer::ProcessMessage(const uint8* data, size_t length)
                 float yFromBottom = fLocalHeight / 2;  // Default to center
                 if (header->length >= sizeof(ControlSwitchPayload)) {
                     yFromBottom = switchPayload->yFromBottom;
+                    // Scale from remote screen to local screen
+                    if (fRemoteHeight > 0) {
+                        LOG("Scaling yFromBottom: %.0f * %.0f / %.0f",
+                            yFromBottom, fLocalHeight, fRemoteHeight);
+                        yFromBottom = yFromBottom * fLocalHeight / fRemoteHeight;
+                    }
                     // Clamp to local screen height
                     if (yFromBottom > fLocalHeight) yFromBottom = fLocalHeight;
                     if (yFromBottom < 0) yFromBottom = 0;
