@@ -177,7 +177,10 @@ void SoftKMDevice::_ProcessMessage(BMessage* msg)
                 event->AddInt64("when", system_time());
                 event->AddPoint("where", where);
                 event->AddInt32("buttons", msg->GetInt32("buttons", 0));
+                event->AddInt32("modifiers", 0);
                 event->AddInt32("clicks", msg->GetInt32("clicks", 1));
+                fprintf(stderr, "SoftKMDevice: MOUSE_DOWN at (%.0f,%.0f) btns=0x%x\n",
+                    where.x, where.y, msg->GetInt32("buttons", 0));
             }
             break;
         }
@@ -190,6 +193,9 @@ void SoftKMDevice::_ProcessMessage(BMessage* msg)
                 event->AddInt64("when", system_time());
                 event->AddPoint("where", where);
                 event->AddInt32("buttons", msg->GetInt32("buttons", 0));
+                event->AddInt32("modifiers", 0);
+                fprintf(stderr, "SoftKMDevice: MOUSE_UP at (%.0f,%.0f)\n",
+                    where.x, where.y);
             }
             break;
         }

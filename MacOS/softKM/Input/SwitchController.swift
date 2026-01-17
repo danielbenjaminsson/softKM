@@ -90,8 +90,10 @@ class SwitchController {
         let location = event.location
 
         if isDown {
+            LOG("MouseDown: buttons=0x\(String(format: "%02X", buttons))")
             connectionManager.send(event: .mouseDown(buttons: buttons, x: Float(location.x), y: Float(location.y)))
         } else {
+            LOG("MouseUp: buttons=0x\(String(format: "%02X", buttons))")
             connectionManager.send(event: .mouseUp(buttons: buttons, x: Float(location.x), y: Float(location.y)))
         }
 
@@ -106,6 +108,7 @@ class SwitchController {
         let deltaX = Float(event.getDoubleValueField(.scrollWheelEventDeltaAxis2))
         let deltaY = Float(event.getDoubleValueField(.scrollWheelEventDeltaAxis1))
 
+        LOG("ScrollWheel: delta=(\(deltaX), \(deltaY))")
         connectionManager.send(event: .mouseWheel(deltaX: deltaX, deltaY: deltaY))
 
         return nil  // Consume event

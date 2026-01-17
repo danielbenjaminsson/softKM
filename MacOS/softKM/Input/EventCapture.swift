@@ -111,6 +111,12 @@ private func eventCallback(
         return Unmanaged.passUnretained(event)
     }
 
+    // Debug: log button events
+    if type == .leftMouseDown || type == .leftMouseUp ||
+       type == .rightMouseDown || type == .rightMouseUp {
+        LOG("EventCallback: \(type.rawValue) (button event)")
+    }
+
     // Let the switch controller handle the event
     return controller.handleEvent(type: type, event: event)
 }
