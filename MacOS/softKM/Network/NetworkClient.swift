@@ -47,11 +47,15 @@ class NetworkClient: ObservableObject {
     }
 
     func disconnect() {
+        LOG("Disconnecting from server...")
         heartbeatTimer?.invalidate()
         heartbeatTimer = nil
-        connection?.cancel()
+
+        // Force close the connection
+        connection?.forceCancel()
         connection = nil
         connectionState = .disconnected
+        LOG("Disconnected")
     }
 
     func send(event: InputEvent) {
