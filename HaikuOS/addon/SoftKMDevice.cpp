@@ -82,11 +82,11 @@ status_t SoftKMDevice::InitCheck()
     fprintf(stderr, "SoftKMDevice: Created port %d\n", fPort);
 
     // Register our virtual device with input_server
-    // This is a combined keyboard+pointing device
+    // We register as undefined type since we inject both keyboard and mouse events
     input_device_ref* devices[2];
     input_device_ref device = {
         (char*)kDeviceName,
-        B_KEYBOARD_DEVICE | B_POINTING_DEVICE,
+        B_UNDEFINED_DEVICE,
         (void*)this
     };
     devices[0] = &device;
