@@ -204,6 +204,19 @@ void InputInjector::SetActive(bool active)
     if (fActive != active) {
         fActive = active;
         LOG("Input injection %s", active ? "ACTIVATED" : "DEACTIVATED");
+
+        if (active) {
+            // Reset mouse position to center of screen to prevent immediate edge trigger
+            BScreen screen;
+            BRect frame = screen.Frame();
+            fMousePosition.Set(frame.Width() / 2, frame.Height() / 2);
+            set_mouse_position((int32)fMousePosition.x, (int32)fMousePosition.y);
+            LOG("Reset mouse to center: (%.0f, %.0f)", fMousePosition.x, fMousePosition.y);
+
+            // Reset edge detection state
+            fAtLeftEdge = false;
+            fEdgeDwellStart = 0;
+        }
     }
 }
 

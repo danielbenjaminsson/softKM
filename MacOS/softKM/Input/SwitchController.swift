@@ -198,6 +198,15 @@ class SwitchController {
         CGAssociateMouseAndMouseCursorPosition(1)
         CGDisplayShowCursor(CGMainDisplayID())
 
+        // Move cursor away from edge to prevent immediate re-trigger
+        if let screen = NSScreen.main {
+            let frame = screen.frame
+            // Move cursor 100 pixels away from the switch edge
+            let newX = frame.maxX - 100
+            let newY = frame.midY
+            CGWarpMouseCursorPosition(CGPoint(x: newX, y: newY))
+        }
+
         // Notify Haiku
         connectionManager.sendControlSwitch(toHaiku: false)
 
