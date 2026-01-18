@@ -292,9 +292,12 @@ void SoftKMKeyboard::_ProcessMessage(BMessage* msg)
                 if (msg->FindString("bytes", &bytes) == B_OK && bytes[0] != '\0') {
                     event->AddString("bytes", bytes);
                     event->AddInt8("byte", bytes[0]);
+                    fprintf(stderr, "SoftKMKeyboard: using msg bytes='%s' byte=0x%02x\n",
+                        bytes, (uint8)bytes[0]);
                 } else {
                     event->AddString("bytes", "");
                     event->AddInt8("byte", 0);
+                    fprintf(stderr, "SoftKMKeyboard: no bytes in msg, key=0x%02x\n", key);
                 }
             }
 
