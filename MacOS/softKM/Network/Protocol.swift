@@ -17,10 +17,10 @@ enum EventType: UInt8 {
 enum InputEvent {
     case keyDown(keyCode: UInt32, modifiers: UInt32, characters: String)
     case keyUp(keyCode: UInt32, modifiers: UInt32)
-    case mouseMove(x: Float, y: Float, relative: Bool)
-    case mouseDown(buttons: UInt32, x: Float, y: Float)
-    case mouseUp(buttons: UInt32, x: Float, y: Float)
-    case mouseWheel(deltaX: Float, deltaY: Float)
+    case mouseMove(x: Float, y: Float, relative: Bool, modifiers: UInt32)
+    case mouseDown(buttons: UInt32, x: Float, y: Float, modifiers: UInt32)
+    case mouseUp(buttons: UInt32, x: Float, y: Float, modifiers: UInt32)
+    case mouseWheel(deltaX: Float, deltaY: Float, modifiers: UInt32)
     case controlSwitch(toHaiku: Bool, yFromBottom: Float)
     case screenInfo(width: Float, height: Float)
     case settingsSync(edgeDwellTime: Float)  // dwell time in seconds
@@ -80,24 +80,28 @@ struct Protocol {
             appendUInt32(&payload, keyCode)
             appendUInt32(&payload, modifiers)
 
-        case .mouseMove(let x, let y, let relative):
+        case .mouseMove(let x, let y, let relative, let modifiers):
             appendFloat(&payload, x)
             appendFloat(&payload, y)
             payload.append(relative ? 1 : 0)
+            appendUInt32(&payload, modifiers)
 
-        case .mouseDown(let buttons, let x, let y):
+        case .mouseDown(let buttons, let x, let y, let modifiers):
             appendUInt32(&payload, buttons)
             appendFloat(&payload, x)
             appendFloat(&payload, y)
+            appendUInt32(&payload, modifiers)
 
-        case .mouseUp(let buttons, let x, let y):
+        case .mouseUp(let buttons, let x, let y, let modifiers):
             appendUInt32(&payload, buttons)
             appendFloat(&payload, x)
             appendFloat(&payload, y)
+            appendUInt32(&payload, modifiers)
 
-        case .mouseWheel(let deltaX, let deltaY):
+        case .mouseWheel(let deltaX, let deltaY, let modifiers):
             appendFloat(&payload, deltaX)
             appendFloat(&payload, deltaY)
+            appendUInt32(&payload, modifiers)
 
         case .controlSwitch(let toHaiku, let yFromBottom):
             payload.append(toHaiku ? 0 : 1)

@@ -382,14 +382,15 @@ void InputInjector::InjectKeyUp(uint32 keyCode, uint32 modifiers)
     }
 }
 
-void InputInjector::InjectMouseMove(float x, float y, bool relative)
+void InputInjector::InjectMouseMove(float x, float y, bool relative, uint32 modifiers)
 {
     if (!fActive)
         return;
 
+    fCurrentModifiers = modifiers;
     UpdateMousePosition(x, y, relative);
-    LOG("MouseMove: rel=%d pos=(%.1f,%.1f)",
-        relative, fMousePosition.x, fMousePosition.y);
+    LOG("MouseMove: rel=%d pos=(%.1f,%.1f) mods=0x%02X",
+        relative, fMousePosition.x, fMousePosition.y, modifiers);
 
     // Use set_mouse_position to actually move the cursor
     set_mouse_position((int32)fMousePosition.x, (int32)fMousePosition.y);
@@ -430,18 +431,20 @@ void InputInjector::InjectMouseMove(float x, float y, bool relative)
     }
 }
 
-void InputInjector::InjectMouseDown(uint32 buttons, float x, float y)
+void InputInjector::InjectMouseDown(uint32 buttons, float x, float y, uint32 modifiers)
 {
     if (!fActive)
         return;
 
     fCurrentButtons |= buttons;
-    LOG("MouseDown: buttons=0x%02X at (%.1f,%.1f)", fCurrentButtons,
-        fMousePosition.x, fMousePosition.y);
+    fCurrentModifiers = modifiers;
+    LOG("MouseDown: buttons=0x%02X mods=0x%02X at (%.1f,%.1f)", fCurrentButtons,
+        modifiers, fMousePosition.x, fMousePosition.y);
 
     BMessage msg(SOFTKM_INJECT_MOUSE_DOWN);
     msg.AddPoint("where", fMousePosition);
     msg.AddInt32("buttons", fCurrentButtons);
+    msg.AddInt32("modifiers", modifiers);
     msg.AddInt32("clicks", 1);
 
     if (SendToMouseAddon(&msg)) {
@@ -451,34 +454,38 @@ void InputInjector::InjectMouseDown(uint32 buttons, float x, float y)
     }
 }
 
-void InputInjector::InjectMouseUp(uint32 buttons, float x, float y)
+void InputInjector::InjectMouseUp(uint32 buttons, float x, float y, uint32 modifiers)
 {
     if (!fActive)
         return;
 
     fCurrentButtons &= ~buttons;
+    fCurrentModifiers = modifiers;
     LOG("MouseUp: buttons=0x%02X at (%.1f,%.1f)", fCurrentButtons,
         fMousePosition.x, fMousePosition.y);
 
     BMessage msg(SOFTKM_INJECT_MOUSE_UP);
     msg.AddPoint("where", fMousePosition);
     msg.AddInt32("buttons", fCurrentButtons);
+    msg.AddInt32("modifiers", modifiers);
 
     if (!SendToMouseAddon(&msg)) {
         LOG("Failed to send MouseUp to addon");
     }
 }
 
-void InputInjector::InjectMouseWheel(float deltaX, float deltaY)
+void InputInjector::InjectMouseWheel(float deltaX, float deltaY, uint32 modifiers)
 {
     if (!fActive)
         return;
 
+    fCurrentModifiers = modifiers;
     LOG("MouseWheel: delta=(%.2f,%.2f)", deltaX, deltaY);
 
     BMessage msg(SOFTKM_INJECT_MOUSE_WHEEL);
     msg.AddFloat("delta_x", deltaX);
     msg.AddFloat("delta_y", deltaY);
+    msg.AddInt32("modifiers", modifiers);
 
     if (!SendToMouseAddon(&msg)) {
         LOG("Failed to send MouseWheel to addon");

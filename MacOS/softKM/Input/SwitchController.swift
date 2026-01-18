@@ -96,7 +96,8 @@ class SwitchController {
                 if mouseLogCounter % 100 == 1 {
                     LOG("Mouse delta: (\(deltaX), \(deltaY)) [event #\(mouseLogCounter)]")
                 }
-                connectionManager.send(event: .mouseMove(x: deltaX, y: deltaY, relative: true))
+                let modifiers = mapModifiers(event.flags)
+                connectionManager.send(event: .mouseMove(x: deltaX, y: deltaY, relative: true, modifiers: modifiers))
             }
 
             // Keep cursor locked at the edge position
@@ -113,13 +114,14 @@ class SwitchController {
 
         let buttons = mapMouseButtons(event: event)
         let location = event.location
+        let modifiers = mapModifiers(event.flags)
 
         if isDown {
-            LOG("MouseDown: buttons=0x\(String(format: "%02X", buttons))")
-            connectionManager.send(event: .mouseDown(buttons: buttons, x: Float(location.x), y: Float(location.y)))
+            LOG("MouseDown: buttons=0x\(String(format: "%02X", buttons)) mods=0x\(String(format: "%02X", modifiers))")
+            connectionManager.send(event: .mouseDown(buttons: buttons, x: Float(location.x), y: Float(location.y), modifiers: modifiers))
         } else {
             LOG("MouseUp: buttons=0x\(String(format: "%02X", buttons))")
-            connectionManager.send(event: .mouseUp(buttons: buttons, x: Float(location.x), y: Float(location.y)))
+            connectionManager.send(event: .mouseUp(buttons: buttons, x: Float(location.x), y: Float(location.y), modifiers: modifiers))
         }
 
         return nil  // Consume event
@@ -132,9 +134,10 @@ class SwitchController {
 
         let deltaX = Float(event.getDoubleValueField(.scrollWheelEventDeltaAxis2))
         let deltaY = Float(event.getDoubleValueField(.scrollWheelEventDeltaAxis1))
+        let modifiers = mapModifiers(event.flags)
 
         LOG("ScrollWheel: delta=(\(deltaX), \(deltaY))")
-        connectionManager.send(event: .mouseWheel(deltaX: deltaX, deltaY: deltaY))
+        connectionManager.send(event: .mouseWheel(deltaX: deltaX, deltaY: deltaY, modifiers: modifiers))
 
         return nil  // Consume event
     }

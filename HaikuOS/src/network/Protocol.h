@@ -42,17 +42,20 @@ struct MouseMovePayload {
     float   x;
     float   y;
     uint8   relative;
+    uint32  modifiers;
 } __attribute__((packed));
 
 struct MouseButtonPayload {
     uint32  buttons;
     float   x;
     float   y;
+    uint32  modifiers;
 } __attribute__((packed));
 
 struct MouseWheelPayload {
     float   deltaX;
     float   deltaY;
+    uint32  modifiers;
 } __attribute__((packed));
 
 struct ControlSwitchPayload {

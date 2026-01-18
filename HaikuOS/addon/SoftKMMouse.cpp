@@ -194,6 +194,7 @@ void SoftKMMouse::_ProcessMessage(BMessage* msg)
                 event->AddInt64("when", system_time());
                 event->AddPoint("where", where);
                 event->AddInt32("buttons", msg->GetInt32("buttons", 0));
+                event->AddInt32("modifiers", msg->GetInt32("modifiers", 0));
             }
             break;
         }
@@ -202,14 +203,15 @@ void SoftKMMouse::_ProcessMessage(BMessage* msg)
         {
             BPoint where;
             if (msg->FindPoint("where", &where) == B_OK) {
+                int32 modifiers = msg->GetInt32("modifiers", 0);
                 event = new BMessage(B_MOUSE_DOWN);
                 event->AddInt64("when", system_time());
                 event->AddPoint("where", where);
                 event->AddInt32("buttons", msg->GetInt32("buttons", 0));
-                event->AddInt32("modifiers", 0);
+                event->AddInt32("modifiers", modifiers);
                 event->AddInt32("clicks", msg->GetInt32("clicks", 1));
-                fprintf(stderr, "SoftKMMouse: MOUSE_DOWN at (%.0f,%.0f) btns=0x%x\n",
-                    where.x, where.y, msg->GetInt32("buttons", 0));
+                fprintf(stderr, "SoftKMMouse: MOUSE_DOWN at (%.0f,%.0f) btns=0x%x mods=0x%x\n",
+                    where.x, where.y, msg->GetInt32("buttons", 0), modifiers);
             }
             break;
         }
@@ -222,7 +224,7 @@ void SoftKMMouse::_ProcessMessage(BMessage* msg)
                 event->AddInt64("when", system_time());
                 event->AddPoint("where", where);
                 event->AddInt32("buttons", msg->GetInt32("buttons", 0));
-                event->AddInt32("modifiers", 0);
+                event->AddInt32("modifiers", msg->GetInt32("modifiers", 0));
                 fprintf(stderr, "SoftKMMouse: MOUSE_UP at (%.0f,%.0f)\n",
                     where.x, where.y);
             }
@@ -235,6 +237,7 @@ void SoftKMMouse::_ProcessMessage(BMessage* msg)
             event->AddInt64("when", system_time());
             event->AddFloat("be:wheel_delta_x", msg->GetFloat("delta_x", 0.0f));
             event->AddFloat("be:wheel_delta_y", msg->GetFloat("delta_y", 0.0f));
+            event->AddInt32("modifiers", msg->GetInt32("modifiers", 0));
             break;
         }
     }

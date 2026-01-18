@@ -17,10 +17,10 @@ public:
         const char* bytes, uint8 numBytes);
     void InjectKeyUp(uint32 keyCode, uint32 modifiers);
 
-    void InjectMouseMove(float x, float y, bool relative);
-    void InjectMouseDown(uint32 buttons, float x, float y);
-    void InjectMouseUp(uint32 buttons, float x, float y);
-    void InjectMouseWheel(float deltaX, float deltaY);
+    void InjectMouseMove(float x, float y, bool relative, uint32 modifiers);
+    void InjectMouseDown(uint32 buttons, float x, float y, uint32 modifiers);
+    void InjectMouseUp(uint32 buttons, float x, float y, uint32 modifiers);
+    void InjectMouseWheel(float deltaX, float deltaY, uint32 modifiers);
 
     void ProcessEvent(BMessage* message);
 

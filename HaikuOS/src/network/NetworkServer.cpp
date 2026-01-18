@@ -321,7 +321,7 @@ void NetworkServer::ProcessMessage(const uint8* data, size_t length)
             if (header->length >= sizeof(MouseMovePayload)) {
                 const MouseMovePayload* movePayload = (const MouseMovePayload*)payload;
                 fInputInjector->InjectMouseMove(movePayload->x, movePayload->y,
-                    movePayload->relative != 0);
+                    movePayload->relative != 0, MapModifiers(movePayload->modifiers));
             }
             break;
         }
@@ -331,7 +331,7 @@ void NetworkServer::ProcessMessage(const uint8* data, size_t length)
             if (header->length >= sizeof(MouseButtonPayload)) {
                 const MouseButtonPayload* btnPayload = (const MouseButtonPayload*)payload;
                 fInputInjector->InjectMouseDown(btnPayload->buttons,
-                    btnPayload->x, btnPayload->y);
+                    btnPayload->x, btnPayload->y, MapModifiers(btnPayload->modifiers));
             }
             break;
         }
@@ -341,7 +341,7 @@ void NetworkServer::ProcessMessage(const uint8* data, size_t length)
             if (header->length >= sizeof(MouseButtonPayload)) {
                 const MouseButtonPayload* btnPayload = (const MouseButtonPayload*)payload;
                 fInputInjector->InjectMouseUp(btnPayload->buttons,
-                    btnPayload->x, btnPayload->y);
+                    btnPayload->x, btnPayload->y, MapModifiers(btnPayload->modifiers));
             }
             break;
         }
@@ -351,7 +351,7 @@ void NetworkServer::ProcessMessage(const uint8* data, size_t length)
             if (header->length >= sizeof(MouseWheelPayload)) {
                 const MouseWheelPayload* wheelPayload = (const MouseWheelPayload*)payload;
                 fInputInjector->InjectMouseWheel(wheelPayload->deltaX,
-                    wheelPayload->deltaY);
+                    wheelPayload->deltaY, MapModifiers(wheelPayload->modifiers));
             }
             break;
         }

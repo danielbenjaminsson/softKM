@@ -29,7 +29,11 @@
       "Bash(git pull:*)",
       "Bash(git merge:*)",
       "Bash(git stash:*)",
-      "Bash(ditto:*)"
+      "Bash(ditto:*)",
+      "Bash(for code in 61 63 57 38 20 35 21 36)",
+      "Bash(do echo \"=== 0x$code ===\")",
+      "Bash(done)",
+      "Bash(for code in 20 35 21 36)"
     ]
   }
 }
