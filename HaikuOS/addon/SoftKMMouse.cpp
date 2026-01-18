@@ -227,19 +227,20 @@ void SoftKMMouse::_ProcessMessage(BMessage* msg)
             if (msg->FindPoint("where", &where) == B_OK) {
                 int32 modifiers = msg->GetInt32("modifiers", 0);
                 int32 buttons = msg->GetInt32("buttons", 0);
-                int32 clicks = msg->GetInt32("clicks", 1);
+                int32 macClicks = msg->GetInt32("clicks", 1);
 
-                // Use timestamp from InputInjector for proper timing
-                bigtime_t when = msg->GetInt64("when", system_time());
+                // Use current system_time() for proper input_server click detection
+                // Input_server will determine clicks based on timing between events
+                bigtime_t when = system_time();
 
                 event = new BMessage(B_MOUSE_DOWN);
                 event->AddInt64("when", when);
                 event->AddPoint("where", where);
                 event->AddInt32("buttons", buttons);
                 event->AddInt32("modifiers", modifiers);
-                event->AddInt32("clicks", clicks);
-                DebugLog("MOUSE_DOWN: btns=0x%x clicks=%d at (%.0f,%.0f) when=%lld",
-                    buttons, clicks, where.x, where.y, when);
+                // Don't set clicks - let input_server detect double-clicks from timing
+                DebugLog("MOUSE_DOWN: btns=0x%x macClicks=%d at (%.0f,%.0f) when=%lld",
+                    buttons, macClicks, where.x, where.y, when);
             }
             break;
         }
@@ -251,7 +252,8 @@ void SoftKMMouse::_ProcessMessage(BMessage* msg)
                 int32 buttons = msg->GetInt32("buttons", 0);
                 int32 modifiers = msg->GetInt32("modifiers", 0);
 
-                bigtime_t when = msg->GetInt64("when", system_time());
+                // Use current system_time() for consistent timing
+                bigtime_t when = system_time();
 
                 event = new BMessage(B_MOUSE_UP);
                 event->AddInt64("when", when);
