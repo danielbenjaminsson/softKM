@@ -236,6 +236,8 @@ void SoftKMMouse::_ProcessMessage(BMessage* msg)
                 event = new BMessage(B_MOUSE_DOWN);
                 event->AddInt64("when", when);
                 event->AddPoint("where", where);
+                event->AddInt32("x", 0);  // No delta - cursor already positioned
+                event->AddInt32("y", 0);
                 event->AddInt32("buttons", buttons);
                 event->AddInt32("modifiers", modifiers);
                 event->AddInt32("clicks", clicks);
@@ -258,6 +260,8 @@ void SoftKMMouse::_ProcessMessage(BMessage* msg)
                 event = new BMessage(B_MOUSE_UP);
                 event->AddInt64("when", when);
                 event->AddPoint("where", where);
+                event->AddInt32("x", 0);
+                event->AddInt32("y", 0);
                 event->AddInt32("buttons", buttons);
                 event->AddInt32("modifiers", modifiers);
                 event->AddInt32("be:device_subtype", 1);  // B_MOUSE_POINTING_DEVICE
