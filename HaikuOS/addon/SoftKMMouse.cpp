@@ -42,7 +42,7 @@ enum {
 
 static const char* kDeviceName = "SoftKM Mouse";
 static const char* kPortName = "softKM_mouse_port";
-static const char* kVersion = "1.2.0";  // Click tracking version
+static const char* kVersion = "1.2.1";  // Increased position tolerance
 
 class SoftKMMouse : public BInputServerDevice {
 public:
@@ -253,14 +253,14 @@ void SoftKMMouse::_ProcessMessage(BMessage* msg)
                 // Check if this is a continuation click:
                 // - Same button
                 // - Within click speed time
-                // - Within position threshold (4 pixels)
+                // - Within position threshold (14 pixels - matches Desktop.cpp's 16 pixel sq threshold)
                 float dx = where.x - fLastClickPosition.x;
                 float dy = where.y - fLastClickPosition.y;
                 float distance = sqrtf(dx * dx + dy * dy);
 
                 if (buttons == fLastClickButtons &&
                     (when - fLastClickTime) <= fClickSpeed &&
-                    distance < 4.0f) {
+                    distance < 14.0f) {
                     // Continuation click
                     fClickCount++;
                 } else {
