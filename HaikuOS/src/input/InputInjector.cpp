@@ -485,6 +485,9 @@ void InputInjector::InjectMouseDown(uint32 buttons, float x, float y, uint32 mod
     LOG("MouseDown: buttons=0x%02X mods=0x%02X clicks=%d at (%.1f,%.1f)",
         fCurrentButtons, modifiers, fClickCount, fMousePosition.x, fMousePosition.y);
 
+    // Ensure cursor is at correct position before sending click
+    set_mouse_position((int32)fMousePosition.x, (int32)fMousePosition.y);
+
     BMessage msg(SOFTKM_INJECT_MOUSE_DOWN);
     msg.AddInt64("when", now);  // Pass timestamp for proper timing
     msg.AddPoint("where", fMousePosition);
