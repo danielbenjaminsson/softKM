@@ -6,12 +6,15 @@
  */
 
 #include <InputServerDevice.h>
+#include <InterfaceDefs.h>
 #include <Message.h>
 #include <OS.h>
+#include <Point.h>
 
 #include <stdio.h>
 #include <time.h>
 #include <stdarg.h>
+#include <math.h>
 
 // Debug logging to file
 static void DebugLog(const char* fmt, ...) {
@@ -39,7 +42,7 @@ enum {
 
 static const char* kDeviceName = "SoftKM Mouse";
 static const char* kPortName = "softKM_mouse_port";
-static const char* kVersion = "1.1.0";  // Version for debugging
+static const char* kVersion = "1.2.0";  // Click tracking version
 
 class SoftKMMouse : public BInputServerDevice {
 public:
@@ -60,6 +63,13 @@ private:
     port_id fPort;
     thread_id fWatcherThread;
     bool fRunning;
+
+    // Click tracking for double-click detection
+    bigtime_t fLastClickTime;
+    BPoint fLastClickPosition;
+    int32 fClickCount;
+    int32 fLastClickButtons;
+    bigtime_t fClickSpeed;
 };
 
 
@@ -67,8 +77,18 @@ SoftKMMouse::SoftKMMouse()
     : BInputServerDevice(),
       fPort(-1),
       fWatcherThread(-1),
-      fRunning(false)
+      fRunning(false),
+      fLastClickTime(0),
+      fLastClickPosition(0, 0),
+      fClickCount(0),
+      fLastClickButtons(0),
+      fClickSpeed(500000)  // Default 500ms, will be updated from system settings
 {
+    // Get system click speed setting
+    if (get_click_speed(&fClickSpeed) != B_OK) {
+        fClickSpeed = 500000;  // Fallback to 500ms
+    }
+    DebugLog("Click speed: %lld microseconds", fClickSpeed);
 }
 
 SoftKMMouse::~SoftKMMouse()
@@ -227,20 +247,41 @@ void SoftKMMouse::_ProcessMessage(BMessage* msg)
             if (msg->FindPoint("where", &where) == B_OK) {
                 int32 modifiers = msg->GetInt32("modifiers", 0);
                 int32 buttons = msg->GetInt32("buttons", 0);
-                int32 macClicks = msg->GetInt32("clicks", 1);
-
-                // Use current system_time() for proper input_server click detection
-                // Input_server will determine clicks based on timing between events
                 bigtime_t when = system_time();
+
+                // Click tracking for double-click detection (like easypen device)
+                // Check if this is a continuation click:
+                // - Same button
+                // - Within click speed time
+                // - Within position threshold (4 pixels)
+                float dx = where.x - fLastClickPosition.x;
+                float dy = where.y - fLastClickPosition.y;
+                float distance = sqrtf(dx * dx + dy * dy);
+
+                if (buttons == fLastClickButtons &&
+                    (when - fLastClickTime) <= fClickSpeed &&
+                    distance < 4.0f) {
+                    // Continuation click
+                    fClickCount++;
+                } else {
+                    // New click
+                    fClickCount = 1;
+                }
+
+                // Update tracking state
+                fLastClickTime = when;
+                fLastClickPosition = where;
+                fLastClickButtons = buttons;
 
                 event = new BMessage(B_MOUSE_DOWN);
                 event->AddInt64("when", when);
                 event->AddPoint("where", where);
                 event->AddInt32("buttons", buttons);
                 event->AddInt32("modifiers", modifiers);
-                // Don't set clicks - let input_server detect double-clicks from timing
-                DebugLog("MOUSE_DOWN: btns=0x%x macClicks=%d at (%.0f,%.0f) when=%lld",
-                    buttons, macClicks, where.x, where.y, when);
+                event->AddInt32("clicks", fClickCount);
+
+                DebugLog("MOUSE_DOWN: btns=0x%x clicks=%d at (%.0f,%.0f) dist=%.1f when=%lld",
+                    buttons, fClickCount, where.x, where.y, distance, when);
             }
             break;
         }

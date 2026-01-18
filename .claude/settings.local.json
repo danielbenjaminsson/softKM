@@ -33,7 +33,8 @@
       "Bash(for code in 61 63 57 38 20 35 21 36)",
       "Bash(do echo \"=== 0x$code ===\")",
       "Bash(done)",
-      "Bash(for code in 20 35 21 36)"
+      "Bash(for code in 20 35 21 36)",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ]
   }
 }
