@@ -10,6 +10,24 @@
 #include <OS.h>
 
 #include <stdio.h>
+#include <time.h>
+#include <stdarg.h>
+
+// Debug logging to file
+static void DebugLog(const char* fmt, ...) {
+    FILE* f = fopen("/boot/home/softKM_mouse.log", "a");
+    if (f) {
+        time_t now = time(NULL);
+        struct tm* tm = localtime(&now);
+        fprintf(f, "[%02d:%02d:%02d] ", tm->tm_hour, tm->tm_min, tm->tm_sec);
+        va_list args;
+        va_start(args, fmt);
+        vfprintf(f, fmt, args);
+        va_end(args);
+        fprintf(f, "\n");
+        fclose(f);
+    }
+}
 
 // Message codes for communication with main app
 enum {
@@ -204,15 +222,22 @@ void SoftKMMouse::_ProcessMessage(BMessage* msg)
             BPoint where;
             if (msg->FindPoint("where", &where) == B_OK) {
                 int32 modifiers = msg->GetInt32("modifiers", 0);
+                int32 buttons = msg->GetInt32("buttons", 0);
+                int32 clicks = msg->GetInt32("clicks", 1);
+
+                DebugLog("MOUSE_DOWN received: btns=0x%x mods=0x%x clicks=%d at (%.0f,%.0f)",
+                    buttons, modifiers, clicks, where.x, where.y);
+
                 event = new BMessage(B_MOUSE_DOWN);
                 event->AddInt64("when", system_time());
                 event->AddPoint("where", where);
-                event->AddInt32("buttons", msg->GetInt32("buttons", 0));
+                event->AddInt32("buttons", buttons);
                 event->AddInt32("modifiers", modifiers);
-                int32 clicks = msg->GetInt32("clicks", 1);
                 event->AddInt32("clicks", clicks);
+
+                DebugLog("MOUSE_DOWN event created: btns=0x%x", buttons);
                 fprintf(stderr, "SoftKMMouse: MOUSE_DOWN at (%.0f,%.0f) btns=0x%x mods=0x%x clicks=%d\n",
-                    where.x, where.y, msg->GetInt32("buttons", 0), modifiers, clicks);
+                    where.x, where.y, buttons, modifiers, clicks);
             }
             break;
         }
@@ -221,13 +246,21 @@ void SoftKMMouse::_ProcessMessage(BMessage* msg)
         {
             BPoint where;
             if (msg->FindPoint("where", &where) == B_OK) {
+                int32 buttons = msg->GetInt32("buttons", 0);
+                int32 modifiers = msg->GetInt32("modifiers", 0);
+
+                DebugLog("MOUSE_UP received: btns=0x%x mods=0x%x at (%.0f,%.0f)",
+                    buttons, modifiers, where.x, where.y);
+
                 event = new BMessage(B_MOUSE_UP);
                 event->AddInt64("when", system_time());
                 event->AddPoint("where", where);
-                event->AddInt32("buttons", msg->GetInt32("buttons", 0));
-                event->AddInt32("modifiers", msg->GetInt32("modifiers", 0));
-                fprintf(stderr, "SoftKMMouse: MOUSE_UP at (%.0f,%.0f)\n",
-                    where.x, where.y);
+                event->AddInt32("buttons", buttons);
+                event->AddInt32("modifiers", modifiers);
+
+                DebugLog("MOUSE_UP event created: btns=0x%x", buttons);
+                fprintf(stderr, "SoftKMMouse: MOUSE_UP at (%.0f,%.0f) btns=0x%x\n",
+                    where.x, where.y, buttons);
             }
             break;
         }
