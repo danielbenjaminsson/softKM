@@ -305,6 +305,13 @@ void NetworkServer::ProcessMessage(const uint8* data, size_t length)
                 if (header->eventType == EVENT_KEY_DOWN) {
                     // Get the UTF-8 bytes following the fixed part
                     const char* bytes = (const char*)(payload + sizeof(KeyEventPayload));
+                    // Log the received bytes for debugging
+                    char bytesHex[64] = {0};
+                    for (int i = 0; i < keyPayload->numBytes && i < 10; i++) {
+                        snprintf(bytesHex + i*3, 4, "%02X ", (uint8)bytes[i]);
+                    }
+                    LOG("KEY_DOWN: macKey=0x%02X macMods=0x%02X numBytes=%d bytes=[%s]",
+                        keyPayload->keyCode, keyPayload->modifiers, keyPayload->numBytes, bytesHex);
                     fInputInjector->InjectKeyDown(keyPayload->keyCode,
                         MapModifiers(keyPayload->modifiers),
                         bytes, keyPayload->numBytes);
