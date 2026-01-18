@@ -453,13 +453,12 @@ void InputInjector::InjectMouseDown(uint32 buttons, float x, float y, uint32 mod
     fCurrentModifiers = modifiers;
     bigtime_t now = system_time();
 
-    // Use click count from macOS instead of detecting locally
-    // macOS handles double-click detection with proper timing
-    LOG("MouseDown: buttons=0x%02X mods=0x%02X clicks=%d at (%.1f,%.1f)",
-        fCurrentButtons, modifiers, clicks, fMousePosition.x, fMousePosition.y);
+    // Let the addon handle click tracking - it has better timing info
+    LOG("MouseDown: buttons=0x%02X mods=0x%02X at (%.1f,%.1f)",
+        fCurrentButtons, modifiers, fMousePosition.x, fMousePosition.y);
 
-    // Ensure cursor is at correct position before sending click
-    set_mouse_position((int32)fMousePosition.x, (int32)fMousePosition.y);
+    // Don't call set_mouse_position() here - it conflicts with event pipeline
+    // The addon sends a B_MOUSE_MOVED before each click to sync position
 
     BMessage msg(SOFTKM_INJECT_MOUSE_DOWN);
     msg.AddInt64("when", now);

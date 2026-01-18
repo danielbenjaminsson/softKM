@@ -42,7 +42,7 @@ enum {
 
 static const char* kDeviceName = "SoftKM Mouse";
 static const char* kPortName = "softKM_mouse_port";
-static const char* kVersion = "1.2.4";  // clicks=1 always, system increments
+static const char* kVersion = "1.3.0";  // Full click tracking + pre-click mouse move
 
 class SoftKMMouse : public BInputServerDevice {
 public:
@@ -249,25 +249,44 @@ void SoftKMMouse::_ProcessMessage(BMessage* msg)
                 int32 buttons = msg->GetInt32("buttons", 0);
                 bigtime_t when = system_time();
 
-                // Don't do click tracking - let input_server/app_server handle it
-                // based on the timing of our events. Just set clicks=1 always.
-                // The system will detect double-clicks from proper event timing.
+                // Track clicks ourselves - system doesn't reliably do it for injected events
                 float dx = where.x - fLastClickPosition.x;
                 float dy = where.y - fLastClickPosition.y;
                 float distance = sqrtf(dx * dx + dy * dy);
 
-                // Update tracking state for logging only
-                fLastClickPosition = where;
+                // Check if this is a continuation click (same button, within time & distance)
+                if (buttons == fLastClickButtons &&
+                    fLastClickTime > 0 &&
+                    (when - fLastClickTime) <= fClickSpeed &&
+                    distance < 4.0f) {
+                    fClickCount++;
+                } else {
+                    fClickCount = 1;
+                }
 
+                // Update ALL tracking state
+                fLastClickTime = when;
+                fLastClickPosition = where;
+                fLastClickButtons = buttons;
+
+                // First send a mouse moved to ensure cursor position is synced
+                BMessage* moveEvent = new BMessage(B_MOUSE_MOVED);
+                moveEvent->AddInt64("when", when - 1000);  // Slightly before click
+                moveEvent->AddPoint("where", where);
+                moveEvent->AddInt32("buttons", 0);
+                moveEvent->AddInt32("modifiers", modifiers);
+                EnqueueMessage(moveEvent);
+
+                // Now send the click
                 event = new BMessage(B_MOUSE_DOWN);
                 event->AddInt64("when", when);
                 event->AddPoint("where", where);
                 event->AddInt32("buttons", buttons);
                 event->AddInt32("modifiers", modifiers);
-                event->AddInt32("clicks", 1);  // Always 1 - let system increment based on timing
+                event->AddInt32("clicks", fClickCount);
 
-                DebugLog("MOUSE_DOWN: btns=0x%x at (%.0f,%.0f) dist=%.1f when=%lld",
-                    buttons, where.x, where.y, distance, when);
+                DebugLog("MOUSE_DOWN: btns=0x%x clicks=%d at (%.0f,%.0f) dist=%.1f",
+                    buttons, fClickCount, where.x, where.y, distance);
             }
             break;
         }
