@@ -238,8 +238,8 @@ void SoftKMMouse::_ProcessMessage(BMessage* msg)
                 event->AddInt32("buttons", buttons);
                 event->AddInt32("modifiers", modifiers);
                 event->AddInt32("clicks", clicks);
-                fprintf(stderr, "SoftKMMouse: MOUSE_DOWN at (%.0f,%.0f) btns=0x%x mods=0x%x clicks=%d\n",
-                    where.x, where.y, buttons, modifiers, clicks);
+                DebugLog("MOUSE_DOWN: btns=0x%x clicks=%d at (%.0f,%.0f) when=%lld",
+                    buttons, clicks, where.x, where.y, when);
             }
             break;
         }
@@ -258,8 +258,8 @@ void SoftKMMouse::_ProcessMessage(BMessage* msg)
                 event->AddPoint("where", where);
                 event->AddInt32("buttons", buttons);
                 event->AddInt32("modifiers", modifiers);
-                fprintf(stderr, "SoftKMMouse: MOUSE_UP at (%.0f,%.0f) btns=0x%x\n",
-                    where.x, where.y, buttons);
+                DebugLog("MOUSE_UP: btns=0x%x at (%.0f,%.0f) when=%lld",
+                    buttons, where.x, where.y, when);
             }
             break;
         }
