@@ -23,6 +23,7 @@ class NetworkClient: ObservableObject {
 
     // Event batching for mouse moves
     private var pendingMouseDelta: (x: Float, y: Float) = (0, 0)
+    private var pendingMouseModifiers: UInt32 = 0
     private var hasPendingMouse = false
     private let batchLock = NSLock()
 
@@ -132,10 +133,11 @@ class NetworkClient: ObservableObject {
 
     func send(event: InputEvent) {
         // Batch mouse moves together
-        if case let .mouseMove(x, y, relative) = event, relative {
+        if case let .mouseMove(x, y, relative, modifiers) = event, relative {
             batchLock.lock()
             pendingMouseDelta.x += x
             pendingMouseDelta.y += y
+            pendingMouseModifiers = modifiers
             hasPendingMouse = true
             batchLock.unlock()
             return  // Will be flushed by timer
@@ -152,11 +154,13 @@ class NetworkClient: ObservableObject {
             return
         }
         let delta = pendingMouseDelta
+        let modifiers = pendingMouseModifiers
         pendingMouseDelta = (0, 0)
+        pendingMouseModifiers = 0
         hasPendingMouse = false
         batchLock.unlock()
 
-        sendDirect(event: .mouseMove(x: delta.x, y: delta.y, relative: true))
+        sendDirect(event: .mouseMove(x: delta.x, y: delta.y, relative: true, modifiers: modifiers))
     }
 
     private func sendDirect(event: InputEvent) {

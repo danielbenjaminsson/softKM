@@ -324,6 +324,23 @@ class SwitchController {
     }
 
     private func getCharacters(from event: CGEvent) -> String {
+        // Use CGEventKeyboardGetUnicodeString for more reliable character extraction
+        // This works better with event taps than NSEvent.characters
+        var length: Int = 0
+        var chars = [UniChar](repeating: 0, count: 4)
+
+        event.keyboardGetUnicodeString(
+            maxStringLength: chars.count,
+            actualStringLength: &length,
+            unicodeString: &chars
+        )
+
+        if length > 0 {
+            let result = String(utf16CodeUnits: chars, count: length)
+            return result
+        }
+
+        // Fallback to NSEvent method if CGEvent method returns nothing
         if let nsEvent = NSEvent(cgEvent: event) {
             return nsEvent.characters ?? ""
         }
