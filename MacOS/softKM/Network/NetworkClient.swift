@@ -1,5 +1,5 @@
 import Foundation
-import Network
+import Darwin
 
 extension Notification.Name {
     static let switchToMac = Notification.Name("switchToMac")
@@ -12,9 +12,19 @@ struct SwitchToMacInfo {
 class NetworkClient: ObservableObject {
     @Published var connectionState: ConnectionManager.ConnectionState = .disconnected
 
-    private var connection: NWConnection?
+    private var socketFD: Int32 = -1
     private let queue = DispatchQueue(label: "com.softkm.network")
     private var heartbeatTimer: Timer?
+    private var flushTimer: Timer?
+    private var receiveThread: Thread?
+    private var shouldRun = false
+    private var sendCount = 0
+    private var lastLogTime = Date()
+
+    // Event batching for mouse moves
+    private var pendingMouseDelta: (x: Float, y: Float) = (0, 0)
+    private var hasPendingMouse = false
+    private let batchLock = NSLock()
 
     func connect(to host: String, port: Int, useTLS: Bool) {
         disconnect()
@@ -22,130 +32,216 @@ class NetworkClient: ObservableObject {
         LOG("Connecting to \(host):\(port) (TLS: \(useTLS))")
         connectionState = .connecting
 
-        let endpoint = NWEndpoint.hostPort(
-            host: NWEndpoint.Host(host),
-            port: NWEndpoint.Port(integerLiteral: UInt16(clamping: port))
-        )
+        queue.async { [weak self] in
+            guard let self = self else { return }
 
-        let parameters: NWParameters
-        if useTLS {
-            parameters = NWParameters(tls: createTLSOptions())
-        } else {
-            parameters = NWParameters.tcp
-        }
+            // Resolve hostname
+            var hints = addrinfo()
+            hints.ai_family = AF_INET
+            hints.ai_socktype = SOCK_STREAM
+            hints.ai_protocol = IPPROTO_TCP
 
-        // Configure TCP options for low latency
-        if let tcpOptions = parameters.defaultProtocolStack.transportProtocol as? NWProtocolTCP.Options {
-            tcpOptions.noDelay = true
-            LOG("TCP_NODELAY enabled")
-        } else {
-            LOG("WARNING: Could not set TCP_NODELAY")
-        }
+            var result: UnsafeMutablePointer<addrinfo>?
+            let portStr = String(port)
+            let status = getaddrinfo(host, portStr, &hints, &result)
 
-        connection = NWConnection(to: endpoint, using: parameters)
-
-        connection?.stateUpdateHandler = { [weak self] state in
-            DispatchQueue.main.async {
-                self?.handleStateChange(state)
+            if status != 0 {
+                let error = String(cString: gai_strerror(status))
+                LOG("Failed to resolve hostname: \(error)")
+                DispatchQueue.main.async {
+                    self.connectionState = .error("DNS resolution failed: \(error)")
+                }
+                self.scheduleReconnect()
+                return
             }
-        }
 
-        connection?.start(queue: queue)
+            defer { freeaddrinfo(result) }
+
+            guard let addr = result else {
+                LOG("No address found")
+                DispatchQueue.main.async {
+                    self.connectionState = .error("No address found")
+                }
+                self.scheduleReconnect()
+                return
+            }
+
+            // Create socket
+            self.socketFD = socket(AF_INET, SOCK_STREAM, 0)
+            if self.socketFD < 0 {
+                LOG("Failed to create socket")
+                DispatchQueue.main.async {
+                    self.connectionState = .error("Failed to create socket")
+                }
+                self.scheduleReconnect()
+                return
+            }
+
+            // Set TCP_NODELAY for low latency
+            var opt: Int32 = 1
+            if setsockopt(self.socketFD, IPPROTO_TCP, TCP_NODELAY, &opt, socklen_t(MemoryLayout<Int32>.size)) < 0 {
+                LOG("WARNING: Could not set TCP_NODELAY")
+            } else {
+                LOG("TCP_NODELAY enabled")
+            }
+
+            // Connect
+            if Darwin.connect(self.socketFD, addr.pointee.ai_addr, addr.pointee.ai_addrlen) < 0 {
+                let err = String(cString: strerror(errno))
+                LOG("Failed to connect: \(err)")
+                close(self.socketFD)
+                self.socketFD = -1
+                DispatchQueue.main.async {
+                    self.connectionState = .error("Connection failed: \(err)")
+                }
+                self.scheduleReconnect()
+                return
+            }
+
+            LOG("Connected successfully!")
+            self.shouldRun = true
+
+            DispatchQueue.main.async {
+                self.connectionState = .connected
+                self.startHeartbeat()
+            }
+
+            // Start receive loop on this queue
+            self.receiveLoop()
+        }
     }
 
     func disconnect() {
         LOG("Disconnecting from server...")
         heartbeatTimer?.invalidate()
         heartbeatTimer = nil
+        flushTimer?.invalidate()
+        flushTimer = nil
+        shouldRun = false
 
-        // Force close the connection
-        connection?.forceCancel()
-        connection = nil
+        if socketFD >= 0 {
+            // Shutdown to unblock recv
+            shutdown(socketFD, SHUT_RDWR)
+            close(socketFD)
+            socketFD = -1
+        }
+
         connectionState = .disconnected
         LOG("Disconnected")
     }
 
     func send(event: InputEvent) {
-        guard connectionState == .connected else {
-            LOG("Cannot send - not connected")
+        // Batch mouse moves together
+        if case let .mouseMove(x, y, relative) = event, relative {
+            batchLock.lock()
+            pendingMouseDelta.x += x
+            pendingMouseDelta.y += y
+            hasPendingMouse = true
+            batchLock.unlock()
+            return  // Will be flushed by timer
+        }
+
+        // All other events sent immediately
+        sendDirect(event: event)
+    }
+
+    func flushPendingMouse() {
+        batchLock.lock()
+        guard hasPendingMouse else {
+            batchLock.unlock()
+            return
+        }
+        let delta = pendingMouseDelta
+        pendingMouseDelta = (0, 0)
+        hasPendingMouse = false
+        batchLock.unlock()
+
+        sendDirect(event: .mouseMove(x: delta.x, y: delta.y, relative: true))
+    }
+
+    private func sendDirect(event: InputEvent) {
+        let fd = socketFD
+        guard connectionState == .connected, fd >= 0 else {
             return
         }
 
         let data = Protocol.encode(event)
-        // Use idempotent completion to avoid backpressure from waiting for completion
-        connection?.send(content: data, completion: .idempotent)
-    }
+        sendCount += 1
+        let now = Date()
+        if now.timeIntervalSince(lastLogTime) >= 1.0 {
+            LOG("Send rate: \(sendCount) sends, fd=\(fd)")
+            sendCount = 0
+            lastLogTime = now
+        }
 
-    private func handleStateChange(_ state: NWConnection.State) {
-        LOG("Connection state: \(state)")
-
-        switch state {
-        case .ready:
-            LOG("Connected successfully!")
-            connectionState = .connected
-            startHeartbeat()
-            startReceiving()
-
-        case .waiting(let error):
-            LOG("Waiting: \(error)")
-            connectionState = .error("Waiting: \(error.localizedDescription)")
-
-        case .failed(let error):
-            LOG("Failed: \(error)")
-            connectionState = .error(error.localizedDescription)
-            scheduleReconnect()
-
-        case .cancelled:
-            LOG("Cancelled")
-            connectionState = .disconnected
-
-        case .preparing:
-            LOG("Preparing connection...")
-            connectionState = .connecting
-
-        default:
-            LOG("Other state: \(state)")
-            break
+        data.withUnsafeBytes { ptr in
+            let sent = Darwin.send(fd, ptr.baseAddress, data.count, 0)
+            if sent < 0 {
+                LOG("Send error: \(String(cString: strerror(errno)))")
+                DispatchQueue.main.async { [weak self] in
+                    self?.disconnect()
+                }
+            }
         }
     }
 
-    private func startReceiving() {
-        connection?.receive(minimumIncompleteLength: 1, maximumLength: 1024) { [weak self] data, _, isComplete, error in
-            if let data = data, !data.isEmpty {
-                self?.handleReceivedData(data)
-            }
+    private func receiveLoop() {
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        var accumulated = Data()
 
-            if let error = error {
-                DispatchQueue.main.async {
-                    self?.connectionState = .error(error.localizedDescription)
+        while shouldRun && socketFD >= 0 {
+            let bytesRead = recv(socketFD, &buffer, buffer.count, 0)
+
+            if bytesRead <= 0 {
+                if bytesRead < 0 && errno == EINTR {
+                    continue
                 }
-                return
+                // Connection closed or error
+                LOG("Receive error or connection closed")
+                DispatchQueue.main.async { [weak self] in
+                    self?.disconnect()
+                    self?.scheduleReconnect()
+                }
+                break
             }
 
-            if !isComplete {
-                self?.startReceiving()
+            accumulated.append(contentsOf: buffer[0..<bytesRead])
+
+            // Process complete messages
+            while accumulated.count >= 8 {
+                // Check magic
+                let magic = accumulated.subdata(in: 0..<2).withUnsafeBytes { $0.load(as: UInt16.self) }
+                if magic != Protocol.magic.littleEndian {
+                    LOG("Invalid magic in response, clearing buffer")
+                    accumulated.removeAll()
+                    break
+                }
+
+                // Get length
+                let length = accumulated.subdata(in: 4..<8).withUnsafeBytes { $0.load(as: UInt32.self) }
+                let messageSize = 8 + Int(length)
+
+                if accumulated.count < messageSize {
+                    break  // Wait for more data
+                }
+
+                // Process complete message
+                let messageData = accumulated.subdata(in: 0..<messageSize)
+                handleReceivedData(messageData)
+                accumulated.removeSubrange(0..<messageSize)
             }
         }
     }
 
     private func handleReceivedData(_ data: Data) {
-        LOG("Received \(data.count) bytes from server")
-
-        // Handle heartbeat ack or other responses from Haiku
         guard data.count >= 8 else {
             LOG("Data too short, ignoring")
             return
         }
 
-        let magic = data.subdata(in: 0..<2).withUnsafeBytes { $0.load(as: UInt16.self) }
-        guard magic == Protocol.magic.littleEndian else {
-            LOG("Invalid magic in response")
-            return
-        }
-
         let eventType = data[3]
         if eventType == EventType.heartbeatAck.rawValue {
-            LOG("Received heartbeat ACK")
+            // Heartbeat ACK - silent
         } else if eventType == EventType.controlSwitch.rawValue {
             // Haiku is telling us to switch control back to macOS
             guard data.count >= 9 else {
@@ -189,8 +285,13 @@ class NetworkClient: ObservableObject {
     private func startHeartbeat() {
         heartbeatTimer?.invalidate()
         heartbeatTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
-            LOG("Sending heartbeat")
-            self?.send(event: .heartbeat)
+            self?.sendDirect(event: .heartbeat)
+        }
+
+        // Flush pending mouse moves every 16ms (~60Hz)
+        flushTimer?.invalidate()
+        flushTimer = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { [weak self] _ in
+            self?.flushPendingMouse()
         }
     }
 
@@ -200,14 +301,5 @@ class NetworkClient: ObservableObject {
             let settings = SettingsManager.shared
             self?.connect(to: settings.hostAddress, port: settings.port, useTLS: settings.useTLS)
         }
-    }
-
-    private func createTLSOptions() -> NWProtocolTLS.Options {
-        let options = NWProtocolTLS.Options()
-        // For development, allow self-signed certificates
-        sec_protocol_options_set_verify_block(options.securityProtocolOptions, { _, _, completion in
-            completion(true)
-        }, queue)
-        return options
     }
 }

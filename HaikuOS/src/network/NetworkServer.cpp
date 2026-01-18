@@ -208,6 +208,9 @@ void NetworkServer::HandleClient(int clientSocket)
 {
     uint8 buffer[4096];
     size_t bufferOffset = 0;
+    int recvCount = 0;
+    int msgCount = 0;
+    bigtime_t lastLogTime = system_time();
 
     while (fRunning && clientSocket >= 0) {
         ssize_t bytesRead = recv(clientSocket, buffer + bufferOffset,
@@ -220,10 +223,22 @@ void NetworkServer::HandleClient(int clientSocket)
             break;  // Connection closed or error
         }
 
+        recvCount++;
         bufferOffset += bytesRead;
+
+        // Log receive stats every second
+        bigtime_t now = system_time();
+        if (now - lastLogTime >= 1000000) {
+            LOG("Recv stats: %d recv calls, %d messages in last %.1fs",
+                recvCount, msgCount, (now - lastLogTime) / 1000000.0);
+            recvCount = 0;
+            msgCount = 0;
+            lastLogTime = now;
+        }
 
         // Process complete messages
         while (bufferOffset >= sizeof(ProtocolHeader)) {
+            msgCount++;
             ProtocolHeader* header = (ProtocolHeader*)buffer;
 
             // Validate magic

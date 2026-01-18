@@ -68,14 +68,9 @@ class SwitchController {
         }
     }
 
+    private var mouseLogCounter = 0
+
     private func handleMouseMove(event: CGEvent, location: CGPoint) -> Unmanaged<CGEvent>? {
-        // Debug: log position near edges
-        if let screen = NSScreen.main {
-            let frame = screen.frame
-            if location.x >= frame.maxX - 20 || location.x <= frame.minX + 20 {
-                LOG("Mouse near edge: x=\(location.x) frame.maxX=\(frame.maxX) mode=\(mode)")
-            }
-        }
 
         // Check for edge switching
         if let direction = edgeDetector.checkMousePosition(location, currentMode: mode) {
@@ -97,7 +92,10 @@ class SwitchController {
             let deltaY = Float(event.getDoubleValueField(.mouseEventDeltaY))
 
             if deltaX != 0 || deltaY != 0 {
-                LOG("Mouse delta: (\(deltaX), \(deltaY))")
+                mouseLogCounter += 1
+                if mouseLogCounter % 100 == 1 {
+                    LOG("Mouse delta: (\(deltaX), \(deltaY)) [event #\(mouseLogCounter)]")
+                }
                 connectionManager.send(event: .mouseMove(x: deltaX, y: deltaY, relative: true))
             }
 

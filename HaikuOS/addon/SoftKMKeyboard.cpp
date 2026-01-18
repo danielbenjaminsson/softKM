@@ -6,7 +6,6 @@
  */
 
 #include <InputServerDevice.h>
-#include <InterfaceDefs.h>
 #include <Message.h>
 #include <OS.h>
 
@@ -227,7 +226,7 @@ void SoftKMKeyboard::_ProcessMessage(BMessage* msg)
             // Handle special keys that need specific byte values
             char specialByte = 0;
             const char* specialBytes = NULL;
-            static char byteBuffer[8] = {0};
+            static char byteBuffer[2] = {0, 0};
 
             switch (key) {
                 case 0x1e:  // Backspace
@@ -248,36 +247,10 @@ void SoftKMKeyboard::_ProcessMessage(BMessage* msg)
                 case 0x5e:  // Space
                     specialByte = 0x20;
                     break;
-                // Arrow keys - use Haiku's B_*_ARROW constants
-                case 0x61:  // Left Arrow
-                    specialByte = B_LEFT_ARROW;
-                    break;
-                case 0x63:  // Right Arrow
-                    specialByte = B_RIGHT_ARROW;
-                    break;
-                case 0x57:  // Down Arrow
-                    specialByte = B_DOWN_ARROW;
-                    break;
-                case 0x38:  // Up Arrow
-                    specialByte = B_UP_ARROW;
-                    break;
-                case 0x20:  // Home
-                    specialByte = B_HOME;
-                    break;
-                case 0x35:  // End
-                    specialByte = B_END;
-                    break;
-                case 0x21:  // Page Up
-                    specialByte = B_PAGE_UP;
-                    break;
-                case 0x36:  // Page Down
-                    specialByte = B_PAGE_DOWN;
-                    break;
             }
 
             if (specialByte != 0) {
                 byteBuffer[0] = specialByte;
-                byteBuffer[1] = 0;
                 specialBytes = byteBuffer;
                 rawChar = specialByte;
             }
