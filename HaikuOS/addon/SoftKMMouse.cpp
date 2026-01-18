@@ -42,7 +42,7 @@ enum {
 
 static const char* kDeviceName = "SoftKM Mouse";
 static const char* kPortName = "softKM_mouse_port";
-static const char* kVersion = "1.2.3";  // Let system handle click counting
+static const char* kVersion = "1.2.4";  // clicks=1 always, system increments
 
 class SoftKMMouse : public BInputServerDevice {
 public:
@@ -264,7 +264,7 @@ void SoftKMMouse::_ProcessMessage(BMessage* msg)
                 event->AddPoint("where", where);
                 event->AddInt32("buttons", buttons);
                 event->AddInt32("modifiers", modifiers);
-                // Let system handle click counting - don't set clicks field
+                event->AddInt32("clicks", 1);  // Always 1 - let system increment based on timing
 
                 DebugLog("MOUSE_DOWN: btns=0x%x at (%.0f,%.0f) dist=%.1f when=%lld",
                     buttons, where.x, where.y, distance, when);
