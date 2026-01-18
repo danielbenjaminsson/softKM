@@ -142,16 +142,7 @@ jobs:
               cp "$KEYBOARD_ADDON" ~/config/non-packaged/add-ons/input_server/devices/
               cp "$MOUSE_ADDON" ~/config/non-packaged/add-ons/input_server/devices/
               echo "Addons installed: $KEYBOARD_ADDON, $MOUSE_ADDON"
-
-              echo "Restarting input_server to load addons..."
-              /system/servers/input_server -q
-              sleep 3
-              # Verify input_server restarted
-              if ps | grep -v grep | grep -q input_server; then
-                echo "input_server restarted successfully"
-              else
-                echo "Warning: input_server may not have restarted"
-              fi
+              echo "NOTE: Reboot Haiku to load updated input_server addons"
             else
               echo "Warning: Addon build failed"
             fi
