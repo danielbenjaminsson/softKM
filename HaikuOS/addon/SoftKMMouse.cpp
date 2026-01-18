@@ -217,7 +217,6 @@ void SoftKMMouse::_ProcessMessage(BMessage* msg)
                 event->AddPoint("where", where);
                 event->AddInt32("buttons", msg->GetInt32("buttons", 0));
                 event->AddInt32("modifiers", msg->GetInt32("modifiers", 0));
-                event->AddInt32("be:device_subtype", 1);  // B_MOUSE_POINTING_DEVICE
             }
             break;
         }
@@ -236,12 +235,9 @@ void SoftKMMouse::_ProcessMessage(BMessage* msg)
                 event = new BMessage(B_MOUSE_DOWN);
                 event->AddInt64("when", when);
                 event->AddPoint("where", where);
-                event->AddInt32("x", 0);  // No delta - cursor already positioned
-                event->AddInt32("y", 0);
                 event->AddInt32("buttons", buttons);
                 event->AddInt32("modifiers", modifiers);
                 event->AddInt32("clicks", clicks);
-                event->AddInt32("be:device_subtype", 1);  // B_MOUSE_POINTING_DEVICE
                 fprintf(stderr, "SoftKMMouse: MOUSE_DOWN at (%.0f,%.0f) btns=0x%x mods=0x%x clicks=%d\n",
                     where.x, where.y, buttons, modifiers, clicks);
             }
@@ -260,11 +256,8 @@ void SoftKMMouse::_ProcessMessage(BMessage* msg)
                 event = new BMessage(B_MOUSE_UP);
                 event->AddInt64("when", when);
                 event->AddPoint("where", where);
-                event->AddInt32("x", 0);
-                event->AddInt32("y", 0);
                 event->AddInt32("buttons", buttons);
                 event->AddInt32("modifiers", modifiers);
-                event->AddInt32("be:device_subtype", 1);  // B_MOUSE_POINTING_DEVICE
                 fprintf(stderr, "SoftKMMouse: MOUSE_UP at (%.0f,%.0f) btns=0x%x\n",
                     where.x, where.y, buttons);
             }
