@@ -230,9 +230,6 @@ void SoftKMMouse::_ProcessMessage(BMessage* msg)
                 int32 buttons = msg->GetInt32("buttons", 0);
                 int32 clicks = msg->GetInt32("clicks", 1);
 
-                DebugLog("MOUSE_DOWN received: btns=0x%x mods=0x%x clicks=%d at (%.0f,%.0f)",
-                    buttons, modifiers, clicks, where.x, where.y);
-
                 event = new BMessage(B_MOUSE_DOWN);
                 event->AddInt64("when", system_time());
                 event->AddPoint("where", where);
@@ -240,8 +237,6 @@ void SoftKMMouse::_ProcessMessage(BMessage* msg)
                 event->AddInt32("modifiers", modifiers);
                 event->AddInt32("clicks", clicks);
                 event->AddInt32("be:device_subtype", 1);  // B_MOUSE_POINTING_DEVICE
-
-                DebugLog("MOUSE_DOWN event created: btns=0x%x", buttons);
                 fprintf(stderr, "SoftKMMouse: MOUSE_DOWN at (%.0f,%.0f) btns=0x%x mods=0x%x clicks=%d\n",
                     where.x, where.y, buttons, modifiers, clicks);
             }
@@ -255,17 +250,12 @@ void SoftKMMouse::_ProcessMessage(BMessage* msg)
                 int32 buttons = msg->GetInt32("buttons", 0);
                 int32 modifiers = msg->GetInt32("modifiers", 0);
 
-                DebugLog("MOUSE_UP received: btns=0x%x mods=0x%x at (%.0f,%.0f)",
-                    buttons, modifiers, where.x, where.y);
-
                 event = new BMessage(B_MOUSE_UP);
                 event->AddInt64("when", system_time());
                 event->AddPoint("where", where);
                 event->AddInt32("buttons", buttons);
                 event->AddInt32("modifiers", modifiers);
                 event->AddInt32("be:device_subtype", 1);  // B_MOUSE_POINTING_DEVICE
-
-                DebugLog("MOUSE_UP event created: btns=0x%x", buttons);
                 fprintf(stderr, "SoftKMMouse: MOUSE_UP at (%.0f,%.0f) btns=0x%x\n",
                     where.x, where.y, buttons);
             }
@@ -277,9 +267,6 @@ void SoftKMMouse::_ProcessMessage(BMessage* msg)
             float deltaX = msg->GetFloat("delta_x", 0.0f);
             float deltaY = msg->GetFloat("delta_y", 0.0f);
             int32 modifiers = msg->GetInt32("modifiers", 0);
-
-            DebugLog("MOUSE_WHEEL received: deltaX=%.2f deltaY=%.2f mods=0x%x",
-                deltaX, deltaY, modifiers);
 
             event = new BMessage(B_MOUSE_WHEEL_CHANGED);
             event->AddInt64("when", system_time());
