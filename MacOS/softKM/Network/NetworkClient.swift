@@ -37,6 +37,9 @@ class NetworkClient: ObservableObject {
         // Configure TCP options for low latency
         if let tcpOptions = parameters.defaultProtocolStack.transportProtocol as? NWProtocolTCP.Options {
             tcpOptions.noDelay = true
+            LOG("TCP_NODELAY enabled")
+        } else {
+            LOG("WARNING: Could not set TCP_NODELAY")
         }
 
         connection = NWConnection(to: endpoint, using: parameters)
@@ -69,14 +72,8 @@ class NetworkClient: ObservableObject {
         }
 
         let data = Protocol.encode(event)
-        connection?.send(content: data, completion: .contentProcessed { [weak self] error in
-            if let error = error {
-                LOG("Send error: \(error.localizedDescription)")
-                DispatchQueue.main.async {
-                    self?.connectionState = .error(error.localizedDescription)
-                }
-            }
-        })
+        // Use idempotent completion to avoid backpressure from waiting for completion
+        connection?.send(content: data, completion: .idempotent)
     }
 
     private func handleStateChange(_ state: NWConnection.State) {

@@ -167,6 +167,16 @@ void NetworkServer::AcceptConnections()
         int opt = 1;
         setsockopt(fClientSocket, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
 
+        // Set receive low water mark to 1 byte for immediate delivery
+        int lowat = 1;
+        setsockopt(fClientSocket, SOL_SOCKET, SO_RCVLOWAT, &lowat, sizeof(lowat));
+
+        // Set small receive buffer to reduce latency
+        int rcvbuf = 8192;
+        setsockopt(fClientSocket, SOL_SOCKET, SO_RCVBUF, &rcvbuf, sizeof(rcvbuf));
+
+        LOG("Socket options set: TCP_NODELAY, SO_RCVLOWAT=1, SO_RCVBUF=%d", rcvbuf);
+
         LOG("Client connected from %s:%d",
             inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port));
 
