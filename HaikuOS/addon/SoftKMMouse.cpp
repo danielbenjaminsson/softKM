@@ -42,7 +42,7 @@ enum {
 
 static const char* kDeviceName = "SoftKM Mouse";
 static const char* kPortName = "softKM_mouse_port";
-static const char* kVersion = "1.2.2";  // Match Desktop.cpp position threshold
+static const char* kVersion = "1.2.3";  // Let system handle click counting
 
 class SoftKMMouse : public BInputServerDevice {
 public:
@@ -249,39 +249,25 @@ void SoftKMMouse::_ProcessMessage(BMessage* msg)
                 int32 buttons = msg->GetInt32("buttons", 0);
                 bigtime_t when = system_time();
 
-                // Click tracking for double-click detection (like easypen device)
-                // Check if this is a continuation click:
-                // - Same button
-                // - Within click speed time
-                // - Within position threshold (3 pixels - Desktop.cpp uses squared dist < 16, i.e. < 4 pixels)
+                // Don't do click tracking - let input_server/app_server handle it
+                // based on the timing of our events. Just set clicks=1 always.
+                // The system will detect double-clicks from proper event timing.
                 float dx = where.x - fLastClickPosition.x;
                 float dy = where.y - fLastClickPosition.y;
                 float distance = sqrtf(dx * dx + dy * dy);
 
-                if (buttons == fLastClickButtons &&
-                    (when - fLastClickTime) <= fClickSpeed &&
-                    distance < 3.5f) {
-                    // Continuation click
-                    fClickCount++;
-                } else {
-                    // New click
-                    fClickCount = 1;
-                }
-
-                // Update tracking state
-                fLastClickTime = when;
+                // Update tracking state for logging only
                 fLastClickPosition = where;
-                fLastClickButtons = buttons;
 
                 event = new BMessage(B_MOUSE_DOWN);
                 event->AddInt64("when", when);
                 event->AddPoint("where", where);
                 event->AddInt32("buttons", buttons);
                 event->AddInt32("modifiers", modifiers);
-                event->AddInt32("clicks", fClickCount);
+                // Let system handle click counting - don't set clicks field
 
-                DebugLog("MOUSE_DOWN: btns=0x%x clicks=%d at (%.0f,%.0f) dist=%.1f when=%lld",
-                    buttons, fClickCount, where.x, where.y, distance, when);
+                DebugLog("MOUSE_DOWN: btns=0x%x at (%.0f,%.0f) dist=%.1f when=%lld",
+                    buttons, where.x, where.y, distance, when);
             }
             break;
         }
