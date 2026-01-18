@@ -1,4 +1,58 @@
 import SwiftUI
+import AppKit
+
+// NSTextView wrapper for selectable log text
+struct SelectableLogView: NSViewRepresentable {
+    let entries: [String]
+    let autoScroll: Bool
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        let textView = NSTextView()
+
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+        textView.backgroundColor = NSColor.textBackgroundColor
+        textView.textContainerInset = NSSize(width: 8, height: 8)
+        textView.autoresizingMask = [.width]
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.textContainer?.widthTracksTextView = true
+
+        scrollView.documentView = textView
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = false
+        scrollView.autohidesScrollers = true
+
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        guard let textView = scrollView.documentView as? NSTextView else { return }
+
+        let newText = entries.joined(separator: "\n")
+        let currentText = textView.string
+
+        if newText != currentText {
+            let wasAtBottom = isScrolledToBottom(scrollView)
+            textView.string = newText
+
+            if autoScroll && (wasAtBottom || entries.count <= 1) {
+                DispatchQueue.main.async {
+                    textView.scrollToEndOfDocument(nil)
+                }
+            }
+        }
+    }
+
+    private func isScrolledToBottom(_ scrollView: NSScrollView) -> Bool {
+        guard let documentView = scrollView.documentView else { return true }
+        let visibleRect = scrollView.contentView.bounds
+        let documentHeight = documentView.frame.height
+        return visibleRect.maxY >= documentHeight - 50
+    }
+}
 
 enum LogCategory: String, CaseIterable {
     case mouse = "Mouse"
@@ -72,28 +126,11 @@ struct LogWindow: View {
 
             Divider()
 
-            // Log content
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 2) {
-                        ForEach(filteredEntries, id: \.0) { index, entry in
-                            Text(entry)
-                                .font(.system(size: 14, design: .monospaced))
-                                .textSelection(.enabled)
-                                .id(index)
-                        }
-                    }
-                    .padding(8)
-                }
-                .background(Color(NSColor.textBackgroundColor))
-                .onChange(of: logger.logEntries.count) { _ in
-                    if autoScroll, let last = filteredEntries.last {
-                        withAnimation {
-                            proxy.scrollTo(last.0, anchor: .bottom)
-                        }
-                    }
-                }
-            }
+            // Log content - using NSTextView for proper text selection
+            SelectableLogView(
+                entries: filteredEntries.map { $0.1 },
+                autoScroll: autoScroll
+            )
         }
         .frame(minWidth: 600, minHeight: 300)
     }
