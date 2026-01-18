@@ -42,7 +42,7 @@ enum {
 
 static const char* kDeviceName = "SoftKM Mouse";
 static const char* kPortName = "softKM_mouse_port";
-static const char* kVersion = "1.4.0";  // Use macOS click count for reliable double-click
+static const char* kVersion = "1.3.0";  // Full click tracking + pre-click mouse move
 
 class SoftKMMouse : public BInputServerDevice {
 public:
@@ -247,14 +247,24 @@ void SoftKMMouse::_ProcessMessage(BMessage* msg)
             if (msg->FindPoint("where", &where) == B_OK) {
                 int32 modifiers = msg->GetInt32("modifiers", 0);
                 int32 buttons = msg->GetInt32("buttons", 0);
-                int32 macClicks = msg->GetInt32("clicks", 1);  // Click count from macOS
                 bigtime_t when = system_time();
 
-                // Use macOS click count directly - it has accurate timing info
-                // Network latency makes local click detection unreliable
-                fClickCount = macClicks;
+                // Track clicks ourselves - system doesn't reliably do it for injected events
+                float dx = where.x - fLastClickPosition.x;
+                float dy = where.y - fLastClickPosition.y;
+                float distance = sqrtf(dx * dx + dy * dy);
 
-                // Update tracking state for logging/debugging
+                // Check if this is a continuation click (same button, within time & distance)
+                if (buttons == fLastClickButtons &&
+                    fLastClickTime > 0 &&
+                    (when - fLastClickTime) <= fClickSpeed &&
+                    distance < 4.0f) {
+                    fClickCount++;
+                } else {
+                    fClickCount = 1;
+                }
+
+                // Update ALL tracking state
                 fLastClickTime = when;
                 fLastClickPosition = where;
                 fLastClickButtons = buttons;
@@ -275,8 +285,8 @@ void SoftKMMouse::_ProcessMessage(BMessage* msg)
                 event->AddInt32("modifiers", modifiers);
                 event->AddInt32("clicks", fClickCount);
 
-                DebugLog("MOUSE_DOWN: btns=0x%x clicks=%d (from macOS) at (%.0f,%.0f)",
-                    buttons, fClickCount, where.x, where.y);
+                DebugLog("MOUSE_DOWN: btns=0x%x clicks=%d at (%.0f,%.0f) dist=%.1f",
+                    buttons, fClickCount, where.x, where.y, distance);
             }
             break;
         }
