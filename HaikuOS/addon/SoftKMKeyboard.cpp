@@ -42,6 +42,7 @@ enum {
 
 static const char* kDeviceName = "SoftKM Keyboard";
 static const char* kPortName = "softKM_keyboard_port";
+static const char* kVersion = "1.1.0";  // Version for debugging
 
 class SoftKMKeyboard : public BInputServerDevice {
 public:
@@ -91,6 +92,9 @@ SoftKMKeyboard::~SoftKMKeyboard()
 
 status_t SoftKMKeyboard::InitCheck()
 {
+    fprintf(stderr, "SoftKMKeyboard: Version %s initializing\n", kVersion);
+    DebugLog("=== SoftKMKeyboard v%s initializing ===", kVersion);
+
     // Create a port for receiving keyboard events
     fPort = create_port(100, kPortName);
     if (fPort < 0) {

@@ -39,6 +39,7 @@ enum {
 
 static const char* kDeviceName = "SoftKM Mouse";
 static const char* kPortName = "softKM_mouse_port";
+static const char* kVersion = "1.1.0";  // Version for debugging
 
 class SoftKMMouse : public BInputServerDevice {
 public:
@@ -85,6 +86,9 @@ SoftKMMouse::~SoftKMMouse()
 
 status_t SoftKMMouse::InitCheck()
 {
+    fprintf(stderr, "SoftKMMouse: Version %s initializing\n", kVersion);
+    DebugLog("=== SoftKMMouse v%s initializing ===", kVersion);
+
     // Create a port for receiving mouse events
     fPort = create_port(100, kPortName);
     if (fPort < 0) {
