@@ -255,10 +255,10 @@ void SoftKMKeyboard::_ProcessMessage(BMessage* msg)
                 case 0x63:  // Right Arrow
                     specialByte = B_RIGHT_ARROW;
                     break;
-                case 0x57:  // Down Arrow
+                case 0x62:  // Down Arrow
                     specialByte = B_DOWN_ARROW;
                     break;
-                case 0x38:  // Up Arrow
+                case 0x9e:  // Up Arrow
                     specialByte = B_UP_ARROW;
                     break;
                 case 0x20:  // Home

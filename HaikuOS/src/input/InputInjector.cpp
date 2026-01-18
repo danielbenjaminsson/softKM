@@ -109,11 +109,11 @@ static const struct KeyMapping {
     { 0x67, 0x0c },  // F11
     { 0x6F, 0x0d },  // F12
 
-    // Arrow keys
+    // Arrow keys (using dedicated keycodes to avoid collisions)
     { 0x7B, 0x61 },  // Left Arrow
     { 0x7C, 0x63 },  // Right Arrow
-    { 0x7D, 0x57 },  // Down Arrow
-    { 0x7E, 0x38 },  // Up Arrow
+    { 0x7D, 0x62 },  // Down Arrow (was 0x57, collided with /)
+    { 0x7E, 0x9e },  // Up Arrow (was 0x38, collided with Numpad 8)
 
     // Navigation keys
     { 0x73, 0x20 },  // Home
