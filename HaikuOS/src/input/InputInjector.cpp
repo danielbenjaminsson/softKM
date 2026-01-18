@@ -444,56 +444,29 @@ void InputInjector::InjectMouseMove(float x, float y, bool relative, uint32 modi
     }
 }
 
-void InputInjector::InjectMouseDown(uint32 buttons, float x, float y, uint32 modifiers)
+void InputInjector::InjectMouseDown(uint32 buttons, float x, float y, uint32 modifiers, uint32 clicks)
 {
     if (!fActive)
         return;
 
     fCurrentButtons |= buttons;
     fCurrentModifiers = modifiers;
-
-    // Double-click detection
     bigtime_t now = system_time();
-    const bigtime_t kDoubleClickTime = 500000;  // 500ms
-    const float kDoubleClickDistance = 10.0f;   // 10 pixels tolerance
 
-    float dx = fMousePosition.x - fLastClickPosition.x;
-    float dy = fMousePosition.y - fLastClickPosition.y;
-    float distSq = (dx * dx) + (dy * dy);  // squared distance
-    bigtime_t timeDelta = now - fLastClickTime;
-
-    bool sameButton = (buttons == fLastClickButtons);
-    bool withinTime = (timeDelta < kDoubleClickTime);
-    bool withinDist = (distSq < (kDoubleClickDistance * kDoubleClickDistance));
-
-    LOG("Click check: btn=0x%02X lastBtn=0x%02X dt=%lldms dist=%.1f (dx=%.1f dy=%.1f)",
-        buttons, fLastClickButtons, timeDelta / 1000, sqrt(distSq), dx, dy);
-
-    if (sameButton && withinTime && withinDist) {
-        fClickCount++;
-    } else {
-        fClickCount = 1;
-        if (!sameButton) LOG("  Reset: different button");
-        if (!withinTime) LOG("  Reset: time exceeded (%lldms > 500ms)", timeDelta / 1000);
-        if (!withinDist) LOG("  Reset: distance exceeded (%.1f > 10px)", sqrt(distSq));
-    }
-
-    fLastClickTime = now;
-    fLastClickPosition = fMousePosition;
-    fLastClickButtons = buttons;
-
+    // Use click count from macOS instead of detecting locally
+    // macOS handles double-click detection with proper timing
     LOG("MouseDown: buttons=0x%02X mods=0x%02X clicks=%d at (%.1f,%.1f)",
-        fCurrentButtons, modifiers, fClickCount, fMousePosition.x, fMousePosition.y);
+        fCurrentButtons, modifiers, clicks, fMousePosition.x, fMousePosition.y);
 
     // Ensure cursor is at correct position before sending click
     set_mouse_position((int32)fMousePosition.x, (int32)fMousePosition.y);
 
     BMessage msg(SOFTKM_INJECT_MOUSE_DOWN);
-    msg.AddInt64("when", now);  // Pass timestamp for proper timing
+    msg.AddInt64("when", now);
     msg.AddPoint("where", fMousePosition);
     msg.AddInt32("buttons", fCurrentButtons);
     msg.AddInt32("modifiers", modifiers);
-    msg.AddInt32("clicks", fClickCount);
+    msg.AddInt32("clicks", clicks);  // Use macOS click count directly
 
     if (SendToMouseAddon(&msg)) {
         LOG("MouseDown sent to addon successfully");

@@ -18,7 +18,7 @@ enum InputEvent {
     case keyDown(keyCode: UInt32, modifiers: UInt32, characters: String)
     case keyUp(keyCode: UInt32, modifiers: UInt32)
     case mouseMove(x: Float, y: Float, relative: Bool, modifiers: UInt32)
-    case mouseDown(buttons: UInt32, x: Float, y: Float, modifiers: UInt32)
+    case mouseDown(buttons: UInt32, x: Float, y: Float, modifiers: UInt32, clicks: Int32)
     case mouseUp(buttons: UInt32, x: Float, y: Float, modifiers: UInt32)
     case mouseWheel(deltaX: Float, deltaY: Float, modifiers: UInt32)
     case controlSwitch(toHaiku: Bool, yFromBottom: Float)
@@ -86,11 +86,12 @@ struct Protocol {
             payload.append(relative ? 1 : 0)
             appendUInt32(&payload, modifiers)
 
-        case .mouseDown(let buttons, let x, let y, let modifiers):
+        case .mouseDown(let buttons, let x, let y, let modifiers, let clicks):
             appendUInt32(&payload, buttons)
             appendFloat(&payload, x)
             appendFloat(&payload, y)
             appendUInt32(&payload, modifiers)
+            appendUInt32(&payload, UInt32(clicks))  // Add click count from macOS
 
         case .mouseUp(let buttons, let x, let y, let modifiers):
             appendUInt32(&payload, buttons)

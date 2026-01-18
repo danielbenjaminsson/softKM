@@ -335,10 +335,11 @@ void NetworkServer::ProcessMessage(const uint8* data, size_t length)
 
         case EVENT_MOUSE_DOWN:
         {
-            if (header->length >= sizeof(MouseButtonPayload)) {
-                const MouseButtonPayload* btnPayload = (const MouseButtonPayload*)payload;
+            if (header->length >= sizeof(MouseDownPayload)) {
+                const MouseDownPayload* btnPayload = (const MouseDownPayload*)payload;
                 fInputInjector->InjectMouseDown(btnPayload->buttons,
-                    btnPayload->x, btnPayload->y, MapModifiers(btnPayload->modifiers));
+                    btnPayload->x, btnPayload->y, MapModifiers(btnPayload->modifiers),
+                    btnPayload->clicks);
             }
             break;
         }

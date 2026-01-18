@@ -115,10 +115,12 @@ class SwitchController {
         let buttons = mapMouseButtons(event: event)
         let location = event.location
         let modifiers = mapModifiers(event.flags)
+        // Get click count from macOS (1=single, 2=double, 3=triple, etc.)
+        let clicks = isDown ? Int32(event.getIntegerValueField(.mouseEventClickState)) : 1
 
         if isDown {
-            LOG("MouseDown: buttons=0x\(String(format: "%02X", buttons)) mods=0x\(String(format: "%02X", modifiers))")
-            connectionManager.send(event: .mouseDown(buttons: buttons, x: Float(location.x), y: Float(location.y), modifiers: modifiers))
+            LOG("MouseDown: buttons=0x\(String(format: "%02X", buttons)) clicks=\(clicks) mods=0x\(String(format: "%02X", modifiers))")
+            connectionManager.send(event: .mouseDown(buttons: buttons, x: Float(location.x), y: Float(location.y), modifiers: modifiers, clicks: clicks))
         } else {
             LOG("MouseUp: buttons=0x\(String(format: "%02X", buttons))")
             connectionManager.send(event: .mouseUp(buttons: buttons, x: Float(location.x), y: Float(location.y), modifiers: modifiers))

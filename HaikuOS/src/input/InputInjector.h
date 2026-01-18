@@ -18,7 +18,7 @@ public:
     void InjectKeyUp(uint32 keyCode, uint32 modifiers);
 
     void InjectMouseMove(float x, float y, bool relative, uint32 modifiers);
-    void InjectMouseDown(uint32 buttons, float x, float y, uint32 modifiers);
+    void InjectMouseDown(uint32 buttons, float x, float y, uint32 modifiers, uint32 clicks);
     void InjectMouseUp(uint32 buttons, float x, float y, uint32 modifiers);
     void InjectMouseWheel(float deltaX, float deltaY, uint32 modifiers);
 

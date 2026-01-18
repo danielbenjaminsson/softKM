@@ -52,6 +52,14 @@ struct MouseButtonPayload {
     uint32  modifiers;
 } __attribute__((packed));
 
+struct MouseDownPayload {
+    uint32  buttons;
+    float   x;
+    float   y;
+    uint32  modifiers;
+    uint32  clicks;     // Click count from macOS (1=single, 2=double, etc.)
+} __attribute__((packed));
+
 struct MouseWheelPayload {
     float   deltaX;
     float   deltaY;
