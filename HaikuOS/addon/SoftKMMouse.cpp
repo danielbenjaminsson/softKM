@@ -280,8 +280,9 @@ void SoftKMMouse::_ProcessMessage(BMessage* msg)
 
             event = new BMessage(B_MOUSE_WHEEL_CHANGED);
             event->AddInt64("when", system_time());
-            event->AddFloat("be:wheel_delta_x", deltaX);
-            event->AddFloat("be:wheel_delta_y", deltaY);
+            // Invert deltas - macOS and Haiku have opposite scroll directions
+            event->AddFloat("be:wheel_delta_x", -deltaX);
+            event->AddFloat("be:wheel_delta_y", -deltaY);
             event->AddInt32("modifiers", modifiers);
             break;
         }
