@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import AppKit
 
 class ConnectionManager: ObservableObject {
     static let shared = ConnectionManager()
@@ -7,6 +8,10 @@ class ConnectionManager: ObservableObject {
     @Published var isConnected = false
     @Published var connectionState: ConnectionState = .disconnected
     @Published var isCapturing = false
+
+    // Screen dimensions
+    var localScreenSize: CGSize = .zero
+    var remoteScreenSize: CGSize = .zero
 
     private var networkClient: NetworkClient?
     private var cancellables = Set<AnyCancellable>()
@@ -34,16 +39,60 @@ class ConnectionManager: ObservableObject {
     private init() {
         networkClient = NetworkClient()
         setupBindings()
+        observeSettings()
     }
 
     private func setupBindings() {
         networkClient?.$connectionState
             .receive(on: DispatchQueue.main)
             .sink { [weak self] state in
-                self?.connectionState = state
-                self?.isConnected = (state == .connected)
+                guard let self = self else { return }
+                let wasConnected = self.isConnected
+                self.connectionState = state
+                self.isConnected = (state == .connected)
+
+                // Send screen info and settings when newly connected
+                if !wasConnected && self.isConnected {
+                    self.sendScreenInfo()
+                    self.sendSettings()
+                }
             }
             .store(in: &cancellables)
+    }
+
+    private func observeSettings() {
+        // Observe edge dwell time changes and sync to Haiku
+        NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
+            .debounce(for: .milliseconds(200), scheduler: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self = self, self.isConnected else { return }
+                self.sendSettings()
+            }
+            .store(in: &cancellables)
+    }
+
+    private func sendScreenInfo() {
+        if let screen = NSScreen.main {
+            localScreenSize = screen.frame.size
+            let event = InputEvent.screenInfo(
+                width: Float(localScreenSize.width),
+                height: Float(localScreenSize.height)
+            )
+            send(event: event)
+            LOG("Sent screen info: \(localScreenSize.width)x\(localScreenSize.height)")
+        }
+    }
+
+    private func sendSettings() {
+        let settings = SettingsManager.shared
+        let event = InputEvent.settingsSync(edgeDwellTime: Float(settings.edgeDwellTime))
+        send(event: event)
+        LOG("Sent settings sync: edgeDwellTime=\(settings.edgeDwellTime)s")
+    }
+
+    func setRemoteScreenSize(width: Float, height: Float) {
+        remoteScreenSize = CGSize(width: CGFloat(width), height: CGFloat(height))
+        LOG("Received remote screen size: \(width)x\(height)")
     }
 
     func connect() {
@@ -63,8 +112,8 @@ class ConnectionManager: ObservableObject {
         networkClient?.send(event: event)
     }
 
-    func sendControlSwitch(toHaiku: Bool) {
-        let event = InputEvent.controlSwitch(toHaiku: toHaiku)
+    func sendControlSwitch(toHaiku: Bool, yFromBottom: Float = 0.0) {
+        let event = InputEvent.controlSwitch(toHaiku: toHaiku, yFromBottom: yFromBottom)
         send(event: event)
     }
 }

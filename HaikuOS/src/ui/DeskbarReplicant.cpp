@@ -207,6 +207,15 @@ void DeskbarReplicant::MessageReceived(BMessage* message)
             break;
         }
 
+        case MSG_TOGGLE_LOG:
+        {
+            BMessenger messenger("application/x-vnd.softKM");
+            if (messenger.IsValid()) {
+                messenger.SendMessage(MSG_TOGGLE_LOG);
+            }
+            break;
+        }
+
         case MSG_QUIT_REQUESTED:
         {
             BMessenger messenger("application/x-vnd.softKM");
@@ -241,6 +250,19 @@ void DeskbarReplicant::ShowPopUpMenu(BPoint where)
     menu->AddItem(statusItem);
 
     menu->AddSeparatorItem();
+
+    // Show/Hide Log (toggle based on current state)
+    BMessage logQuery(MSG_QUERY_LOG_VISIBLE);
+    BMessage reply;
+    BMessenger messenger("application/x-vnd.softKM");
+    bool logVisible = false;
+    if (messenger.IsValid() && messenger.SendMessage(&logQuery, &reply, 500000, 500000) == B_OK) {
+        reply.FindBool("visible", &logVisible);
+    }
+
+    BMenuItem* logItem = new BMenuItem(logVisible ? "Hide Log" : "Show Log",
+        new BMessage(MSG_TOGGLE_LOG));
+    menu->AddItem(logItem);
 
     // Settings
     BMenuItem* settingsItem = new BMenuItem("Settings...",

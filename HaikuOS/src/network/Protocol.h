@@ -16,6 +16,8 @@ enum EventType {
     EVENT_MOUSE_UP      = 0x05,
     EVENT_MOUSE_WHEEL   = 0x06,
     EVENT_CONTROL_SWITCH = 0x10,
+    EVENT_SCREEN_INFO   = 0x11,
+    EVENT_SETTINGS_SYNC = 0x12,
     EVENT_HEARTBEAT     = 0xF0,
     EVENT_HEARTBEAT_ACK = 0xF1
 };
@@ -55,19 +57,30 @@ struct MouseWheelPayload {
 
 struct ControlSwitchPayload {
     uint8   direction;  // 0 = toHaiku, 1 = toMac
+    float   yFromBottom;  // Y position in pixels from bottom for smooth transition
+} __attribute__((packed));
+
+struct ScreenInfoPayload {
+    float   width;
+    float   height;
+} __attribute__((packed));
+
+struct SettingsSyncPayload {
+    float   edgeDwellTime;  // dwell time in seconds
 } __attribute__((packed));
 
 // Modifier key mapping (macOS -> Haiku)
 // macOS:  Shift=0x01, Option=0x02, Control=0x04, Fn=0x10, CapsLock=0x20, Command=0x40
-// Haiku:  B_SHIFT_KEY=0x01, B_COMMAND_KEY=0x02, B_CONTROL_KEY=0x04, B_OPTION_KEY=0x40
+// Haiku:  B_SHIFT_KEY=0x01, B_COMMAND_KEY=0x02, B_CONTROL_KEY=0x04,
+//         B_CAPS_LOCK=0x10, B_NUM_LOCK=0x40, B_OPTION_KEY=0x80
 inline uint32 MapModifiers(uint32 macModifiers)
 {
     uint32 haikuModifiers = 0;
 
     if (macModifiers & 0x01) haikuModifiers |= 0x01;  // Shift -> B_SHIFT_KEY
-    if (macModifiers & 0x02) haikuModifiers |= 0x40;  // Option -> B_OPTION_KEY
+    if (macModifiers & 0x02) haikuModifiers |= 0x80;  // Option -> B_OPTION_KEY
     if (macModifiers & 0x04) haikuModifiers |= 0x04;  // Control -> B_CONTROL_KEY
-    if (macModifiers & 0x20) haikuModifiers |= 0x20;  // CapsLock -> B_CAPS_LOCK
+    if (macModifiers & 0x20) haikuModifiers |= 0x10;  // CapsLock -> B_CAPS_LOCK
     if (macModifiers & 0x40) haikuModifiers |= 0x02;  // Command -> B_COMMAND_KEY
 
     return haikuModifiers;

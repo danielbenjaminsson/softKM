@@ -1,13 +1,27 @@
 #include "InputInjector.h"
+#include "../network/NetworkServer.h"
+#include "../Logger.h"
 
 #include <Application.h>
 #include <Message.h>
 #include <Messenger.h>
 #include <Screen.h>
 #include <InterfaceDefs.h>
+#include <game/WindowScreen.h>
+#include <OS.h>
 
 #include <cstring>
 #include <cstdio>
+
+// Message codes for communication with input_server add-on
+enum {
+    SOFTKM_INJECT_MOUSE_DOWN = 'sMdn',
+    SOFTKM_INJECT_MOUSE_UP = 'sMup',
+    SOFTKM_INJECT_MOUSE_MOVE = 'sMmv',
+    SOFTKM_INJECT_MOUSE_WHEEL = 'sMwh',
+    SOFTKM_INJECT_KEY_DOWN = 'sKdn',
+    SOFTKM_INJECT_KEY_UP = 'sKup',
+};
 
 // macOS to Haiku keycode mapping table
 // macOS virtual key codes -> Haiku key codes
@@ -33,18 +47,18 @@ static const struct KeyMapping {
     { 0x0F, 0x2c },  // R
     { 0x10, 0x2e },  // Y
     { 0x11, 0x2d },  // T
-    { 0x12, 0x13 },  // 1
-    { 0x13, 0x14 },  // 2
-    { 0x14, 0x15 },  // 3
-    { 0x15, 0x16 },  // 4
-    { 0x16, 0x18 },  // 6
-    { 0x17, 0x17 },  // 5
-    { 0x18, 0x1a },  // =
-    { 0x19, 0x1b },  // 9
-    { 0x1A, 0x19 },  // 7
+    { 0x12, 0x12 },  // 1
+    { 0x13, 0x13 },  // 2
+    { 0x14, 0x14 },  // 3
+    { 0x15, 0x15 },  // 4
+    { 0x17, 0x16 },  // 5
+    { 0x16, 0x17 },  // 6
+    { 0x1A, 0x18 },  // 7
+    { 0x1C, 0x19 },  // 8
+    { 0x19, 0x1a },  // 9
+    { 0x1D, 0x1b },  // 0
     { 0x1B, 0x1c },  // -
-    { 0x1C, 0x1d },  // 8
-    { 0x1D, 0x1e },  // 0
+    { 0x18, 0x1d },  // =
     { 0x1E, 0x46 },  // ]
     { 0x1F, 0x41 },  // O
     { 0x20, 0x2f },  // U
@@ -70,14 +84,14 @@ static const struct KeyMapping {
     { 0x31, 0x5e },  // Space
     { 0x33, 0x1e },  // Backspace
     { 0x35, 0x01 },  // Escape
-    { 0x36, 0x5d },  // Right Command -> Right Option
-    { 0x37, 0x5c },  // Left Command
+    { 0x36, 0x5f },  // Right Command -> Right Alt (B_COMMAND_KEY)
+    { 0x37, 0x5d },  // Left Command -> Left Alt (B_COMMAND_KEY)
     { 0x38, 0x4b },  // Left Shift
     { 0x39, 0x3b },  // Caps Lock
-    { 0x3A, 0x5d },  // Left Option
+    { 0x3A, 0x66 },  // Left Option -> Left Win (B_OPTION_KEY)
     { 0x3B, 0x5c },  // Left Control
     { 0x3C, 0x56 },  // Right Shift
-    { 0x3D, 0x60 },  // Right Option
+    { 0x3D, 0x67 },  // Right Option -> Right Win (B_OPTION_KEY)
     { 0x3E, 0x60 },  // Right Control
     { 0x3F, 0x68 },  // Function
 
@@ -134,23 +148,149 @@ InputInjector::InputInjector()
     : fMousePosition(0, 0),
       fCurrentButtons(0),
       fCurrentModifiers(0),
-      fActive(false)
+      fActive(false),
+      fKeyboardPort(-1),
+      fMousePort(-1),
+      fNetworkServer(nullptr),
+      fEdgeDwellStart(0),
+      fDwellTime(300000),  // default 300ms
+      fAtLeftEdge(false)
 {
     // Initialize mouse position to center of screen
     BScreen screen;
     BRect frame = screen.Frame();
     fMousePosition.Set(frame.Width() / 2, frame.Height() / 2);
+
+    // Try to find the addon ports
+    fKeyboardPort = FindKeyboardPort();
+    if (fKeyboardPort >= 0) {
+        LOG("Found keyboard addon port: %ld", fKeyboardPort);
+    } else {
+        LOG("Keyboard addon not found - keys won't work");
+    }
+
+    fMousePort = FindMousePort();
+    if (fMousePort >= 0) {
+        LOG("Found mouse addon port: %ld", fMousePort);
+    } else {
+        LOG("Mouse addon not found - clicks/scroll won't work");
+    }
+}
+
+port_id InputInjector::FindKeyboardPort()
+{
+    return find_port("softKM_keyboard_port");
+}
+
+port_id InputInjector::FindMousePort()
+{
+    return find_port("softKM_mouse_port");
+}
+
+bool InputInjector::SendToKeyboardAddon(BMessage* msg)
+{
+    port_info info;
+    if (fKeyboardPort < 0 || get_port_info(fKeyboardPort, &info) != B_OK) {
+        fKeyboardPort = FindKeyboardPort();
+        if (fKeyboardPort < 0) {
+            LOG("Keyboard addon port not found");
+            return false;
+        }
+        LOG("Re-acquired keyboard addon port: %ld", fKeyboardPort);
+    }
+
+    ssize_t flatSize = msg->FlattenedSize();
+    char* buffer = new char[flatSize];
+
+    if (msg->Flatten(buffer, flatSize) == B_OK) {
+        status_t result = write_port_etc(fKeyboardPort, msg->what, buffer, flatSize,
+                                          B_RELATIVE_TIMEOUT, 100000);
+        delete[] buffer;
+        if (result != B_OK) {
+            LOG("write_port (keyboard) failed: %s", strerror(result));
+            fKeyboardPort = -1;
+            return false;
+        }
+        return true;
+    }
+
+    delete[] buffer;
+    LOG("Failed to flatten keyboard message");
+    return false;
+}
+
+bool InputInjector::SendToMouseAddon(BMessage* msg)
+{
+    port_info info;
+    if (fMousePort < 0 || get_port_info(fMousePort, &info) != B_OK) {
+        fMousePort = FindMousePort();
+        if (fMousePort < 0) {
+            LOG("Mouse addon port not found");
+            return false;
+        }
+        LOG("Re-acquired mouse addon port: %ld", fMousePort);
+    }
+
+    ssize_t flatSize = msg->FlattenedSize();
+    char* buffer = new char[flatSize];
+
+    if (msg->Flatten(buffer, flatSize) == B_OK) {
+        status_t result = write_port_etc(fMousePort, msg->what, buffer, flatSize,
+                                          B_RELATIVE_TIMEOUT, 100000);
+        delete[] buffer;
+        if (result != B_OK) {
+            LOG("write_port (mouse) failed: %s", strerror(result));
+            fMousePort = -1;
+            return false;
+        }
+        return true;
+    }
+
+    delete[] buffer;
+    LOG("Failed to flatten mouse message");
+    return false;
 }
 
 InputInjector::~InputInjector()
 {
 }
 
-void InputInjector::SetActive(bool active)
+void InputInjector::SetActive(bool active, float yFromBottom)
 {
     if (fActive != active) {
         fActive = active;
-        printf("Input injection %s\n", active ? "activated" : "deactivated");
+        LOG("Input injection %s", active ? "ACTIVATED" : "DEACTIVATED");
+
+        if (active) {
+            // Position mouse near left edge (where user is coming from)
+            // but not too close to trigger immediate switch back (50px from edge)
+            // Use yFromBottom for smooth vertical transition (bottom-aligned monitors)
+            BScreen screen;
+            BRect frame = screen.Frame();
+            float screenHeight = frame.Height() + 1;  // BRect Height() returns h-1
+            float startX = 50.0f;  // 50 pixels from left edge
+
+            // Haiku Y is top-down, so convert from bottom-up:
+            // Haiku Y = (screenHeight - 1) - yFromBottom
+            // But we also need to clamp yFromBottom to our screen height first
+            if (yFromBottom >= screenHeight) {
+                yFromBottom = screenHeight - 1;  // Clamp to top
+            }
+            float startY = (screenHeight - 1) - yFromBottom;
+
+            // Clamp to screen bounds (shouldn't be needed but safety)
+            if (startY < 0) startY = 0;
+            if (startY > screenHeight - 1) startY = screenHeight - 1;
+
+            fMousePosition.Set(startX, startY);
+            set_mouse_position((int32)fMousePosition.x, (int32)fMousePosition.y);
+            LOG("MAC→HAIKU: yFromBottom=%.0f screenHeight=%.0f → startY=%.0f",
+                yFromBottom, screenHeight, startY);
+
+            // Reset edge detection state
+            fAtLeftEdge = false;
+            fEdgeDwellStart = 0;
+        }
     }
 }
 
@@ -163,7 +303,7 @@ uint32 InputInjector::TranslateKeyCode(uint32 macKeyCode)
     }
 
     // Return the original code if no mapping found
-    printf("Unknown macOS keycode: 0x%02X\n", macKeyCode);
+    LOG("Unknown macOS keycode: 0x%02X", macKeyCode);
     return macKeyCode;
 }
 
@@ -190,23 +330,23 @@ void InputInjector::UpdateMousePosition(float x, float y, bool relative)
 void InputInjector::InjectKeyDown(uint32 keyCode, uint32 modifiers,
     const char* bytes, uint8 numBytes)
 {
-    if (!fActive)
+    if (!fActive) {
+        LOG("KeyDown ignored (not active)");
         return;
+    }
 
     uint32 haikuKey = TranslateKeyCode(keyCode);
     fCurrentModifiers = modifiers;
+    LOG("KeyDown: mac=0x%02X haiku=0x%02X mods=0x%02X",
+        keyCode, haikuKey, modifiers);
 
-    BMessage msg(B_KEY_DOWN);
-    msg.AddInt64("when", system_time());
+    BMessage msg(SOFTKM_INJECT_KEY_DOWN);
     msg.AddInt32("key", haikuKey);
     msg.AddInt32("modifiers", modifiers);
 
     // Add raw character
     if (numBytes > 0 && bytes != nullptr) {
         msg.AddInt32("raw_char", (int32)(uint8)bytes[0]);
-        for (int i = 0; i < numBytes; i++) {
-            msg.AddInt8("byte", bytes[i]);
-        }
         // Add null-terminated string
         char str[16];
         size_t len = numBytes < sizeof(str) - 1 ? numBytes : sizeof(str) - 1;
@@ -218,12 +358,9 @@ void InputInjector::InjectKeyDown(uint32 keyCode, uint32 modifiers,
         msg.AddString("bytes", "");
     }
 
-    // Send to the active window via input server
-    // We use set_mouse_position as a side effect to find the window
-    // and then send key events to the app_server
-    BMessenger inputServer("application/x-vnd.Be-input_server");
-    if (inputServer.IsValid()) {
-        inputServer.SendMessage(&msg);
+    // Send through keyboard add-on
+    if (!SendToKeyboardAddon(&msg)) {
+        LOG("Failed to send KeyDown to addon");
     }
 }
 
@@ -235,16 +372,13 @@ void InputInjector::InjectKeyUp(uint32 keyCode, uint32 modifiers)
     uint32 haikuKey = TranslateKeyCode(keyCode);
     fCurrentModifiers = modifiers;
 
-    BMessage msg(B_KEY_UP);
-    msg.AddInt64("when", system_time());
+    BMessage msg(SOFTKM_INJECT_KEY_UP);
     msg.AddInt32("key", haikuKey);
     msg.AddInt32("modifiers", modifiers);
-    msg.AddInt32("raw_char", 0);
-    msg.AddString("bytes", "");
 
-    BMessenger inputServer("application/x-vnd.Be-input_server");
-    if (inputServer.IsValid()) {
-        inputServer.SendMessage(&msg);
+    // Send through keyboard add-on
+    if (!SendToKeyboardAddon(&msg)) {
+        LOG("Failed to send KeyUp to addon");
     }
 }
 
@@ -254,9 +388,46 @@ void InputInjector::InjectMouseMove(float x, float y, bool relative)
         return;
 
     UpdateMousePosition(x, y, relative);
+    LOG("MouseMove: rel=%d pos=(%.1f,%.1f)",
+        relative, fMousePosition.x, fMousePosition.y);
 
-    // Use set_mouse_position to move the cursor
+    // Use set_mouse_position to actually move the cursor
     set_mouse_position((int32)fMousePosition.x, (int32)fMousePosition.y);
+
+    // Edge detection for switching back to macOS
+    const float kEdgeThreshold = 5.0f;
+
+    if (fMousePosition.x <= kEdgeThreshold) {
+        if (!fAtLeftEdge) {
+            // Just entered left edge
+            fAtLeftEdge = true;
+            fEdgeDwellStart = system_time();
+            LOG("Entered left edge - starting dwell timer (%.1fs)", fDwellTime / 1000000.0f);
+        } else {
+            // Still at left edge - check dwell time
+            bigtime_t dwellTime = system_time() - fEdgeDwellStart;
+            if (dwellTime >= fDwellTime && fNetworkServer != nullptr) {
+                LOG("Left edge dwell complete - switching to macOS");
+                // Calculate Y from bottom for macOS
+                BScreen screen;
+                BRect frame = screen.Frame();
+                float screenHeight = frame.Height() + 1;
+                float yFromBottom = (screenHeight - 1) - fMousePosition.y;
+                LOG("HAIKU→MAC: mouseY=%.0f screenHeight=%.0f → yFromBottom=%.0f",
+                    fMousePosition.y, screenHeight, yFromBottom);
+                fNetworkServer->SendControlSwitch(1, yFromBottom);  // 1 = toMac
+                fAtLeftEdge = false;
+                fActive = false;
+            }
+        }
+    } else {
+        // Not at left edge - reset
+        if (fAtLeftEdge) {
+            LOG("Left edge - dwell cancelled");
+        }
+        fAtLeftEdge = false;
+        fEdgeDwellStart = 0;
+    }
 }
 
 void InputInjector::InjectMouseDown(uint32 buttons, float x, float y)
@@ -264,19 +435,19 @@ void InputInjector::InjectMouseDown(uint32 buttons, float x, float y)
     if (!fActive)
         return;
 
-    UpdateMousePosition(x, y, false);
     fCurrentButtons |= buttons;
+    LOG("MouseDown: buttons=0x%02X at (%.1f,%.1f)", fCurrentButtons,
+        fMousePosition.x, fMousePosition.y);
 
-    BMessage msg(B_MOUSE_DOWN);
-    msg.AddInt64("when", system_time());
+    BMessage msg(SOFTKM_INJECT_MOUSE_DOWN);
     msg.AddPoint("where", fMousePosition);
     msg.AddInt32("buttons", fCurrentButtons);
-    msg.AddInt32("modifiers", fCurrentModifiers);
     msg.AddInt32("clicks", 1);
 
-    BMessenger inputServer("application/x-vnd.Be-input_server");
-    if (inputServer.IsValid()) {
-        inputServer.SendMessage(&msg);
+    if (SendToMouseAddon(&msg)) {
+        LOG("MouseDown sent to addon successfully");
+    } else {
+        LOG("Failed to send MouseDown to addon");
     }
 }
 
@@ -285,18 +456,16 @@ void InputInjector::InjectMouseUp(uint32 buttons, float x, float y)
     if (!fActive)
         return;
 
-    UpdateMousePosition(x, y, false);
     fCurrentButtons &= ~buttons;
+    LOG("MouseUp: buttons=0x%02X at (%.1f,%.1f)", fCurrentButtons,
+        fMousePosition.x, fMousePosition.y);
 
-    BMessage msg(B_MOUSE_UP);
-    msg.AddInt64("when", system_time());
+    BMessage msg(SOFTKM_INJECT_MOUSE_UP);
     msg.AddPoint("where", fMousePosition);
     msg.AddInt32("buttons", fCurrentButtons);
-    msg.AddInt32("modifiers", fCurrentModifiers);
 
-    BMessenger inputServer("application/x-vnd.Be-input_server");
-    if (inputServer.IsValid()) {
-        inputServer.SendMessage(&msg);
+    if (!SendToMouseAddon(&msg)) {
+        LOG("Failed to send MouseUp to addon");
     }
 }
 
@@ -305,14 +474,14 @@ void InputInjector::InjectMouseWheel(float deltaX, float deltaY)
     if (!fActive)
         return;
 
-    BMessage msg(B_MOUSE_WHEEL_CHANGED);
-    msg.AddInt64("when", system_time());
-    msg.AddFloat("be:wheel_delta_x", deltaX);
-    msg.AddFloat("be:wheel_delta_y", deltaY);
+    LOG("MouseWheel: delta=(%.2f,%.2f)", deltaX, deltaY);
 
-    BMessenger inputServer("application/x-vnd.Be-input_server");
-    if (inputServer.IsValid()) {
-        inputServer.SendMessage(&msg);
+    BMessage msg(SOFTKM_INJECT_MOUSE_WHEEL);
+    msg.AddFloat("delta_x", deltaX);
+    msg.AddFloat("delta_y", deltaY);
+
+    if (!SendToMouseAddon(&msg)) {
+        LOG("Failed to send MouseWheel to addon");
     }
 }
 

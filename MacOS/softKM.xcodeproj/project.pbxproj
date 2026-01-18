@@ -7,17 +7,19 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A1000001 /* softKMApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000001; };
-		A1000002 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000002; };
-		A1000003 /* ConnectionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000003; };
-		A1000004 /* StatusBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000004; };
-		A1000005 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000005; };
-		A1000006 /* SettingsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000006; };
-		A1000007 /* Protocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000007; };
-		A1000008 /* NetworkClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000008; };
-		A1000009 /* EventCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000009; };
-		A1000010 /* EdgeDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000010; };
-		A1000011 /* SwitchController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000011; };
+		A1000001 /* softKMApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000001 /* softKMApp.swift */; };
+		A1000002 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000002 /* AppDelegate.swift */; };
+		A1000003 /* ConnectionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000003 /* ConnectionManager.swift */; };
+		A1000004 /* StatusBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000004 /* StatusBarView.swift */; };
+		A1000005 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000005 /* SettingsView.swift */; };
+		A1000006 /* SettingsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000006 /* SettingsManager.swift */; };
+		A1000007 /* Protocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000007 /* Protocol.swift */; };
+		A1000008 /* NetworkClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000008 /* NetworkClient.swift */; };
+		A1000009 /* EventCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000009 /* EventCapture.swift */; };
+		A1000010 /* EdgeDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000010 /* EdgeDetector.swift */; };
+		A1000011 /* SwitchController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000011 /* SwitchController.swift */; };
+		A1000012 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000014 /* Logger.swift */; };
+		A1000015 /* LogWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000015 /* LogWindow.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -34,6 +36,8 @@
 		A2000011 /* SwitchController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwitchController.swift; sourceTree = "<group>"; };
 		A2000012 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A2000013 /* softKM.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = softKM.entitlements; sourceTree = "<group>"; };
+		A2000014 /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
+		A2000015 /* LogWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogWindow.swift; sourceTree = "<group>"; };
 		A3000001 /* softKM.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = softKM.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -64,6 +68,7 @@
 				A5000005 /* Input */,
 				A5000006 /* Network */,
 				A5000007 /* Settings */,
+				A5000008 /* Utils */,
 				A2000012 /* Info.plist */,
 				A2000013 /* softKM.entitlements */,
 			);
@@ -85,6 +90,7 @@
 			children = (
 				A2000004 /* StatusBarView.swift */,
 				A2000005 /* SettingsView.swift */,
+				A2000015 /* LogWindow.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -114,6 +120,14 @@
 				A2000006 /* SettingsManager.swift */,
 			);
 			path = Settings;
+			sourceTree = "<group>";
+		};
+		A5000008 /* Utils */ = {
+			isa = PBXGroup;
+			children = (
+				A2000014 /* Logger.swift */,
+			);
+			path = Utils;
 			sourceTree = "<group>";
 		};
 		A5000009 /* Products */ = {
@@ -197,10 +211,12 @@
 				A1000003 /* ConnectionManager.swift in Sources */,
 				A1000004 /* StatusBarView.swift in Sources */,
 				A1000005 /* SettingsView.swift in Sources */,
+				A1000015 /* LogWindow.swift in Sources */,
 				A1000006 /* SettingsManager.swift in Sources */,
 				A1000007 /* Protocol.swift in Sources */,
 				A1000008 /* NetworkClient.swift in Sources */,
 				A1000009 /* EventCapture.swift in Sources */,
+				A1000012 /* Logger.swift in Sources */,
 				A1000010 /* EdgeDetector.swift in Sources */,
 				A1000011 /* SwitchController.swift in Sources */,
 			);
@@ -336,6 +352,8 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = Z5DSCKN2W6;
+				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = softKM/Info.plist;
 				INFOPLIST_KEY_LSUIElement = YES;
@@ -361,6 +379,8 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = Z5DSCKN2W6;
+				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = softKM/Info.plist;
 				INFOPLIST_KEY_LSUIElement = YES;

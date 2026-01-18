@@ -8,7 +8,7 @@
 #include <cstdio>
 
 // Default values
-uint16 Settings::sPort = 24800;
+uint16 Settings::sPort = 31337;  // leet!
 bool Settings::sAutoStart = false;
 
 static const char* kSettingsFileName = "softKM_settings";

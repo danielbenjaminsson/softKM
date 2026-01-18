@@ -9,6 +9,7 @@ SRCS = \
 	src/SoftKMApp.cpp \
 	src/ui/DeskbarReplicant.cpp \
 	src/ui/SettingsWindow.cpp \
+	src/ui/LogWindow.cpp \
 	src/network/NetworkServer.cpp \
 	src/network/Protocol.cpp \
 	src/input/InputInjector.cpp \
@@ -16,7 +17,7 @@ SRCS = \
 
 RDEFS = resources/SoftKM.rdef
 
-LIBS = be network bnetapi tracker
+LIBS = be network bnetapi tracker game stdc++
 
 LIBPATHS =
 
@@ -54,3 +55,4 @@ OBJDIR := objects.$(CPU)-$(if $(DEBUGGER),debug,release)
 # Include the Makefile-Engine
 BUILDHOME = /boot/system/develop
 include $(BUILDHOME)/etc/makefile-engine
+# Build trigger

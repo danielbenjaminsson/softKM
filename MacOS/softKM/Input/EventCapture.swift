@@ -16,7 +16,12 @@ class EventCapture {
     private init() {}
 
     func startCapture() -> Bool {
-        guard !isRunning else { return true }
+        guard !isRunning else {
+            LOG("Event capture already running")
+            return true
+        }
+
+        LOG("Starting event capture...")
 
         // Build event mask in parts to help the compiler
         var eventMask: CGEventMask = 0
@@ -43,7 +48,7 @@ class EventCapture {
             callback: eventCallback,
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else {
-            print("Failed to create event tap. Check Accessibility permissions.")
+            LOG("Failed to create event tap. Check Accessibility permissions.")
             return false
         }
 
@@ -51,12 +56,18 @@ class EventCapture {
         runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
 
         if let source = runLoopSource {
-            CFRunLoopAddSource(CFRunLoopGetCurrent(), source, .commonModes)
+            CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
             CGEvent.tapEnable(tap: tap, enable: true)
             isRunning = true
+            LOG("Event capture started successfully on main run loop")
+
+            // Verify the tap is enabled
+            let enabled = CGEvent.tapIsEnabled(tap: tap)
+            LOG("Event tap enabled: \(enabled)")
             return true
         }
 
+        LOG("Failed to create run loop source")
         return false
     }
 
@@ -83,6 +94,9 @@ class EventCapture {
     }
 }
 
+// Counter for throttling mouse move logs
+private var mouseMoveLogCounter: Int = 0
+
 private func eventCallback(
     proxy: CGEventTapProxy,
     type: CGEventType,
@@ -90,6 +104,7 @@ private func eventCallback(
     refcon: UnsafeMutableRawPointer?
 ) -> Unmanaged<CGEvent>? {
     guard let refcon = refcon else {
+        LOG("EventCallback: refcon is nil!")
         return Unmanaged.passUnretained(event)
     }
 
@@ -98,10 +113,23 @@ private func eventCallback(
 
     // If tap is disabled, re-enable it
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+        LOG("Event tap disabled by system, re-enabling...")
         if let tap = capture.eventTap {
             CGEvent.tapEnable(tap: tap, enable: true)
         }
         return Unmanaged.passUnretained(event)
+    }
+
+    // Debug: log all events (throttle mouse move to every 100th event)
+    if type == .mouseMoved || type == .leftMouseDragged || type == .rightMouseDragged {
+        mouseMoveLogCounter += 1
+        if mouseMoveLogCounter >= 100 {
+            let loc = event.location
+            LOG("EventCallback: mouseMoved x=\(Int(loc.x)) y=\(Int(loc.y)) (every 100th)")
+            mouseMoveLogCounter = 0
+        }
+    } else {
+        LOG("EventCallback: type=\(type.rawValue)")
     }
 
     // Let the switch controller handle the event

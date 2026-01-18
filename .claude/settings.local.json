@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ps:*)",
+      "Bash(lsof:*)",
+      "Bash(launchctl unload:*)",
+      "Bash(launchctl load:*)",
+      "Bash(nc:*)",
+      "Bash(open:*)",
+      "Bash(ssh user@taurus.microgeni.synology.me \"pgrep softKM && ps aux | grep softKM | grep -v grep\")",
+      "Bash(ssh:*)",
+      "Bash(xxd:*)",
+      "Bash(# Quick test - send heartbeat and capture response immediately\n{ printf ''\\\\x4B\\\\x53\\\\x01\\\\xF0\\\\x00\\\\x00\\\\x00\\\\x00''; sleep 1; })",
+      "Bash(# Check various possible log locations ls -la /tmp/softKM.log || echo \"\"Not in /tmp\"\" ls -la $TMPDIR/softKM.log || echo \"\"Not in TMPDIR\"\" echo \"\"TMPDIR is: $TMPDIR\"\" ps aux)",
+      "Bash(# Find any softKM logs find /var/folders -name \"\"softKM.log\"\")",
+      "Bash(echo \"No log at /tmp/softKM.log\" echo \"\" echo \"=== Looking in TMPDIR ===\" cat \"$TMPDIR/softKM.log\")",
+      "Bash(# Check what''s connecting to port 24800 lsof -i :24800 || echo \"\"Nothing found\"\" netstat -an)",
+      "Bash(# Start softKM on macOS open /Applications/softKM.app sleep 5 # Check macOS logs cat \"\"$TMPDIR/softKM.log\"\")",
+      "Bash(__NEW_LINE_81c48afff8e1aa89__ echo \"\")",
+      "Bash(# Restart macOS app pkill -x softKM sleep 1 open /Applications/softKM.app sleep 5 # Check logs find /var/folders -name \"\"softKM.log\"\")",
+      "Bash(# Check the latest macOS log for accessibility status find /var/folders -name \"\"softKM.log\"\")",
+      "Bash(# Check for accessibility messages in the log find /var/folders -name \"\"softKM.log\"\")",
+      "Bash(xcodebuild:*)",
+      "Bash(tccutil reset Accessibility:*)",
+      "Bash(codesign:*)",
+      "Bash(sqlite3:*)",
+      "Bash(xattr:*)",
+      "Bash(ls:*)"
+    ]
+  }
+}

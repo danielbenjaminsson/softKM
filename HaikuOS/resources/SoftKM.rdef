@@ -16,20 +16,8 @@ resource app_version {
 
 resource app_flags B_SINGLE_LAUNCH;
 
-resource(1, "BEOS:APP_SIG") #'MIMS' "application/x-vnd.softKM";
-
 resource file_types message {
     "types" = "application/x-vnd.softKM"
 };
 
-/*
- * Application icon (vector icon data would go here)
- * For now, we use a placeholder
- */
-resource(101, "BEOS:ICON") #'VICN' array {
-    $"6E6369660503010000020006023C8E373CE6073CE6073C8E374AC9C64A"
-    $"1C4600FFFFCC020006023C8E373CE6073CE6073C8E374AC9C64A1C4600"
-    $"99CC00020106023E000000000000003E00004200004200000066FF6602"
-    $"0006023C8E373CE6073CE6073C8E374AC9C64A1C46004CB2C8040192020"
-    $"16022040400303EA030AF0A0ABAB"
-};
+/* Application icon - add using Icon-O-Matic later */

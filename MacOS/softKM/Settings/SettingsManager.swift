@@ -5,7 +5,7 @@ class SettingsManager: ObservableObject {
     static let shared = SettingsManager()
 
     @AppStorage("hostAddress") var hostAddress: String = "taurus.microgeni.synology.me"
-    @AppStorage("port") var port: Int = 24800
+    @AppStorage("port") var port: Int = 31337
     @AppStorage("useTLS") var useTLS: Bool = false
     @AppStorage("switchEdge") var switchEdge: ScreenEdge = .right
     @AppStorage("edgeDwellTime") var edgeDwellTime: Double = 0.3

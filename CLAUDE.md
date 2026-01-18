@@ -13,7 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 │   macOS (mini)  │                    │  Haiku (taurus) │
 │                 │    TCP/TLS         │                 │
 │  CGEvent Tap    │ ─────────────────► │  NetworkServer  │
-│  (capture)      │   Port 24800       │  (receive)      │
+│  (capture)      │   Port 31337       │  (receive)      │
 │                 │                    │                 │
 │  Menu Bar App   │                    │  Deskbar Tray   │
 │  (SwiftUI)      │                    │  (BView)        │
@@ -92,7 +92,7 @@ Event types: `KEY_DOWN` (0x01), `KEY_UP` (0x02), `MOUSE_MOVE` (0x03), `MOUSE_DOW
 
 **Default settings:**
 - Host: `taurus.microgeni.synology.me`
-- Port: `24800`
+- Port: `31337`
 - Switch edge: Right
 - Edge dwell time: 0.3s
 
@@ -103,20 +103,21 @@ The app requires **Accessibility** permission to capture system-wide keyboard/mo
 
 ## CI/CD
 
-Gitea Actions workflow in `.gitea/workflows/build-deploy.yml`:
-1. Builds macOS app and installs to `/Applications`
-2. SSH to Haiku (taurus), pulls code, builds, and launches
+**IMPORTANT: Always use CI for building and deployment. Do NOT build manually.**
 
-**Manual deployment scripts:**
-```bash
-./scripts/build-macos.sh --launch    # Build and launch macOS app
-./scripts/deploy-haiku.sh            # Deploy to Haiku via SSH
-```
+Gitea Actions workflow in `.gitea/workflows/build-deploy.yml` triggers on push to `main` or `dev`:
+1. Builds macOS app and installs to `/Applications/softKM.app`
+2. SSHs to Haiku (taurus), pulls code, builds, and launches
+
+**Workflow:**
+1. Make code changes
+2. Commit and push to `dev` branch
+3. CI automatically builds and deploys to both platforms
+4. Test the deployed apps
 
 **Setup requirements:**
-- Gitea runner on macOS (mini) with label `macos`
-- SSH key for Haiku access stored as secret `HAIKU_SSH_KEY`
-- Nix environment (config at `/Users/daniel/Code/nixos-macos`)
+- Gitea runner on macOS (mini) with label `macos-arm64`
+- SSH access to Haiku configured for `user@taurus.microgeni.synology.me`
 
 ## Development Notes
 

@@ -2,12 +2,15 @@
 #include "Protocol.h"
 #include "../input/InputInjector.h"
 #include "../SoftKMApp.h"
+#include "../Logger.h"
 
 #include <Messenger.h>
+#include <Screen.h>
 
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#include <arpa/inet.h>
 #include <unistd.h>
 #include <cstring>
 #include <cstdio>
@@ -20,8 +23,18 @@ NetworkServer::NetworkServer(uint16 port, InputInjector* injector)
       fClientSocket(-1),
       fListenThread(-1),
       fClientThread(-1),
-      fRunning(false)
+      fRunning(false),
+      fLocalWidth(0),
+      fLocalHeight(0),
+      fRemoteWidth(0),
+      fRemoteHeight(0)
 {
+    // Get local screen size
+    BScreen screen;
+    BRect frame = screen.Frame();
+    fLocalWidth = frame.Width() + 1;
+    fLocalHeight = frame.Height() + 1;
+    LOG("Local screen size: %.0fx%.0f", fLocalWidth, fLocalHeight);
 }
 
 NetworkServer::~NetworkServer()
@@ -37,7 +50,7 @@ status_t NetworkServer::Start()
     // Create server socket
     fServerSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (fServerSocket < 0) {
-        fprintf(stderr, "Failed to create socket: %s\n", strerror(errno));
+        LOG("Failed to create socket: %s", strerror(errno));
         return B_ERROR;
     }
 
@@ -53,7 +66,7 @@ status_t NetworkServer::Start()
     addr.sin_port = htons(fPort);
 
     if (bind(fServerSocket, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-        fprintf(stderr, "Failed to bind to port %d: %s\n", fPort, strerror(errno));
+        LOG("Failed to bind to port %d: %s", fPort, strerror(errno));
         close(fServerSocket);
         fServerSocket = -1;
         return B_ERROR;
@@ -61,7 +74,7 @@ status_t NetworkServer::Start()
 
     // Listen for connections
     if (listen(fServerSocket, 1) < 0) {
-        fprintf(stderr, "Failed to listen: %s\n", strerror(errno));
+        LOG("Failed to listen: %s", strerror(errno));
         close(fServerSocket);
         fServerSocket = -1;
         return B_ERROR;
@@ -82,7 +95,7 @@ status_t NetworkServer::Start()
 
     resume_thread(fListenThread);
 
-    printf("softKM server listening on port %d\n", fPort);
+    LOG("Server listening on port %d", fPort);
     return B_OK;
 }
 
@@ -134,7 +147,7 @@ void NetworkServer::AcceptConnections()
 
         if (clientSocket < 0) {
             if (fRunning) {
-                fprintf(stderr, "Accept failed: %s\n", strerror(errno));
+                LOG("Accept failed: %s", strerror(errno));
             }
             continue;
         }
@@ -154,11 +167,25 @@ void NetworkServer::AcceptConnections()
         int opt = 1;
         setsockopt(fClientSocket, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
 
-        printf("Client connected\n");
+        // Set receive low water mark to 1 byte for immediate delivery
+        int lowat = 1;
+        setsockopt(fClientSocket, SOL_SOCKET, SO_RCVLOWAT, &lowat, sizeof(lowat));
+
+        // Set small receive buffer to reduce latency
+        int rcvbuf = 8192;
+        setsockopt(fClientSocket, SOL_SOCKET, SO_RCVBUF, &rcvbuf, sizeof(rcvbuf));
+
+        LOG("Socket options set: TCP_NODELAY, SO_RCVLOWAT=1, SO_RCVBUF=%d", rcvbuf);
+
+        LOG("Client connected from %s:%d",
+            inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port));
 
         // Notify app of connection
         BMessenger messenger(be_app);
         messenger.SendMessage(MSG_CLIENT_CONNECTED);
+
+        // Send our screen info to macOS
+        SendScreenInfo();
 
         // Start client handling thread
         fClientThread = spawn_thread(ClientThreadFunc, "softKM client",
@@ -201,7 +228,7 @@ void NetworkServer::HandleClient(int clientSocket)
 
             // Validate magic
             if (header->magic != PROTOCOL_MAGIC) {
-                fprintf(stderr, "Invalid magic: 0x%04X\n", header->magic);
+                LOG("Invalid magic: 0x%04X", header->magic);
                 bufferOffset = 0;  // Reset buffer
                 break;
             }
@@ -224,7 +251,7 @@ void NetworkServer::HandleClient(int clientSocket)
     }
 
     // Client disconnected
-    printf("Client disconnected\n");
+    LOG("Client disconnected");
 
     BMessenger messenger(be_app);
     messenger.SendMessage(MSG_CLIENT_DISCONNECTED);
@@ -239,6 +266,19 @@ void NetworkServer::ProcessMessage(const uint8* data, size_t length)
 
     const ProtocolHeader* header = (const ProtocolHeader*)data;
     const uint8* payload = data + sizeof(ProtocolHeader);
+
+    // Debug: log received event type
+    static const char* eventNames[] = {
+        "unknown", "KEY_DOWN", "KEY_UP", "MOUSE_MOVE", "MOUSE_DOWN",
+        "MOUSE_UP", "MOUSE_WHEEL"
+    };
+    if (header->eventType >= 1 && header->eventType <= 6) {
+        LOG("Received: %s", eventNames[header->eventType]);
+    } else if (header->eventType == EVENT_CONTROL_SWITCH) {
+        LOG("Received: CONTROL_SWITCH");
+    } else if (header->eventType == EVENT_HEARTBEAT) {
+        LOG("Received: HEARTBEAT");
+    }
 
     switch (header->eventType) {
         case EVENT_KEY_DOWN:
@@ -303,9 +343,45 @@ void NetworkServer::ProcessMessage(const uint8* data, size_t length)
 
         case EVENT_CONTROL_SWITCH:
         {
-            if (header->length >= sizeof(ControlSwitchPayload)) {
+            if (header->length >= 1) {  // At minimum, direction byte
                 const ControlSwitchPayload* switchPayload = (const ControlSwitchPayload*)payload;
-                fInputInjector->SetActive(switchPayload->direction == 0);  // 0 = toHaiku
+                bool toHaiku = (switchPayload->direction == 0);
+                float yFromBottom = fLocalHeight / 2;  // Default to center
+                if (header->length >= sizeof(ControlSwitchPayload)) {
+                    yFromBottom = switchPayload->yFromBottom;
+                    // Scale from remote screen to local screen
+                    if (fRemoteHeight > 0) {
+                        LOG("Scaling yFromBottom: %.0f * %.0f / %.0f",
+                            yFromBottom, fLocalHeight, fRemoteHeight);
+                        yFromBottom = yFromBottom * fLocalHeight / fRemoteHeight;
+                    }
+                    // Clamp to local screen height
+                    if (yFromBottom > fLocalHeight) yFromBottom = fLocalHeight;
+                    if (yFromBottom < 0) yFromBottom = 0;
+                }
+                fInputInjector->SetActive(toHaiku, yFromBottom);
+            }
+            break;
+        }
+
+        case EVENT_SCREEN_INFO:
+        {
+            if (header->length >= sizeof(ScreenInfoPayload)) {
+                const ScreenInfoPayload* screenPayload = (const ScreenInfoPayload*)payload;
+                fRemoteWidth = screenPayload->width;
+                fRemoteHeight = screenPayload->height;
+                LOG("Remote (macOS) screen size: %.0fx%.0f", fRemoteWidth, fRemoteHeight);
+            }
+            break;
+        }
+
+        case EVENT_SETTINGS_SYNC:
+        {
+            if (header->length >= sizeof(SettingsSyncPayload)) {
+                const SettingsSyncPayload* settingsPayload = (const SettingsSyncPayload*)payload;
+                float dwellTime = settingsPayload->edgeDwellTime;
+                LOG("Settings sync: edgeDwellTime=%.2fs", dwellTime);
+                fInputInjector->SetDwellTime(dwellTime);
             }
             break;
         }
@@ -319,7 +395,7 @@ void NetworkServer::ProcessMessage(const uint8* data, size_t length)
             break;
 
         default:
-            fprintf(stderr, "Unknown event type: 0x%02X\n", header->eventType);
+            LOG("Unknown event type: 0x%02X", header->eventType);
             break;
     }
 }
@@ -336,4 +412,48 @@ void NetworkServer::SendHeartbeatAck()
     header.length = 0;
 
     send(fClientSocket, &header, sizeof(header), 0);
+}
+
+void NetworkServer::SendScreenInfo()
+{
+    if (fClientSocket < 0)
+        return;
+
+    LOG("Sending screen info: %.0fx%.0f", fLocalWidth, fLocalHeight);
+
+    uint8 buffer[sizeof(ProtocolHeader) + sizeof(ScreenInfoPayload)];
+    ProtocolHeader* header = (ProtocolHeader*)buffer;
+    ScreenInfoPayload* payload = (ScreenInfoPayload*)(buffer + sizeof(ProtocolHeader));
+
+    header->magic = PROTOCOL_MAGIC;
+    header->version = PROTOCOL_VERSION;
+    header->eventType = EVENT_SCREEN_INFO;
+    header->length = sizeof(ScreenInfoPayload);
+
+    payload->width = fLocalWidth;
+    payload->height = fLocalHeight;
+
+    send(fClientSocket, buffer, sizeof(buffer), 0);
+}
+
+void NetworkServer::SendControlSwitch(uint8 direction, float yFromBottom)
+{
+    if (fClientSocket < 0)
+        return;
+
+    LOG("Sending CONTROL_SWITCH direction=%d yFromBottom=%.0f", direction, yFromBottom);
+
+    uint8 buffer[sizeof(ProtocolHeader) + sizeof(ControlSwitchPayload)];
+    ProtocolHeader* header = (ProtocolHeader*)buffer;
+    ControlSwitchPayload* payload = (ControlSwitchPayload*)(buffer + sizeof(ProtocolHeader));
+
+    header->magic = PROTOCOL_MAGIC;
+    header->version = PROTOCOL_VERSION;
+    header->eventType = EVENT_CONTROL_SWITCH;
+    header->length = sizeof(ControlSwitchPayload);
+
+    payload->direction = direction;
+    payload->yFromBottom = yFromBottom;
+
+    send(fClientSocket, buffer, sizeof(buffer), 0);
 }

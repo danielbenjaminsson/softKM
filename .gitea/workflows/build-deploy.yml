@@ -56,14 +56,17 @@ jobs:
             clean build
 
       - name: Install macOS App
-        if: (steps.changes.outputs.macos_changed != '0' || github.event_name == 'workflow_dispatch') && github.ref_name == 'main'
+        if: steps.changes.outputs.macos_changed != '0' || github.event_name == 'workflow_dispatch'
         run: |
           APP_PATH="MacOS/build/Build/Products/Release/softKM.app"
           if [ -d "$APP_PATH" ]; then
             pkill -x softKM || true
             sleep 1
             rm -rf /Applications/softKM.app
-            cp -R "$APP_PATH" /Applications/
+            # Use ditto to preserve code signature and extended attributes
+            ditto "$APP_PATH" /Applications/softKM.app
+            # Verify signature after copy
+            codesign -v /Applications/softKM.app && echo "Code signature valid" || echo "WARNING: Code signature invalid"
             echo "macOS app installed to /Applications/softKM.app"
           else
             echo "Build output not found at $APP_PATH"
@@ -71,31 +74,35 @@ jobs:
           fi
 
       - name: Launch macOS App
-        if: (steps.changes.outputs.macos_changed != '0' || github.event_name == 'workflow_dispatch') && github.ref_name == 'main'
+        if: steps.changes.outputs.macos_changed != '0' || github.event_name == 'workflow_dispatch'
         run: |
           open /Applications/softKM.app
           echo "macOS app launched"
 
       - name: Deploy to Haiku
-        if: (steps.changes.outputs.haiku_changed != '0' || github.event_name == 'workflow_dispatch') && github.ref_name == 'main'
+        if: steps.changes.outputs.haiku_changed != '0' || github.event_name == 'workflow_dispatch'
         run: |
           ssh -o StrictHostKeyChecking=no $HAIKU_USER@$HAIKU_HOST << 'ENDSSH'
             set -e
             echo "=== Deploying softKM to Haiku ==="
 
-            cd /Data/Code/Projects/softKM || {
-              echo "ERROR: Project not found at /Data/Code/Projects/softKM"
-              echo "Please clone the repo manually first:"
-              echo "  cd /Data/Code/Projects && git clone <repo-url> softKM"
-              exit 1
-            }
+            if [ ! -d "/Data/Code/Projects/softKM" ]; then
+              echo "Project not found. Cloning..."
+              mkdir -p /Data/Code/Projects
+              cd /Data/Code/Projects
+              git clone ssh://git@gitea.microgeni.synology.me:2222/daniel/softKM.git softKM
+            fi
+            cd /Data/Code/Projects/softKM
 
-            echo "Pulling latest changes..."
+            echo "Pulling latest changes from ${{ github.ref_name }}..."
             git fetch origin
-            git reset --hard origin/main
+            git checkout ${{ github.ref_name }} 2>/dev/null || git checkout -b ${{ github.ref_name }} origin/${{ github.ref_name }}
+            git reset --hard origin/${{ github.ref_name }}
 
             echo "Stopping existing softKM..."
-            pkill -x softKM 2>/dev/null || true
+            for pid in $(ps | grep softKM | grep -v grep | awk '{print $2}'); do
+              kill $pid 2>/dev/null || true
+            done
             sleep 2
 
             cd HaikuOS
@@ -117,11 +124,44 @@ jobs:
             fi
 
             echo "Build successful: $BINARY"
+
+            echo "Building input_server addons..."
+            cd addon
+            make clean
+            make
+
+            echo "Installing addons..."
+            mkdir -p ~/config/non-packaged/add-ons/input_server/devices
+            # Remove old combined addon if it exists
+            rm -f ~/config/non-packaged/add-ons/input_server/devices/SoftKMDevice 2>/dev/null || true
+
+            KEYBOARD_ADDON=$(find objects.* -name "SoftKMKeyboard" -type f 2>/dev/null | head -1)
+            MOUSE_ADDON=$(find objects.* -name "SoftKMMouse" -type f 2>/dev/null | head -1)
+
+            if [ -n "$KEYBOARD_ADDON" ] && [ -n "$MOUSE_ADDON" ]; then
+              cp "$KEYBOARD_ADDON" ~/config/non-packaged/add-ons/input_server/devices/
+              cp "$MOUSE_ADDON" ~/config/non-packaged/add-ons/input_server/devices/
+              echo "Addons installed: $KEYBOARD_ADDON, $MOUSE_ADDON"
+
+              echo "Restarting input_server to load addons..."
+              /system/servers/input_server -q
+              sleep 3
+              # Verify input_server restarted
+              if ps | grep -v grep | grep -q input_server; then
+                echo "input_server restarted successfully"
+              else
+                echo "Warning: input_server may not have restarted"
+              fi
+            else
+              echo "Warning: Addon build failed"
+            fi
+            cd ..
+
             echo "Launching softKM..."
             nohup $BINARY > /dev/null 2>&1 &
 
             sleep 3
-            if pgrep -x softKM > /dev/null; then
+            if ps | grep -v grep | grep -q softKM; then
               echo "softKM is running!"
             else
               echo "Warning: softKM may not have started correctly"
@@ -136,7 +176,26 @@ jobs:
         run: |
           echo "=== Build Summary ==="
           echo "Branch: ${{ github.ref_name }}"
-          echo "MacOS changes: ${{ steps.changes.outputs.macos_changed != '0' }}"
-          echo "Haiku changes: ${{ steps.changes.outputs.haiku_changed != '0' }}"
-          echo "Deploy enabled: ${{ github.ref_name == 'main' }}"
-          echo "Job status: ${{ job.status }}"
+
+          MACOS_CHANGES="${{ steps.changes.outputs.macos_changed != '0' }}"
+          HAIKU_CHANGES="${{ steps.changes.outputs.haiku_changed != '0' }}"
+
+          if [ "$MACOS_CHANGES" = "true" ]; then
+            echo "macOS: Built and installed"
+          else
+            echo "macOS: Skipped (no changes)"
+          fi
+
+          if [ "$HAIKU_CHANGES" = "true" ]; then
+            echo "Haiku: Built and deployed"
+          else
+            echo "Haiku: Skipped (no changes)"
+          fi
+
+          if [ "$MACOS_CHANGES" = "false" ] && [ "$HAIKU_CHANGES" = "false" ]; then
+            echo ""
+            echo "Status: No builds performed (no relevant changes detected)"
+          else
+            echo ""
+            echo "Status: ${{ job.status }}"
+          fi
