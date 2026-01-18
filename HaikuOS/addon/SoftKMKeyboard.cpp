@@ -281,6 +281,30 @@ void SoftKMKeyboard::_ProcessMessage(BMessage* msg)
                 rawChar = specialByte;
             }
 
+            // Handle Ctrl+letter combinations - generate control characters
+            // B_CONTROL_KEY = 0x04, B_LEFT_CONTROL_KEY = 0x2000, B_RIGHT_CONTROL_KEY = 0x4000
+            if (specialByte == 0 && (modifiers & 0x04)) {
+                const char* bytes;
+                if (msg->FindString("bytes", &bytes) == B_OK && bytes[0] != '\0') {
+                    char ch = bytes[0];
+                    // Convert letter to control character: Ctrl+A = 0x01, Ctrl+L = 0x0C, etc.
+                    if (ch >= 'a' && ch <= 'z') {
+                        specialByte = ch - 'a' + 1;  // a=1, b=2, ..., z=26
+                    } else if (ch >= 'A' && ch <= 'Z') {
+                        specialByte = ch - 'A' + 1;
+                    } else if (ch >= 1 && ch <= 26) {
+                        // Already a control character from macOS
+                        specialByte = ch;
+                    }
+                    if (specialByte != 0) {
+                        byteBuffer[0] = specialByte;
+                        specialBytes = byteBuffer;
+                        rawChar = specialByte;
+                        fprintf(stderr, "SoftKMKeyboard: Ctrl+letter -> control char 0x%02x\n", specialByte);
+                    }
+                }
+            }
+
             event->AddInt32("raw_char", rawChar);
             event->AddInt32("key_repeat", 1);
 
