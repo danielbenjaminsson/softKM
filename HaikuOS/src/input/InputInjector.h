@@ -48,6 +48,12 @@ private:
     bigtime_t fEdgeDwellStart;
     bigtime_t fDwellTime;  // configurable dwell time in microseconds
     bool fAtLeftEdge;
+
+    // Double-click tracking
+    bigtime_t fLastClickTime;
+    BPoint fLastClickPosition;
+    int32 fClickCount;
+    uint32 fLastClickButtons;
 };
 
 #endif // INPUT_INJECTOR_H

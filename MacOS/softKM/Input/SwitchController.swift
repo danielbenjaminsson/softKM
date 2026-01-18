@@ -152,6 +152,8 @@ class SwitchController {
 
         if isDown {
             let characters = getCharacters(from: event)
+            let bytesHex = characters.utf8.map { String(format: "%02X", $0) }.joined(separator: " ")
+            LOG("KeyDown: keyCode=0x\(String(format: "%02X", keyCode)) mods=0x\(String(format: "%02X", modifiers)) chars='\(characters)' bytes=[\(bytesHex)]")
             connectionManager.send(event: .keyDown(keyCode: keyCode, modifiers: modifiers, characters: characters))
         } else {
             connectionManager.send(event: .keyUp(keyCode: keyCode, modifiers: modifiers))

@@ -154,7 +154,11 @@ InputInjector::InputInjector()
       fNetworkServer(nullptr),
       fEdgeDwellStart(0),
       fDwellTime(300000),  // default 300ms
-      fAtLeftEdge(false)
+      fAtLeftEdge(false),
+      fLastClickTime(0),
+      fLastClickPosition(0, 0),
+      fClickCount(0),
+      fLastClickButtons(0)
 {
     // Initialize mouse position to center of screen
     BScreen screen;
@@ -438,14 +442,36 @@ void InputInjector::InjectMouseDown(uint32 buttons, float x, float y, uint32 mod
 
     fCurrentButtons |= buttons;
     fCurrentModifiers = modifiers;
-    LOG("MouseDown: buttons=0x%02X mods=0x%02X at (%.1f,%.1f)", fCurrentButtons,
-        modifiers, fMousePosition.x, fMousePosition.y);
+
+    // Double-click detection
+    bigtime_t now = system_time();
+    const bigtime_t kDoubleClickTime = 500000;  // 500ms
+    const float kDoubleClickDistance = 5.0f;
+
+    float dx = fMousePosition.x - fLastClickPosition.x;
+    float dy = fMousePosition.y - fLastClickPosition.y;
+    float distance = (dx * dx) + (dy * dy);  // squared distance, compare to squared threshold
+
+    if (buttons == fLastClickButtons &&
+        (now - fLastClickTime) < kDoubleClickTime &&
+        distance < (kDoubleClickDistance * kDoubleClickDistance)) {
+        fClickCount++;
+    } else {
+        fClickCount = 1;
+    }
+
+    fLastClickTime = now;
+    fLastClickPosition = fMousePosition;
+    fLastClickButtons = buttons;
+
+    LOG("MouseDown: buttons=0x%02X mods=0x%02X clicks=%d at (%.1f,%.1f)",
+        fCurrentButtons, modifiers, fClickCount, fMousePosition.x, fMousePosition.y);
 
     BMessage msg(SOFTKM_INJECT_MOUSE_DOWN);
     msg.AddPoint("where", fMousePosition);
     msg.AddInt32("buttons", fCurrentButtons);
     msg.AddInt32("modifiers", modifiers);
-    msg.AddInt32("clicks", 1);
+    msg.AddInt32("clicks", fClickCount);
 
     if (SendToMouseAddon(&msg)) {
         LOG("MouseDown sent to addon successfully");
