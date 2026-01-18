@@ -230,8 +230,11 @@ void SoftKMMouse::_ProcessMessage(BMessage* msg)
                 int32 buttons = msg->GetInt32("buttons", 0);
                 int32 clicks = msg->GetInt32("clicks", 1);
 
+                // Use timestamp from InputInjector for proper timing
+                bigtime_t when = msg->GetInt64("when", system_time());
+
                 event = new BMessage(B_MOUSE_DOWN);
-                event->AddInt64("when", system_time());
+                event->AddInt64("when", when);
                 event->AddPoint("where", where);
                 event->AddInt32("buttons", buttons);
                 event->AddInt32("modifiers", modifiers);
@@ -250,8 +253,10 @@ void SoftKMMouse::_ProcessMessage(BMessage* msg)
                 int32 buttons = msg->GetInt32("buttons", 0);
                 int32 modifiers = msg->GetInt32("modifiers", 0);
 
+                bigtime_t when = msg->GetInt64("when", system_time());
+
                 event = new BMessage(B_MOUSE_UP);
-                event->AddInt64("when", system_time());
+                event->AddInt64("when", when);
                 event->AddPoint("where", where);
                 event->AddInt32("buttons", buttons);
                 event->AddInt32("modifiers", modifiers);
@@ -268,8 +273,10 @@ void SoftKMMouse::_ProcessMessage(BMessage* msg)
             float deltaY = msg->GetFloat("delta_y", 0.0f);
             int32 modifiers = msg->GetInt32("modifiers", 0);
 
+            bigtime_t when = msg->GetInt64("when", system_time());
+
             event = new BMessage(B_MOUSE_WHEEL_CHANGED);
-            event->AddInt64("when", system_time());
+            event->AddInt64("when", when);
             // Invert deltas - macOS and Haiku have opposite scroll directions
             event->AddFloat("be:wheel_delta_x", -deltaX);
             event->AddFloat("be:wheel_delta_y", -deltaY);

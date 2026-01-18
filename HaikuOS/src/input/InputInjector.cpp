@@ -486,6 +486,7 @@ void InputInjector::InjectMouseDown(uint32 buttons, float x, float y, uint32 mod
         fCurrentButtons, modifiers, fClickCount, fMousePosition.x, fMousePosition.y);
 
     BMessage msg(SOFTKM_INJECT_MOUSE_DOWN);
+    msg.AddInt64("when", now);  // Pass timestamp for proper timing
     msg.AddPoint("where", fMousePosition);
     msg.AddInt32("buttons", fCurrentButtons);
     msg.AddInt32("modifiers", modifiers);
@@ -509,6 +510,7 @@ void InputInjector::InjectMouseUp(uint32 buttons, float x, float y, uint32 modif
         fMousePosition.x, fMousePosition.y);
 
     BMessage msg(SOFTKM_INJECT_MOUSE_UP);
+    msg.AddInt64("when", system_time());
     msg.AddPoint("where", fMousePosition);
     msg.AddInt32("buttons", fCurrentButtons);
     msg.AddInt32("modifiers", modifiers);
@@ -527,6 +529,7 @@ void InputInjector::InjectMouseWheel(float deltaX, float deltaY, uint32 modifier
     LOG("MouseWheel: delta=(%.2f,%.2f)", deltaX, deltaY);
 
     BMessage msg(SOFTKM_INJECT_MOUSE_WHEEL);
+    msg.AddInt64("when", system_time());
     msg.AddFloat("delta_x", deltaX);
     msg.AddFloat("delta_y", deltaY);
     msg.AddInt32("modifiers", modifiers);
