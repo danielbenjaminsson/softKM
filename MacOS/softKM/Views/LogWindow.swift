@@ -12,7 +12,7 @@ struct SelectableLogView: NSViewRepresentable {
 
         textView.isEditable = false
         textView.isSelectable = true
-        textView.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+        textView.font = NSFont.monospacedSystemFont(ofSize: 14, weight: .regular)
         textView.backgroundColor = NSColor.textBackgroundColor
         textView.textContainerInset = NSSize(width: 8, height: 8)
         textView.autoresizingMask = [.width]
