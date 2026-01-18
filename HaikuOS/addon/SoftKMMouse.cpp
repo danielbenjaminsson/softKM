@@ -271,11 +271,18 @@ void SoftKMMouse::_ProcessMessage(BMessage* msg)
 
         case SOFTKM_INJECT_MOUSE_WHEEL:
         {
+            float deltaX = msg->GetFloat("delta_x", 0.0f);
+            float deltaY = msg->GetFloat("delta_y", 0.0f);
+            int32 modifiers = msg->GetInt32("modifiers", 0);
+
+            DebugLog("MOUSE_WHEEL received: deltaX=%.2f deltaY=%.2f mods=0x%x",
+                deltaX, deltaY, modifiers);
+
             event = new BMessage(B_MOUSE_WHEEL_CHANGED);
             event->AddInt64("when", system_time());
-            event->AddFloat("be:wheel_delta_x", msg->GetFloat("delta_x", 0.0f));
-            event->AddFloat("be:wheel_delta_y", msg->GetFloat("delta_y", 0.0f));
-            event->AddInt32("modifiers", msg->GetInt32("modifiers", 0));
+            event->AddFloat("be:wheel_delta_x", deltaX);
+            event->AddFloat("be:wheel_delta_y", deltaY);
+            event->AddInt32("modifiers", modifiers);
             break;
         }
     }
