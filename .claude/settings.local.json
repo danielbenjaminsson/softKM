@@ -25,7 +25,17 @@
       "Bash(codesign:*)",
       "Bash(sqlite3:*)",
       "Bash(xattr:*)",
+<<<<<<< Updated upstream
       "Bash(ls:*)"
+=======
+      "Bash(ls:*)",
+      "Bash(git pull:*)",
+      "Bash(git merge:*)",
+      "Bash(git stash:*)",
+      "Bash(ditto:*)",
+      "Bash(ping:*)",
+      "Bash(rsync:*)"
+>>>>>>> Stashed changes
     ]
   }
 }

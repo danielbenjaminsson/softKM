@@ -6,6 +6,7 @@
  */
 
 #include <InputServerDevice.h>
+#include <InterfaceDefs.h>
 #include <Message.h>
 #include <OS.h>
 
@@ -222,16 +223,80 @@ void SoftKMKeyboard::_ProcessMessage(BMessage* msg)
             event->AddInt64("when", system_time());
             event->AddInt32("key", key);
             event->AddInt32("modifiers", modifiers);
+
+            // Handle special keys that need specific byte values
+            char specialByte = 0;
+            const char* specialBytes = NULL;
+            static char byteBuffer[8] = {0};
+
+            switch (key) {
+                case 0x1e:  // Backspace
+                    specialByte = 0x08;
+                    break;
+                case 0x26:  // Tab
+                    specialByte = 0x09;
+                    break;
+                case 0x47:  // Return/Enter
+                    specialByte = 0x0a;
+                    break;
+                case 0x01:  // Escape
+                    specialByte = 0x1b;
+                    break;
+                case 0x34:  // Delete (forward)
+                    specialByte = 0x7f;
+                    break;
+                case 0x5e:  // Space
+                    specialByte = 0x20;
+                    break;
+                // Arrow keys - use Haiku's B_*_ARROW constants
+                case 0x61:  // Left Arrow
+                    specialByte = B_LEFT_ARROW;
+                    break;
+                case 0x63:  // Right Arrow
+                    specialByte = B_RIGHT_ARROW;
+                    break;
+                case 0x57:  // Down Arrow
+                    specialByte = B_DOWN_ARROW;
+                    break;
+                case 0x38:  // Up Arrow
+                    specialByte = B_UP_ARROW;
+                    break;
+                case 0x20:  // Home
+                    specialByte = B_HOME;
+                    break;
+                case 0x35:  // End
+                    specialByte = B_END;
+                    break;
+                case 0x21:  // Page Up
+                    specialByte = B_PAGE_UP;
+                    break;
+                case 0x36:  // Page Down
+                    specialByte = B_PAGE_DOWN;
+                    break;
+            }
+
+            if (specialByte != 0) {
+                byteBuffer[0] = specialByte;
+                byteBuffer[1] = 0;
+                specialBytes = byteBuffer;
+                rawChar = specialByte;
+            }
+
             event->AddInt32("raw_char", rawChar);
             event->AddInt32("key_repeat", 1);
 
-            const char* bytes;
-            if (msg->FindString("bytes", &bytes) == B_OK && bytes[0] != '\0') {
-                event->AddString("bytes", bytes);
-                event->AddInt8("byte", bytes[0]);
+            if (specialBytes != NULL) {
+                event->AddString("bytes", specialBytes);
+                event->AddInt8("byte", specialByte);
             } else {
-                event->AddString("bytes", "");
-                event->AddInt8("byte", 0);
+                const char* bytes;
+                if (msg->FindString("bytes", &bytes) == B_OK && bytes[0] != '\0') {
+                    event->AddString("bytes", bytes);
+                    event->AddInt8("byte", bytes[0]);
+                } else {
+                    event->AddString("bytes", "");
+                    event->AddInt8("byte", 0);
+                }
             }
 
             // Add key states array - this is what makes it look like a real keyboard
