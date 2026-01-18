@@ -12,6 +12,7 @@
 
 #include <cstring>
 #include <cstdio>
+#include <cmath>
 
 // Message codes for communication with input_server add-on
 enum {
@@ -446,18 +447,27 @@ void InputInjector::InjectMouseDown(uint32 buttons, float x, float y, uint32 mod
     // Double-click detection
     bigtime_t now = system_time();
     const bigtime_t kDoubleClickTime = 500000;  // 500ms
-    const float kDoubleClickDistance = 5.0f;
+    const float kDoubleClickDistance = 10.0f;   // 10 pixels tolerance
 
     float dx = fMousePosition.x - fLastClickPosition.x;
     float dy = fMousePosition.y - fLastClickPosition.y;
-    float distance = (dx * dx) + (dy * dy);  // squared distance, compare to squared threshold
+    float distSq = (dx * dx) + (dy * dy);  // squared distance
+    bigtime_t timeDelta = now - fLastClickTime;
 
-    if (buttons == fLastClickButtons &&
-        (now - fLastClickTime) < kDoubleClickTime &&
-        distance < (kDoubleClickDistance * kDoubleClickDistance)) {
+    bool sameButton = (buttons == fLastClickButtons);
+    bool withinTime = (timeDelta < kDoubleClickTime);
+    bool withinDist = (distSq < (kDoubleClickDistance * kDoubleClickDistance));
+
+    LOG("Click check: btn=0x%02X lastBtn=0x%02X dt=%lldms dist=%.1f (dx=%.1f dy=%.1f)",
+        buttons, fLastClickButtons, timeDelta / 1000, sqrt(distSq), dx, dy);
+
+    if (sameButton && withinTime && withinDist) {
         fClickCount++;
     } else {
         fClickCount = 1;
+        if (!sameButton) LOG("  Reset: different button");
+        if (!withinTime) LOG("  Reset: time exceeded (%lldms > 500ms)", timeDelta / 1000);
+        if (!withinDist) LOG("  Reset: distance exceeded (%.1f > 10px)", sqrt(distSq));
     }
 
     fLastClickTime = now;
