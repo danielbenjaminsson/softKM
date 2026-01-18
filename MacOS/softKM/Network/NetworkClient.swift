@@ -15,10 +15,16 @@ class NetworkClient: ObservableObject {
     private var socketFD: Int32 = -1
     private let queue = DispatchQueue(label: "com.softkm.network")
     private var heartbeatTimer: Timer?
+    private var flushTimer: Timer?
     private var receiveThread: Thread?
     private var shouldRun = false
     private var sendCount = 0
     private var lastLogTime = Date()
+
+    // Event batching for mouse moves
+    private var pendingMouseDelta: (x: Float, y: Float) = (0, 0)
+    private var hasPendingMouse = false
+    private let batchLock = NSLock()
 
     func connect(to host: String, port: Int, useTLS: Bool) {
         disconnect()
@@ -109,6 +115,8 @@ class NetworkClient: ObservableObject {
         LOG("Disconnecting from server...")
         heartbeatTimer?.invalidate()
         heartbeatTimer = nil
+        flushTimer?.invalidate()
+        flushTimer = nil
         shouldRun = false
 
         if socketFD >= 0 {
@@ -123,9 +131,37 @@ class NetworkClient: ObservableObject {
     }
 
     func send(event: InputEvent) {
+        // Batch mouse moves together
+        if case let .mouseMove(x, y, relative) = event, relative {
+            batchLock.lock()
+            pendingMouseDelta.x += x
+            pendingMouseDelta.y += y
+            hasPendingMouse = true
+            batchLock.unlock()
+            return  // Will be flushed by timer
+        }
+
+        // All other events sent immediately
+        sendDirect(event: event)
+    }
+
+    func flushPendingMouse() {
+        batchLock.lock()
+        guard hasPendingMouse else {
+            batchLock.unlock()
+            return
+        }
+        let delta = pendingMouseDelta
+        pendingMouseDelta = (0, 0)
+        hasPendingMouse = false
+        batchLock.unlock()
+
+        sendDirect(event: .mouseMove(x: delta.x, y: delta.y, relative: true))
+    }
+
+    private func sendDirect(event: InputEvent) {
         let fd = socketFD
         guard connectionState == .connected, fd >= 0 else {
-            LOG("Send skipped: state=\(connectionState), fd=\(fd)")
             return
         }
 
@@ -133,27 +169,18 @@ class NetworkClient: ObservableObject {
         sendCount += 1
         let now = Date()
         if now.timeIntervalSince(lastLogTime) >= 1.0 {
-            LOG("Send rate: \(sendCount) sends in last \(String(format: "%.1f", now.timeIntervalSince(lastLogTime)))s")
+            LOG("Send rate: \(sendCount) sends, fd=\(fd)")
             sendCount = 0
             lastLogTime = now
         }
 
         data.withUnsafeBytes { ptr in
-            // MSG_DONTWAIT for non-blocking send
-            let sent = Darwin.send(fd, ptr.baseAddress, data.count, Int32(MSG_DONTWAIT))
+            let sent = Darwin.send(fd, ptr.baseAddress, data.count, 0)
             if sent < 0 {
-                let err = errno
-                if err == EAGAIN || err == EWOULDBLOCK {
-                    // Buffer full - this might explain the delay
-                    LOG("Send would block (EAGAIN)")
-                } else {
-                    LOG("Send error: \(String(cString: strerror(err)))")
-                    DispatchQueue.main.async { [weak self] in
-                        self?.disconnect()
-                    }
+                LOG("Send error: \(String(cString: strerror(errno)))")
+                DispatchQueue.main.async { [weak self] in
+                    self?.disconnect()
                 }
-            } else if sent != data.count {
-                LOG("Partial send: \(sent)/\(data.count) bytes")
             }
         }
     }
@@ -258,7 +285,13 @@ class NetworkClient: ObservableObject {
     private func startHeartbeat() {
         heartbeatTimer?.invalidate()
         heartbeatTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
-            self?.send(event: .heartbeat)
+            self?.sendDirect(event: .heartbeat)
+        }
+
+        // Flush pending mouse moves every 16ms (~60Hz)
+        flushTimer?.invalidate()
+        flushTimer = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { [weak self] _ in
+            self?.flushPendingMouse()
         }
     }
 
