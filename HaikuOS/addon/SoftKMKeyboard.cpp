@@ -12,6 +12,24 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
+#include <stdarg.h>
+
+// Debug logging to file
+static void DebugLog(const char* fmt, ...) {
+    FILE* f = fopen("/boot/home/softKM_keyboard.log", "a");
+    if (f) {
+        time_t now = time(NULL);
+        struct tm* tm = localtime(&now);
+        fprintf(f, "[%02d:%02d:%02d] ", tm->tm_hour, tm->tm_min, tm->tm_sec);
+        va_list args;
+        va_start(args, fmt);
+        vfprintf(f, fmt, args);
+        va_end(args);
+        fprintf(f, "\n");
+        fclose(f);
+    }
+}
 
 // Message codes for communication with main app
 enum {
@@ -182,6 +200,7 @@ void SoftKMKeyboard::_WatchPort()
 
         BMessage msg;
         if (msg.Unflatten(buffer) == B_OK) {
+            DebugLog("Received message: what=0x%08x", (uint32)msg.what);
             _ProcessMessage(&msg);
         }
     }
@@ -218,6 +237,7 @@ void SoftKMKeyboard::_ProcessMessage(BMessage* msg)
 
             fprintf(stderr, "SoftKMKeyboard: KEY_DOWN key=0x%02x mods=0x%02x raw=0x%02x\n",
                 key, modifiers, rawChar);
+            DebugLog("KEY_DOWN key=0x%02x mods=0x%02x raw=0x%02x", key, modifiers, rawChar);
 
             event = new BMessage(B_KEY_DOWN);
             event->AddInt64("when", system_time());
@@ -281,36 +301,66 @@ void SoftKMKeyboard::_ProcessMessage(BMessage* msg)
                 rawChar = specialByte;
             }
 
-            // Handle Ctrl+letter combinations - generate control characters
+            // Handle Ctrl+letter combinations
+            // Haiku apps may expect either the control character (0x01-0x1A) OR
+            // the regular letter with B_CONTROL_KEY modifier. We'll provide both:
+            // - For terminal-style apps: send control character in bytes
+            // - For UI apps: modifiers indicate Ctrl is pressed
             // B_CONTROL_KEY = 0x04, B_LEFT_CONTROL_KEY = 0x2000, B_RIGHT_CONTROL_KEY = 0x4000
             if (specialByte == 0 && (modifiers & 0x04)) {
+                DebugLog("Ctrl key detected, checking bytes");
                 const char* bytes;
-                if (msg->FindString("bytes", &bytes) == B_OK && bytes[0] != '\0') {
-                    char ch = bytes[0];
-                    // Convert letter to control character: Ctrl+A = 0x01, Ctrl+L = 0x0C, etc.
-                    if (ch >= 'a' && ch <= 'z') {
-                        specialByte = ch - 'a' + 1;  // a=1, b=2, ..., z=26
-                    } else if (ch >= 'A' && ch <= 'Z') {
-                        specialByte = ch - 'A' + 1;
-                    } else if (ch >= 1 && ch <= 26) {
-                        // Already a control character from macOS
-                        specialByte = ch;
+                if (msg->FindString("bytes", &bytes) == B_OK) {
+                    DebugLog("bytes field found: bytes[0]=0x%02x", (uint8)bytes[0]);
+                    if (bytes[0] != '\0') {
+                        char ch = bytes[0];
+                        // If it's a control character (1-26), convert back to letter
+                        // for the raw_char, but keep the control char in bytes
+                        if (ch >= 1 && ch <= 26) {
+                            // Control character from macOS - pass it through directly
+                            // Terminal and other apps expect the actual control character
+                            specialByte = ch;
+                            byteBuffer[0] = ch;
+                            specialBytes = byteBuffer;
+                            rawChar = ch;
+                            DebugLog("control char 0x%02x -> passing through", ch);
+                        } else if (ch >= 'a' && ch <= 'z') {
+                            // Lowercase letter - convert to control character
+                            specialByte = ch - 'a' + 1;
+                            byteBuffer[0] = specialByte;
+                            specialBytes = byteBuffer;
+                            rawChar = ch;
+                            DebugLog("letter '%c' -> control char 0x%02x", ch, specialByte);
+                        } else if (ch >= 'A' && ch <= 'Z') {
+                            // Uppercase letter - convert to control character
+                            specialByte = ch - 'A' + 1;
+                            byteBuffer[0] = specialByte;
+                            specialBytes = byteBuffer;
+                            rawChar = ch;
+                            DebugLog("letter '%c' -> control char 0x%02x", ch, specialByte);
+                        } else {
+                            DebugLog("ch=0x%02x not a letter or control char", (uint8)ch);
+                        }
+                        if (specialByte != 0) {
+                            DebugLog("Set specialBytes to 0x%02x, rawChar=0x%02x", (uint8)specialByte, rawChar);
+                            fprintf(stderr, "SoftKMKeyboard: Ctrl+letter -> control char 0x%02x\n", specialByte);
+                        }
+                    } else {
+                        DebugLog("bytes[0] is null");
                     }
-                    if (specialByte != 0) {
-                        byteBuffer[0] = specialByte;
-                        specialBytes = byteBuffer;
-                        rawChar = specialByte;
-                        fprintf(stderr, "SoftKMKeyboard: Ctrl+letter -> control char 0x%02x\n", specialByte);
-                    }
+                } else {
+                    DebugLog("bytes field not found in message");
                 }
             }
 
             event->AddInt32("raw_char", rawChar);
-            event->AddInt32("key_repeat", 1);
+            // Don't add be:key_repeat for first key press - only for actual repeats
+            // Adding it with value > 0 causes BWindow to treat it as a repeat and ignore it
 
             if (specialBytes != NULL) {
                 event->AddString("bytes", specialBytes);
                 event->AddInt8("byte", specialByte);
+                DebugLog("Adding special bytes: byte=0x%02x", (uint8)specialByte);
             } else {
                 const char* bytes;
                 if (msg->FindString("bytes", &bytes) == B_OK && bytes[0] != '\0') {
@@ -356,6 +406,7 @@ void SoftKMKeyboard::_ProcessMessage(BMessage* msg)
     }
 
     if (event != NULL) {
+        DebugLog("EnqueueMessage: what=0x%08x", (uint32)event->what);
         EnqueueMessage(event);
 
         // For modifier keys, also send B_MODIFIERS_CHANGED
