@@ -42,7 +42,7 @@ enum {
 
 static const char* kDeviceName = "SoftKM Keyboard";
 static const char* kPortName = "softKM_keyboard_port";
-static const char* kVersion = "1.2.1";  // Fix raw_char for control characters
+static const char* kVersion = "1.3.0";  // Fix modifier tracking for Twitcher
 
 class SoftKMKeyboard : public BInputServerDevice {
 public:
@@ -65,6 +65,7 @@ private:
     thread_id fWatcherThread;
     bool fRunning;
     uint8 fKeyStates[KEY_STATES_SIZE];  // Bit array of key states
+    int32 fCurrentModifiers;  // Track current modifier state for be:old_modifiers
 };
 
 
@@ -72,7 +73,8 @@ SoftKMKeyboard::SoftKMKeyboard()
     : BInputServerDevice(),
       fPort(-1),
       fWatcherThread(-1),
-      fRunning(false)
+      fRunning(false),
+      fCurrentModifiers(0)
 {
     memset(fKeyStates, 0, sizeof(fKeyStates));
 }
@@ -310,8 +312,14 @@ void SoftKMKeyboard::_ProcessMessage(BMessage* msg)
             // the regular letter with B_CONTROL_KEY modifier. We'll provide both:
             // - For terminal-style apps: send control character in bytes
             // - For UI apps: modifiers indicate Ctrl is pressed
-            // B_CONTROL_KEY = 0x04, B_LEFT_CONTROL_KEY = 0x2000, B_RIGHT_CONTROL_KEY = 0x4000
-            if (specialByte == 0 && (modifiers & 0x04)) {
+            // B_CONTROL_KEY = 0x04, B_LEFT_CONTROL_KEY = 0x10000, B_RIGHT_CONTROL_KEY = 0x20000
+            // Skip this for modifier keys themselves
+            bool isModifierKey = (key == 0x4b || key == 0x56 ||  // Shift
+                                  key == 0x5c || key == 0x60 ||  // Control
+                                  key == 0x5d || key == 0x5f ||  // Alt (Command)
+                                  key == 0x66 || key == 0x67 ||  // Win (Option)
+                                  key == 0x3b);                   // Caps Lock
+            if (specialByte == 0 && (modifiers & 0x04) && !isModifierKey) {
                 DebugLog("Ctrl key detected, checking bytes");
                 const char* bytes;
                 bool bytesProcessed = false;
@@ -466,12 +474,14 @@ void SoftKMKeyboard::_ProcessMessage(BMessage* msg)
                               key == 0x66 || key == 0x67 ||  // Win (Option)
                               key == 0x3b);                   // Caps Lock
 
-        if (isModifierKey) {
+        if (isModifierKey && modifiers != fCurrentModifiers) {
+            DebugLog("B_MODIFIERS_CHANGED: old=0x%08x new=0x%08x", fCurrentModifiers, modifiers);
             BMessage* modMsg = new BMessage(B_MODIFIERS_CHANGED);
             modMsg->AddInt64("when", system_time());
             modMsg->AddInt32("modifiers", modifiers);
-            modMsg->AddInt32("be:old_modifiers", 0);
+            modMsg->AddInt32("be:old_modifiers", fCurrentModifiers);
             EnqueueMessage(modMsg);
+            fCurrentModifiers = modifiers;
         }
     }
 }
