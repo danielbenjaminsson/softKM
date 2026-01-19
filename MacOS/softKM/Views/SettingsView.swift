@@ -11,7 +11,7 @@ struct SettingsView: View {
                 TextField("Host Address", text: $settings.hostAddress)
                     .textFieldStyle(.roundedBorder)
 
-                TextField("Port", value: $settings.port, format: .number)
+                TextField("Port", value: $settings.port, format: .number.grouping(.never))
                     .textFieldStyle(.roundedBorder)
 
                 Toggle("Use TLS Encryption", isOn: $settings.useTLS)

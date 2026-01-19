@@ -28,7 +28,8 @@ struct MonitorArrangementView: View {
                         icon: "laptopcomputer",
                         frame: scaledFrame(arrangement.macMonitor, in: arrangementSize),
                         isConnected: arrangement.connectedEdge != .none,
-                        connectedEdge: nil
+                        connectedEdge: nil,
+                        showInputIcons: true
                     )
 
                     // Haiku monitor (draggable)
@@ -167,6 +168,7 @@ struct MonitorView: View {
     let frame: CGRect
     let isConnected: Bool
     let connectedEdge: ConnectedEdge?
+    var showInputIcons: Bool = false
 
     var body: some View {
         ZStack {
@@ -186,6 +188,18 @@ struct MonitorView: View {
                     .font(.caption)
                     .fontWeight(.medium)
                     .foregroundColor(.white)
+            }
+
+            // Input icons (keyboard + mouse) in bottom left
+            if showInputIcons {
+                HStack(spacing: 2) {
+                    Image(systemName: "keyboard")
+                        .font(.system(size: 9))
+                    Image(systemName: "computermouse")
+                        .font(.system(size: 9))
+                }
+                .foregroundColor(.white.opacity(0.7))
+                .position(x: 18, y: frame.height - 10)
             }
         }
         .frame(width: frame.width, height: frame.height)
