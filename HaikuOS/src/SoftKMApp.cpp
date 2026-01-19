@@ -28,9 +28,8 @@ SoftKMApp::SoftKMApp()
     // Load settings
     Settings::Load();
 
-    // Create and show log window (for development)
+    // Create log window (user can open it from menu)
     fLogWindow = LogWindow::GetInstance();
-    fLogWindow->Show();
 
     // Set up logger to send to log window
     Logger::Instance().SetLogWindow(BMessenger(fLogWindow));

@@ -7,9 +7,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var permissionCheckTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Show log window on start (for development)
-        LogWindowController.shared.show()
-
         // Log app identity for debugging
         if let bundleID = Bundle.main.bundleIdentifier {
             LOG("App bundle ID: \(bundleID)")
