@@ -119,7 +119,7 @@ struct MonitorArrangementView: View {
     private func scaledFrame(_ monitor: MonitorRect, in arrangementSize: CGSize) -> CGRect {
         // Scale from arrangement coordinates to view coordinates
         // Center the arrangement in the view
-        let scale: CGFloat = 1.0
+        let scale: CGFloat = 1.5  // Scale up monitors for better visibility
         let centerX = arrangementSize.width / 2
         let centerY = arrangementSize.height / 2
 
@@ -146,9 +146,10 @@ struct MonitorArrangementView: View {
     }
 
     private func applyDrag(_ translation: CGSize) {
-        // Convert screen translation to arrangement coordinates
-        let newHaikuX = arrangement.haikuMonitor.x + translation.width
-        let newHaikuY = arrangement.haikuMonitor.y + translation.height
+        // Convert screen translation to arrangement coordinates (account for display scale)
+        let scale: CGFloat = 1.5
+        let newHaikuX = arrangement.haikuMonitor.x + translation.width / scale
+        let newHaikuY = arrangement.haikuMonitor.y + translation.height / scale
 
         // Update arrangement with new position
         var newArrangement = arrangement
