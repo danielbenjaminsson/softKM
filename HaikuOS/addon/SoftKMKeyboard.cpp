@@ -42,7 +42,7 @@ enum {
 
 static const char* kDeviceName = "SoftKM Keyboard";
 static const char* kPortName = "softKM_keyboard_port";
-static const char* kVersion = "1.3.0";  // Fix modifier tracking for Twitcher
+static const char* kVersion = "1.4.0";  // Proper key repeat detection
 
 class SoftKMKeyboard : public BInputServerDevice {
 public:
@@ -238,12 +238,20 @@ void SoftKMKeyboard::_ProcessMessage(BMessage* msg)
             int32 modifiers = msg->GetInt32("modifiers", 0);
             int32 rawChar = msg->GetInt32("raw_char", 0);
 
+            // Check if this is a repeat (key already pressed)
+            bool isRepeat = false;
+            if (key >= 0 && key < KEY_STATES_SIZE * 8) {
+                int byteIndex = key / 8;
+                int bitIndex = key % 8;
+                isRepeat = (fKeyStates[byteIndex] & (1 << bitIndex)) != 0;
+            }
+
             // Update key state
             _SetKeyState(key, true);
 
-            fprintf(stderr, "SoftKMKeyboard: KEY_DOWN key=0x%02x mods=0x%02x raw=0x%02x\n",
-                key, modifiers, rawChar);
-            DebugLog("KEY_DOWN key=0x%02x mods=0x%02x raw=0x%02x", key, modifiers, rawChar);
+            fprintf(stderr, "SoftKMKeyboard: KEY_DOWN key=0x%02x mods=0x%02x raw=0x%02x repeat=%d\n",
+                key, modifiers, rawChar, isRepeat);
+            DebugLog("KEY_DOWN key=0x%02x mods=0x%02x raw=0x%02x repeat=%d", key, modifiers, rawChar, isRepeat);
 
             event = new BMessage(B_KEY_DOWN);
             event->AddInt64("when", system_time());
@@ -408,8 +416,10 @@ void SoftKMKeyboard::_ProcessMessage(BMessage* msg)
             }
 
             event->AddInt32("raw_char", rawChar);
-            // Don't add be:key_repeat for first key press - only for actual repeats
-            // Adding it with value > 0 causes BWindow to treat it as a repeat and ignore it
+            // Add be:key_repeat for repeat events - helps system distinguish first press from repeats
+            if (isRepeat) {
+                event->AddInt32("be:key_repeat", 1);
+            }
 
             if (specialBytes != NULL) {
                 event->AddString("bytes", specialBytes);
