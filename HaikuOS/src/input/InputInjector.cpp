@@ -525,17 +525,15 @@ void InputInjector::InjectMouseWheel(float deltaX, float deltaY, uint32 modifier
 
 void InputInjector::InjectTeamMonitor()
 {
-    // Send TEAM_MONITOR message to input_server to show the Team Monitor window
-    // This is the same window that appears when pressing Ctrl+Alt+Del on physical keyboard
-    LOG("Sending TEAM_MONITOR message to input_server");
+    // Try sending kMsgCtrlAltDelPressed ('TMcp') to input_server
+    // This is the message TeamMonitorWindow responds to
+    LOG("Sending kMsgCtrlAltDelPressed to input_server");
 
     BMessenger inputServer("application/x-vnd.Be-input_server");
     if (inputServer.IsValid()) {
-        BMessage msg('_Tm_');  // TEAM_MONITOR from kernel/team.h
+        BMessage msg('TMcp');  // kMsgCtrlAltDelPressed from TeamMonitorWindow.h
         status_t result = inputServer.SendMessage(&msg);
-        if (result != B_OK) {
-            LOG("Failed to send TEAM_MONITOR message: %s", strerror(result));
-        }
+        LOG("SendMessage result: %s", strerror(result));
     } else {
         LOG("Could not connect to input_server");
     }
