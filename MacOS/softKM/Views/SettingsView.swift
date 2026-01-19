@@ -18,10 +18,14 @@ struct SettingsView: View {
             }
 
             Section("Monitor Arrangement") {
-                MonitorArrangementView(arrangement: $arrangement)
-                    .onChange(of: arrangement) { newValue in
-                        settings.monitorArrangement = newValue
-                    }
+                MonitorArrangementView(
+                    arrangement: $arrangement,
+                    macScreenSize: macScreenSize,
+                    haikuScreenSize: connectionManager.remoteScreenSize
+                )
+                .onChange(of: arrangement) { newValue in
+                    settings.monitorArrangement = newValue
+                }
 
                 HStack {
                     Text("Edge Dwell Time")
@@ -44,7 +48,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 420, height: 480)
+        .frame(minWidth: 400, idealWidth: 450, minHeight: 400, idealHeight: 500)
         .padding()
     }
 
@@ -64,5 +68,12 @@ struct SettingsView: View {
         case .disconnected: return .secondary
         case .error: return .red
         }
+    }
+
+    private var macScreenSize: CGSize {
+        if let screen = NSScreen.main {
+            return screen.frame.size
+        }
+        return CGSize(width: 1920, height: 1080)  // Fallback
     }
 }

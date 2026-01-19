@@ -1,13 +1,24 @@
 import SwiftUI
+import AppKit
 
 struct MonitorArrangementView: View {
     @Binding var arrangement: MonitorArrangement
+    var macScreenSize: CGSize
+    var haikuScreenSize: CGSize
 
     private let arrangementSize = CGSize(width: 350, height: 200)
-    private let snapThreshold: CGFloat = 15.0
 
     @State private var isDragging = false
     @State private var dragOffset: CGSize = .zero
+    @State private var hasInitializedSizes = false
+
+    // Scale factor to fit monitors in the view
+    private var displayScale: CGFloat {
+        let maxMonitorHeight: CGFloat = 100
+        let macScale = maxMonitorHeight / macScreenSize.height
+        let haikuScale = maxMonitorHeight / haikuScreenSize.height
+        return min(macScale, haikuScale, 1.0)
+    }
 
     var body: some View {
         VStack(spacing: 8) {
@@ -65,6 +76,33 @@ struct MonitorArrangementView: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
+        .onAppear {
+            initializeWithActualSizes()
+        }
+    }
+
+    private func initializeWithActualSizes() {
+        // Only initialize if we haven't already and have valid screen sizes
+        guard !hasInitializedSizes,
+              macScreenSize.width > 0, macScreenSize.height > 0,
+              haikuScreenSize.width > 0, haikuScreenSize.height > 0 else {
+            return
+        }
+
+        // Check if arrangement has default/equal sizes that need updating
+        let currentMacSize = CGSize(width: arrangement.macMonitor.width, height: arrangement.macMonitor.height)
+        let currentHaikuSize = CGSize(width: arrangement.haikuMonitor.width, height: arrangement.haikuMonitor.height)
+
+        // If sizes look like defaults (roughly equal), update to actual proportions
+        let sizeDiff = abs(currentMacSize.width - currentHaikuSize.width)
+        if sizeDiff < 30 {  // Likely using default equal-ish sizes
+            let newArrangement = MonitorArrangement.withActualScreenSizes(
+                macScreenSize: macScreenSize,
+                haikuScreenSize: haikuScreenSize
+            )
+            arrangement = newArrangement
+        }
+        hasInitializedSizes = true
     }
 
     private var edgeDescription: String {
@@ -113,8 +151,8 @@ struct MonitorArrangementView: View {
 
     private func applyDrag(_ translation: CGSize) {
         // Convert screen translation to arrangement coordinates
-        var newHaikuX = arrangement.haikuMonitor.x + translation.width
-        var newHaikuY = arrangement.haikuMonitor.y + translation.height
+        let newHaikuX = arrangement.haikuMonitor.x + translation.width
+        let newHaikuY = arrangement.haikuMonitor.y + translation.height
 
         // Update arrangement with new position
         var newArrangement = arrangement
@@ -207,6 +245,10 @@ struct ConnectionLine: View {
 }
 
 #Preview {
-    MonitorArrangementView(arrangement: .constant(.default))
-        .padding()
+    MonitorArrangementView(
+        arrangement: .constant(.default),
+        macScreenSize: CGSize(width: 1920, height: 1080),
+        haikuScreenSize: CGSize(width: 1600, height: 900)
+    )
+    .padding()
 }

@@ -140,6 +140,7 @@ struct MonitorArrangement: Codable, Equatable {
     }
 
     /// Snaps the Haiku monitor to the nearest edge of Mac monitor if within threshold
+    /// Only snaps the edge coordinate, preserving the other axis position
     mutating func snapHaikuToMac() {
         let mac = macMonitor.frame
         var haiku = haikuMonitor.frame
@@ -157,24 +158,48 @@ struct MonitorArrangement: Codable, Equatable {
         }
 
         if minDist == distToRight {
-            // Snap to right edge
+            // Snap to right edge - only adjust X, keep Y position
             haiku.origin.x = mac.maxX
-            // Align vertically (bottom-aligned by default)
-            haiku.origin.y = mac.minY
         } else if minDist == distToLeft {
-            // Snap to left edge
+            // Snap to left edge - only adjust X, keep Y position
             haiku.origin.x = mac.minX - haiku.width
-            haiku.origin.y = mac.minY
         } else if minDist == distToTop {
-            // Snap to top edge
+            // Snap to top edge - only adjust Y, keep X position
             haiku.origin.y = mac.maxY
-            haiku.origin.x = mac.minX
         } else if minDist == distToBottom {
-            // Snap to bottom edge
+            // Snap to bottom edge - only adjust Y, keep X position
             haiku.origin.y = mac.minY - haiku.height
-            haiku.origin.x = mac.minX
         }
 
         haikuMonitor = MonitorRect(frame: haiku)
+    }
+
+    /// Creates an arrangement with actual screen sizes scaled to fit
+    static func withActualScreenSizes(
+        macScreenSize: CGSize,
+        haikuScreenSize: CGSize,
+        baseHeight: CGFloat = 80
+    ) -> MonitorArrangement {
+        // Scale both monitors proportionally based on a target height
+        let macScale = baseHeight / macScreenSize.height
+        let haikuScale = baseHeight / haikuScreenSize.height
+
+        // Use the smaller scale to ensure both fit well
+        let scale = min(macScale, haikuScale)
+
+        let macWidth = macScreenSize.width * scale
+        let macHeight = macScreenSize.height * scale
+        let haikuWidth = haikuScreenSize.width * scale
+        let haikuHeight = haikuScreenSize.height * scale
+
+        // Position Mac at origin, Haiku to the right (default)
+        // Bottom-align the monitors
+        let macY: CGFloat = 0
+        let haikuY = macHeight - haikuHeight  // Bottom-align
+
+        return MonitorArrangement(
+            macMonitor: MonitorRect(x: 0, y: macY, width: macWidth, height: macHeight),
+            haikuMonitor: MonitorRect(x: macWidth, y: haikuY, width: haikuWidth, height: haikuHeight)
+        )
     }
 }
