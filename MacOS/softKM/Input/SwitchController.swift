@@ -190,6 +190,8 @@ class SwitchController {
         // Determine if this is a key down or up based on whether the modifier is now set
         let isDown = isModifierKeyDown(keyCode: keyCode, flags: event.flags)
 
+        LOG("FlagsChanged: keyCode=0x\(String(format: "%02X", keyCode)) flags=0x\(String(format: "%016llX", event.flags.rawValue)) isDown=\(isDown)")
+
         if isDown {
             connectionManager.send(event: .keyDown(keyCode: keyCode, modifiers: modifiers, characters: ""))
         } else {
