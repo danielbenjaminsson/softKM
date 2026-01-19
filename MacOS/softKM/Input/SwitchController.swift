@@ -433,6 +433,12 @@ class SwitchController {
             }
         }
 
+        // Try base key mapping (no modifiers or just dead keys)
+        if let char = swedishBaseMapping(keyCode: keyCode) {
+            LOG("Using Swedish base mapping: keyCode=0x\(String(format: "%02X", keyCode)) -> '\(char)'")
+            return char
+        }
+
         return nil
     }
 
@@ -461,6 +467,16 @@ class SwitchController {
         switch keyCode {
         case 0x1E:  // ¨ key (next to Enter) - Shift+¨ = ^
             return "^"
+        default:
+            return nil
+        }
+    }
+
+    // Manual mapping for Swedish keyboard base keys (no modifiers / dead keys)
+    private func swedishBaseMapping(keyCode: UInt16) -> String? {
+        switch keyCode {
+        case 0x1E:  // ¨ key (next to Enter) - produces ¨ (diaeresis)
+            return "¨"
         default:
             return nil
         }
