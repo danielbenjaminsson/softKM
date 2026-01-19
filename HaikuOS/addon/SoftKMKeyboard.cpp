@@ -476,6 +476,7 @@ void SoftKMKeyboard::_ProcessMessage(BMessage* msg)
             // Update key state
             _SetKeyState(key, false);
 
+            DebugLog("KEY_UP key=0x%02x mods=0x%02x", key, modifiers);
             fprintf(stderr, "SoftKMKeyboard: KEY_UP key=0x%02x mods=0x%02x\n",
                 key, modifiers);
 
