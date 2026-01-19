@@ -126,8 +126,8 @@ struct MonitorArrangement: Codable, Equatable {
     static var `default`: MonitorArrangement {
         // Mac on left, Haiku on right (default arrangement)
         MonitorArrangement(
-            macMonitor: MonitorRect(x: 0, y: 0, width: 160, height: 100),
-            haikuMonitor: MonitorRect(x: 160, y: 0, width: 140, height: 100)
+            macMonitor: MonitorRect(x: 0, y: 0, width: 240, height: 150),
+            haikuMonitor: MonitorRect(x: 240, y: 0, width: 210, height: 150)
         )
     }
 
@@ -211,7 +211,7 @@ struct MonitorArrangement: Codable, Equatable {
     static func withActualScreenSizes(
         macScreenSize: CGSize,
         haikuScreenSize: CGSize,
-        baseHeight: CGFloat = 80
+        baseHeight: CGFloat = 120
     ) -> MonitorArrangement {
         // Scale both monitors proportionally based on a target height
         let macScale = baseHeight / macScreenSize.height

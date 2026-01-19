@@ -6,7 +6,7 @@ struct MonitorArrangementView: View {
     var macScreenSize: CGSize
     var haikuScreenSize: CGSize
 
-    private let arrangementHeight: CGFloat = 220
+    private let arrangementHeight: CGFloat = 300
 
     @State private var isDragging = false
     @State private var dragOffset: CGSize = .zero
