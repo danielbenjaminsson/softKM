@@ -60,15 +60,34 @@ class EdgeDetector {
     }
 
     private func isAtEdge(_ position: CGPoint, in frame: CGRect, edge: ScreenEdge) -> Bool {
+        // Get overlap region from monitor arrangement
+        let arrangement = settings.monitorArrangement
+        let (topRatio, bottomRatio) = arrangement.overlapRatios
+
+        // Convert overlap ratios to screen coordinates
+        // overlapRatios are top-down (0.0 = top), but Cocoa Y is bottom-up
+        let overlapMinY = frame.minY + (1.0 - bottomRatio) * frame.height
+        let overlapMaxY = frame.minY + (1.0 - topRatio) * frame.height
+
         switch edge {
         case .right:
-            return position.x >= frame.maxX - edgeThreshold
+            // Check X at edge AND Y within overlap region
+            return position.x >= frame.maxX - edgeThreshold &&
+                   position.y >= overlapMinY && position.y <= overlapMaxY
         case .left:
-            return position.x <= frame.minX + edgeThreshold
+            return position.x <= frame.minX + edgeThreshold &&
+                   position.y >= overlapMinY && position.y <= overlapMaxY
         case .top:
-            return position.y >= frame.maxY - edgeThreshold
+            // For top/bottom edges, check X within overlap (horizontal overlap)
+            let overlapMinX = frame.minX + topRatio * frame.width
+            let overlapMaxX = frame.minX + bottomRatio * frame.width
+            return position.y >= frame.maxY - edgeThreshold &&
+                   position.x >= overlapMinX && position.x <= overlapMaxX
         case .bottom:
-            return position.y <= frame.minY + edgeThreshold
+            let overlapMinX = frame.minX + topRatio * frame.width
+            let overlapMaxX = frame.minX + bottomRatio * frame.width
+            return position.y <= frame.minY + edgeThreshold &&
+                   position.x >= overlapMinX && position.x <= overlapMaxX
         }
     }
 
