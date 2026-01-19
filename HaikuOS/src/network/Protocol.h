@@ -84,7 +84,8 @@ struct SettingsSyncPayload {
 // Modifier key mapping (macOS -> Haiku)
 // macOS:  Shift=0x01, Option=0x02, Control=0x04, Fn=0x10, CapsLock=0x20, Command=0x40
 // Haiku generic:  B_SHIFT_KEY=0x01, B_COMMAND_KEY=0x02, B_CONTROL_KEY=0x04,
-//                 B_CAPS_LOCK=0x10, B_NUM_LOCK=0x40, B_OPTION_KEY=0x80
+//                 B_CAPS_LOCK=0x08, B_SCROLL_LOCK=0x10, B_NUM_LOCK=0x20,
+//                 B_OPTION_KEY=0x40, B_MENU_KEY=0x80
 // Haiku left-specific: B_LEFT_SHIFT_KEY=0x1000, B_LEFT_COMMAND_KEY=0x4000,
 //                      B_LEFT_CONTROL_KEY=0x10000, B_LEFT_OPTION_KEY=0x40000
 inline uint32 MapModifiers(uint32 macModifiers)
@@ -98,7 +99,7 @@ inline uint32 MapModifiers(uint32 macModifiers)
         haikuModifiers |= 0x1000;    // B_LEFT_SHIFT_KEY
     }
     if (macModifiers & 0x02) {
-        haikuModifiers |= 0x80;      // B_OPTION_KEY
+        haikuModifiers |= 0x40;      // B_OPTION_KEY (was incorrectly 0x80!)
         haikuModifiers |= 0x40000;   // B_LEFT_OPTION_KEY
     }
     if (macModifiers & 0x04) {
@@ -106,7 +107,7 @@ inline uint32 MapModifiers(uint32 macModifiers)
         haikuModifiers |= 0x10000;   // B_LEFT_CONTROL_KEY
     }
     if (macModifiers & 0x20) {
-        haikuModifiers |= 0x10;      // B_CAPS_LOCK
+        haikuModifiers |= 0x08;      // B_CAPS_LOCK (was incorrectly 0x10!)
     }
     if (macModifiers & 0x40) {
         haikuModifiers |= 0x02;      // B_COMMAND_KEY

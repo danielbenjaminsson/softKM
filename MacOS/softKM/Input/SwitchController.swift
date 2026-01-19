@@ -19,6 +19,10 @@ class SwitchController {
     private var pendingModifierRelease: [UInt32: DispatchWorkItem] = [:]  // Debounce modifier releases
     private let modifierDebounceDelay: TimeInterval = 0.5  // 500ms debounce for modifier releases
 
+    // Track which modifier keys are physically pressed (keycodes)
+    // macOS sometimes sends events with incorrect modifier flags, so we track state ourselves
+    private var pressedModifierKeys: Set<UInt32> = []
+
     private init() {
         // Ensure cursor is visible on startup (reset any stale state)
         CGAssociateMouseAndMouseCursorPosition(1)
@@ -100,7 +104,8 @@ class SwitchController {
                 if mouseLogCounter % 100 == 1 {
                     LOG("Mouse delta: (\(deltaX), \(deltaY)) [event #\(mouseLogCounter)]")
                 }
-                let modifiers = mapModifiers(event.flags)
+                // Use our tracked modifier state which is more reliable than CGEventFlags
+                let modifiers = computeModifiersFromTrackedState()
                 connectionManager.send(event: .mouseMove(x: deltaX, y: deltaY, relative: true, modifiers: modifiers))
             }
 
@@ -118,7 +123,8 @@ class SwitchController {
 
         let buttons = mapMouseButtons(event: event)
         let location = event.location
-        let modifiers = mapModifiers(event.flags)
+        // Use our tracked modifier state which is more reliable than CGEventFlags
+        let modifiers = computeModifiersFromTrackedState()
         // Get click count from macOS (1=single, 2=double, 3=triple, etc.)
         let clicks = isDown ? Int32(event.getIntegerValueField(.mouseEventClickState)) : 1
 
@@ -140,7 +146,8 @@ class SwitchController {
 
         let deltaX = Float(event.getDoubleValueField(.scrollWheelEventDeltaAxis2))
         let deltaY = Float(event.getDoubleValueField(.scrollWheelEventDeltaAxis1))
-        let modifiers = mapModifiers(event.flags)
+        // Use our tracked modifier state which is more reliable than CGEventFlags
+        let modifiers = computeModifiersFromTrackedState()
 
         LOG("ScrollWheel: delta=(\(deltaX), \(deltaY))")
         connectionManager.send(event: .mouseWheel(deltaX: deltaX, deltaY: deltaY, modifiers: modifiers))
@@ -154,7 +161,8 @@ class SwitchController {
         }
 
         let keyCode = UInt32(event.getIntegerValueField(.keyboardEventKeycode))
-        let modifiers = mapModifiers(event.flags)
+        // Use our tracked modifier state which is more reliable than CGEventFlags
+        let modifiers = computeModifiersFromTrackedState()
         let flags = event.flags
 
         // Check for Ctrl+Cmd+Delete -> Team Monitor on Haiku
@@ -202,17 +210,23 @@ class SwitchController {
         }
 
         lastModifierFlags = currentFlags
-        let modifiers = mapModifiers(currentFlags)
 
         LOG("FlagsChanged: keyCode=0x\(String(format: "%02X", keyCode)) flags=0x\(String(format: "%016llX", currentFlags.rawValue)) isDown=\(isDown)")
 
         if isDown {
+            // Track this key as pressed
+            pressedModifierKeys.insert(keyCode)
+
             // Cancel any pending release for this key
             if let pending = pendingModifierRelease[keyCode] {
                 pending.cancel()
                 pendingModifierRelease.removeValue(forKey: keyCode)
                 LOG("FlagsChanged: keyCode=0x\(String(format: "%02X", keyCode)) cancelled pending release")
             }
+
+            // Use our tracked state for modifiers
+            let modifiers = computeModifiersFromTrackedState()
+            LOG("FlagsChanged: keyCode=0x\(String(format: "%02X", keyCode)) DOWN, tracked modifiers=0x\(String(format: "%02X", modifiers))")
             connectionManager.send(event: .keyDown(keyCode: keyCode, modifiers: modifiers, characters: ""))
         } else {
             // Debounce modifier releases - macOS sends spurious release events
@@ -220,7 +234,11 @@ class SwitchController {
             let workItem = DispatchWorkItem { [weak self] in
                 guard let self = self else { return }
                 self.pendingModifierRelease.removeValue(forKey: keyCode)
-                LOG("FlagsChanged: keyCode=0x\(String(format: "%02X", keyCode)) sending delayed KEY_UP")
+
+                // Now actually release the key
+                self.pressedModifierKeys.remove(keyCode)
+                let modifiers = self.computeModifiersFromTrackedState()
+                LOG("FlagsChanged: keyCode=0x\(String(format: "%02X", keyCode)) sending delayed KEY_UP, modifiers=0x\(String(format: "%02X", modifiers))")
                 self.connectionManager.send(event: .keyUp(keyCode: keyCode, modifiers: modifiers))
             }
             pendingModifierRelease[keyCode] = workItem
@@ -229,6 +247,27 @@ class SwitchController {
         }
 
         return nil  // Consume event
+    }
+
+    // Compute modifiers based on our tracked modifier key state (uses wire protocol values)
+    // This is more reliable than trusting CGEventFlags which can be incorrect
+    // Wire values: Shift=0x01, Option=0x02, Control=0x04, CapsLock=0x20, Command=0x40
+    // Haiku's MapModifiers() converts: Option(0x02)->B_OPTION_KEY, Command(0x40)->B_COMMAND_KEY
+    private func computeModifiersFromTrackedState() -> UInt32 {
+        var modifiers: UInt32 = 0
+
+        for keyCode in pressedModifierKeys {
+            switch keyCode {
+            case 56, 60: modifiers |= 0x01  // Left/Right Shift
+            case 59, 62: modifiers |= 0x04  // Left/Right Control
+            case 58, 61: modifiers |= 0x02  // Left/Right Option (wire: 0x02 -> Haiku B_OPTION_KEY)
+            case 55, 54: modifiers |= 0x40  // Left/Right Command (wire: 0x40 -> Haiku B_COMMAND_KEY)
+            case 57: modifiers |= 0x20      // Caps Lock
+            default: break
+            }
+        }
+
+        return modifiers
     }
 
     private func activateCaptureMode() {
@@ -241,6 +280,15 @@ class SwitchController {
 
         // Reset modifier tracking state
         lastModifierFlags = CGEventSource.flagsState(.combinedSessionState)
+
+        // Initialize tracked modifier keys from current keyboard state
+        pressedModifierKeys.removeAll()
+        let currentFlags = lastModifierFlags
+        if currentFlags.contains(.maskShift) { pressedModifierKeys.insert(56) }  // Left Shift
+        if currentFlags.contains(.maskControl) { pressedModifierKeys.insert(59) }  // Left Control
+        if currentFlags.contains(.maskAlternate) { pressedModifierKeys.insert(58) }  // Left Option
+        if currentFlags.contains(.maskCommand) { pressedModifierKeys.insert(55) }  // Left Command
+        LOG("Initial modifier keys: \(pressedModifierKeys)")
 
         // Calculate Y position from bottom for smooth handoff (bottom-aligned monitors)
         var yFromBottom: Float = 0.0
@@ -281,6 +329,13 @@ class SwitchController {
     private func deactivateCaptureMode(yFromBottom: Float = 0.0) {
         LOG("Deactivating capture mode - switching back to macOS, yFromBottom=\(yFromBottom)")
         mode = .monitoring
+
+        // Clear modifier tracking state
+        pressedModifierKeys.removeAll()
+        for (_, workItem) in pendingModifierRelease {
+            workItem.cancel()
+        }
+        pendingModifierRelease.removeAll()
 
         // Reconnect cursor to mouse movement
         CGAssociateMouseAndMouseCursorPosition(1)
