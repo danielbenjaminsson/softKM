@@ -402,10 +402,18 @@ void InputInjector::InjectMouseMove(float x, float y, bool relative, uint32 modi
 
     fCurrentModifiers = modifiers;
     UpdateMousePosition(x, y, relative);
-    LOG("MouseMove: rel=%d pos=(%.1f,%.1f) mods=0x%02X",
+    LOG("MouseMove: rel=%d pos=(%.1f,%.1f) mods=0x%08X",
         relative, fMousePosition.x, fMousePosition.y, modifiers);
 
-    // Use set_mouse_position to actually move the cursor
+    // Send through mouse addon so B_MOUSE_MOVED includes modifiers
+    // (needed for Stack and Tile window grouping with Option key)
+    BMessage msg(SOFTKM_INJECT_MOUSE_MOVE);
+    msg.AddPoint("where", fMousePosition);
+    msg.AddInt32("buttons", fCurrentButtons);
+    msg.AddInt32("modifiers", modifiers);
+    SendToMouseAddon(&msg);
+
+    // Also update cursor position directly for immediate feedback
     set_mouse_position((int32)fMousePosition.x, (int32)fMousePosition.y);
 
     // Edge detection for switching back to macOS
