@@ -16,8 +16,6 @@ class SwitchController {
     private var lockedCursorPosition: CGPoint = .zero  // Position to lock cursor during capture
     private var connectionManager: ConnectionManager { ConnectionManager.shared }
     private var lastModifierFlags: CGEventFlags = []  // Track modifier state to filter spurious events
-    private var pendingModifierRelease: [UInt32: DispatchWorkItem] = [:]  // Debounce modifier releases
-    private let modifierDebounceDelay: TimeInterval = 0.5  // 500ms debounce for modifier releases
 
     // Track which modifier keys are physically pressed (keycodes)
     // macOS sometimes sends events with incorrect modifier flags, so we track state ourselves
@@ -217,33 +215,16 @@ class SwitchController {
             // Track this key as pressed
             pressedModifierKeys.insert(keyCode)
 
-            // Cancel any pending release for this key
-            if let pending = pendingModifierRelease[keyCode] {
-                pending.cancel()
-                pendingModifierRelease.removeValue(forKey: keyCode)
-                LOG("FlagsChanged: keyCode=0x\(String(format: "%02X", keyCode)) cancelled pending release")
-            }
-
             // Use our tracked state for modifiers
             let modifiers = computeModifiersFromTrackedState()
             LOG("FlagsChanged: keyCode=0x\(String(format: "%02X", keyCode)) DOWN, tracked modifiers=0x\(String(format: "%02X", modifiers))")
             connectionManager.send(event: .keyDown(keyCode: keyCode, modifiers: modifiers, characters: ""))
         } else {
-            // Debounce modifier releases - macOS sends spurious release events
-            // Schedule the release after a delay, cancel if key is pressed again
-            let workItem = DispatchWorkItem { [weak self] in
-                guard let self = self else { return }
-                self.pendingModifierRelease.removeValue(forKey: keyCode)
-
-                // Now actually release the key
-                self.pressedModifierKeys.remove(keyCode)
-                let modifiers = self.computeModifiersFromTrackedState()
-                LOG("FlagsChanged: keyCode=0x\(String(format: "%02X", keyCode)) sending delayed KEY_UP, modifiers=0x\(String(format: "%02X", modifiers))")
-                self.connectionManager.send(event: .keyUp(keyCode: keyCode, modifiers: modifiers))
-            }
-            pendingModifierRelease[keyCode] = workItem
-            DispatchQueue.main.asyncAfter(deadline: .now() + modifierDebounceDelay, execute: workItem)
-            LOG("FlagsChanged: keyCode=0x\(String(format: "%02X", keyCode)) scheduled release in \(modifierDebounceDelay)s")
+            // Release the key immediately
+            pressedModifierKeys.remove(keyCode)
+            let modifiers = computeModifiersFromTrackedState()
+            LOG("FlagsChanged: keyCode=0x\(String(format: "%02X", keyCode)) UP, tracked modifiers=0x\(String(format: "%02X", modifiers))")
+            connectionManager.send(event: .keyUp(keyCode: keyCode, modifiers: modifiers))
         }
 
         return nil  // Consume event
