@@ -16,6 +16,8 @@ class SwitchController {
     private var lockedCursorPosition: CGPoint = .zero  // Position to lock cursor during capture
     private var connectionManager: ConnectionManager { ConnectionManager.shared }
     private var lastModifierFlags: CGEventFlags = []  // Track modifier state to filter spurious events
+    private var pendingModifierRelease: [UInt32: DispatchWorkItem] = [:]  // Debounce modifier releases
+    private let modifierDebounceDelay: TimeInterval = 0.5  // 500ms debounce for modifier releases
 
     private init() {
         // Ensure cursor is visible on startup (reset any stale state)
@@ -205,9 +207,25 @@ class SwitchController {
         LOG("FlagsChanged: keyCode=0x\(String(format: "%02X", keyCode)) flags=0x\(String(format: "%016llX", currentFlags.rawValue)) isDown=\(isDown)")
 
         if isDown {
+            // Cancel any pending release for this key
+            if let pending = pendingModifierRelease[keyCode] {
+                pending.cancel()
+                pendingModifierRelease.removeValue(forKey: keyCode)
+                LOG("FlagsChanged: keyCode=0x\(String(format: "%02X", keyCode)) cancelled pending release")
+            }
             connectionManager.send(event: .keyDown(keyCode: keyCode, modifiers: modifiers, characters: ""))
         } else {
-            connectionManager.send(event: .keyUp(keyCode: keyCode, modifiers: modifiers))
+            // Debounce modifier releases - macOS sends spurious release events
+            // Schedule the release after a delay, cancel if key is pressed again
+            let workItem = DispatchWorkItem { [weak self] in
+                guard let self = self else { return }
+                self.pendingModifierRelease.removeValue(forKey: keyCode)
+                LOG("FlagsChanged: keyCode=0x\(String(format: "%02X", keyCode)) sending delayed KEY_UP")
+                self.connectionManager.send(event: .keyUp(keyCode: keyCode, modifiers: modifiers))
+            }
+            pendingModifierRelease[keyCode] = workItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + modifierDebounceDelay, execute: workItem)
+            LOG("FlagsChanged: keyCode=0x\(String(format: "%02X", keyCode)) scheduled release in \(modifierDebounceDelay)s")
         }
 
         return nil  // Consume event
