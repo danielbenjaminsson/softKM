@@ -163,13 +163,13 @@ class SwitchController {
         let keyCode = UInt32(event.getIntegerValueField(.keyboardEventKeycode))
         // Use our tracked modifier state which is more reliable than CGEventFlags
         let modifiers = computeModifiersFromTrackedState()
-        let flags = event.flags
 
         // Check for Ctrl+Cmd+Delete -> Team Monitor on Haiku
         // macOS Delete (forward delete) is keycode 0x75, Backspace is 0x33
+        // Use tracked state: Control keycodes are 59, 62; Command keycodes are 55, 54
         if isDown && (keyCode == 0x75 || keyCode == 0x33) {
-            let hasCtrl = flags.contains(.maskControl)
-            let hasCmd = flags.contains(.maskCommand)
+            let hasCtrl = pressedModifierKeys.contains(59) || pressedModifierKeys.contains(62)
+            let hasCmd = pressedModifierKeys.contains(55) || pressedModifierKeys.contains(54)
             if hasCtrl && hasCmd {
                 LOG("Ctrl+Cmd+Delete detected - sending Team Monitor request")
                 connectionManager.send(event: .teamMonitor)
