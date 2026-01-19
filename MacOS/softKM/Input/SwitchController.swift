@@ -152,6 +152,19 @@ class SwitchController {
 
         let keyCode = UInt32(event.getIntegerValueField(.keyboardEventKeycode))
         let modifiers = mapModifiers(event.flags)
+        let flags = event.flags
+
+        // Check for Ctrl+Cmd+Delete -> Team Monitor on Haiku
+        // macOS Delete (forward delete) is keycode 0x75, Backspace is 0x33
+        if isDown && (keyCode == 0x75 || keyCode == 0x33) {
+            let hasCtrl = flags.contains(.maskControl)
+            let hasCmd = flags.contains(.maskCommand)
+            if hasCtrl && hasCmd {
+                LOG("Ctrl+Cmd+Delete detected - sending Team Monitor request")
+                connectionManager.send(event: .teamMonitor)
+                return nil
+            }
+        }
 
         if isDown {
             let characters = getCharacters(from: event)

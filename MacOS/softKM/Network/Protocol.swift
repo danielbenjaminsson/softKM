@@ -10,6 +10,7 @@ enum EventType: UInt8 {
     case controlSwitch = 0x10
     case screenInfo = 0x11
     case settingsSync = 0x12
+    case teamMonitor = 0x13
     case heartbeat = 0xF0
     case heartbeatAck = 0xF1
 }
@@ -24,6 +25,7 @@ enum InputEvent {
     case controlSwitch(toHaiku: Bool, yFromBottom: Float)
     case screenInfo(width: Float, height: Float)
     case settingsSync(edgeDwellTime: Float)  // dwell time in seconds
+    case teamMonitor
     case heartbeat
     case heartbeatAck
 
@@ -38,6 +40,7 @@ enum InputEvent {
         case .controlSwitch: return .controlSwitch
         case .screenInfo: return .screenInfo
         case .settingsSync: return .settingsSync
+        case .teamMonitor: return .teamMonitor
         case .heartbeat: return .heartbeat
         case .heartbeatAck: return .heartbeatAck
         }
@@ -115,7 +118,7 @@ struct Protocol {
         case .settingsSync(let edgeDwellTime):
             appendFloat(&payload, edgeDwellTime)
 
-        case .heartbeat, .heartbeatAck:
+        case .teamMonitor, .heartbeat, .heartbeatAck:
             break
         }
 

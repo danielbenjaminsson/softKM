@@ -424,6 +424,11 @@ void NetworkServer::ProcessMessage(const uint8* data, size_t length)
             // Ignore
             break;
 
+        case EVENT_TEAM_MONITOR:
+            LOG("Received: TEAM_MONITOR - injecting Ctrl+Alt+Delete");
+            fInputInjector->InjectTeamMonitor();
+            break;
+
         default:
             LOG("Unknown event type: 0x%02X", header->eventType);
             break;

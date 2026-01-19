@@ -22,6 +22,8 @@ public:
     void InjectMouseUp(uint32 buttons, float x, float y, uint32 modifiers);
     void InjectMouseWheel(float deltaX, float deltaY, uint32 modifiers);
 
+    void InjectTeamMonitor();
+
     void ProcessEvent(BMessage* message);
 
     void SetActive(bool active, float yFromBottom = 0.0f);
