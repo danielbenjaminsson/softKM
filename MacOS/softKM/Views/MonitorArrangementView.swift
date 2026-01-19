@@ -195,12 +195,12 @@ struct MonitorView: View {
             if showInputIcons {
                 HStack(spacing: 3) {
                     Image(systemName: "keyboard")
-                        .font(.system(size: 12))
+                        .font(.system(size: 14))
                     Image(systemName: "computermouse")
-                        .font(.system(size: 12))
+                        .font(.system(size: 14))
                 }
                 .foregroundColor(.white.opacity(0.7))
-                .position(x: 22, y: frame.height - 12)
+                .position(x: 24, y: frame.height - 16)
             }
         }
         .frame(width: frame.width, height: frame.height)
