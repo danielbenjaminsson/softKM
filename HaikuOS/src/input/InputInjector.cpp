@@ -284,6 +284,10 @@ void InputInjector::SetActive(bool active, float yFromBottom)
 
             // Haiku Y is top-down, so convert from bottom-up:
             // Haiku Y = (screenHeight - 1) - yFromBottom
+            // Clamp to screen bounds first
+            if (yFromBottom < 0) {
+                yFromBottom = 0;  // Clamp to bottom
+            }
             if (yFromBottom >= screenHeight) {
                 yFromBottom = screenHeight - 1;  // Clamp to top
             }
