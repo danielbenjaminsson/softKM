@@ -14,16 +14,17 @@ class SettingsManager: ObservableObject {
     @AppStorage("edgeDwellTime") var edgeDwellTime: Double = 0.3
     @AppStorage("edgeThreshold") var edgeThreshold: Double = 5.0
 
-    // Monitor arrangement stored as JSON
-    @AppStorage("monitorArrangement") private var arrangementData: Data = Data()
+    // Monitor arrangement stored as JSON string (String works better with @AppStorage than Data)
+    @AppStorage("monitorArrangementJSON") private var arrangementJSON: String = ""
 
     var monitorArrangement: MonitorArrangement {
         get {
-            if arrangementData.isEmpty {
+            if arrangementJSON.isEmpty {
                 return .default
             }
             do {
-                return try JSONDecoder().decode(MonitorArrangement.self, from: arrangementData)
+                let data = Data(arrangementJSON.utf8)
+                return try JSONDecoder().decode(MonitorArrangement.self, from: data)
             } catch {
                 LOG("Failed to decode monitor arrangement: \(error)")
                 return .default
@@ -31,7 +32,11 @@ class SettingsManager: ObservableObject {
         }
         set {
             do {
-                arrangementData = try JSONEncoder().encode(newValue)
+                let data = try JSONEncoder().encode(newValue)
+                if let json = String(data: data, encoding: .utf8) {
+                    arrangementJSON = json
+                    LOG("Saved monitor arrangement: \(json)")
+                }
                 objectWillChange.send()
             } catch {
                 LOG("Failed to encode monitor arrangement: \(error)")
