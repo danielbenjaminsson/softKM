@@ -59,6 +59,7 @@ struct StatusBarView: View {
 
             Button(action: {
                 openWindow(id: "settings")
+                NSApplication.shared.activate(ignoringOtherApps: true)
             }) {
                 Label("Settings...", systemImage: "gear")
             }

@@ -55,7 +55,8 @@
       "WebFetch(domain:microgeni.se)",
       "Bash(python3:*)",
       "Bash(sips -g all:*)",
-      "Bash(sips -g pixelWidth -g pixelHeight:*)"
+      "Bash(sips -g pixelWidth -g pixelHeight:*)",
+      "Bash(killall:*)"
     ]
   }
 }
