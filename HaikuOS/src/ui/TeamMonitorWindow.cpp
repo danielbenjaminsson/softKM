@@ -32,9 +32,9 @@
 #include <StringFormat.h>
 #include <StringView.h>
 
-#include <syscalls.h>
-#include <syscall_process_info.h>
 #include <tracker_private.h>
+
+#include <stdlib.h>  // for system()
 
 #include "TeamListItem.h"
 
@@ -289,7 +289,7 @@ TeamMonitorWindow::MessageReceived(BMessage* msg)
 			break;
 
 		case TM_FORCE_REBOOT:
-			_kern_shutdown(true);
+			system("shutdown -r now");
 			break;
 
 		case TM_KILL_APPLICATION:
@@ -544,25 +544,9 @@ TeamMonitorWindow::_UpdateList()
 		item = new TeamListItem(info);
 		item->SetFound(true);
 
-		TeamListItem* insertUnder = NULL;
-		if (!isApp || paths.count(item->Path()->Path()) > 0) {
-			int32 spawner_id = _kern_process_info(info.team, PARENT_ID);
-
-			insertUnder = fItemMap.Get(spawner_id);
-			while (insertUnder != NULL && !insertUnder->IsParent())
-				insertUnder = dynamic_cast<TeamListItem*>(fListView->Superitem(insertUnder));
-
-			if (insertUnder != NULL) {
-				if (isApp && *insertUnder->Path() != *item->Path())
-					insertUnder = NULL;
-				else if (!insertUnder->Found())
-					insertUnder = NULL;
-			}
-		}
-
-		if (insertUnder != NULL)
-			fListView->AddUnder(item, insertUnder);
-		else {
+		// Simplified: add all items as top-level (no parent grouping)
+		// Original code used _kern_process_info() to get parent ID for grouping
+		{
 			item->SetIsParent(true);
 			fListView->AddItem(item,
 				item->IsSystemServer() ? fListView->FullListCountItems() : 0);
