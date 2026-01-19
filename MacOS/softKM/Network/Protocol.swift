@@ -24,7 +24,7 @@ enum InputEvent {
     case mouseWheel(deltaX: Float, deltaY: Float, modifiers: UInt32)
     case controlSwitch(toHaiku: Bool, yFromBottom: Float)
     case screenInfo(width: Float, height: Float)
-    case settingsSync(edgeDwellTime: Float, macSwitchEdge: UInt8, haikuReturnEdge: UInt8)
+    case settingsSync(edgeDwellTime: Float, macSwitchEdge: UInt8, haikuReturnEdge: UInt8, yOffsetRatio: Float)
     case teamMonitor
     case heartbeat
     case heartbeatAck
@@ -115,10 +115,11 @@ struct Protocol {
             appendFloat(&payload, width)
             appendFloat(&payload, height)
 
-        case .settingsSync(let edgeDwellTime, let macSwitchEdge, let haikuReturnEdge):
+        case .settingsSync(let edgeDwellTime, let macSwitchEdge, let haikuReturnEdge, let yOffsetRatio):
             appendFloat(&payload, edgeDwellTime)
             payload.append(macSwitchEdge)
             payload.append(haikuReturnEdge)
+            appendFloat(&payload, yOffsetRatio)
 
         case .teamMonitor, .heartbeat, .heartbeatAck:
             break

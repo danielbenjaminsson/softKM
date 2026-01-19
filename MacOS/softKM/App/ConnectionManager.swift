@@ -88,13 +88,15 @@ class ConnectionManager: ObservableObject {
         let arrangement = settings.monitorArrangement
         let macSwitchEdge = arrangement.connectedEdge.wireValue
         let haikuReturnEdge = arrangement.returnEdge.wireValue
+        let yOffsetRatio = Float(arrangement.yOffsetRatio)
         let event = InputEvent.settingsSync(
             edgeDwellTime: Float(settings.edgeDwellTime),
             macSwitchEdge: macSwitchEdge,
-            haikuReturnEdge: haikuReturnEdge
+            haikuReturnEdge: haikuReturnEdge,
+            yOffsetRatio: yOffsetRatio
         )
         send(event: event)
-        LOG("Sent settings sync: edgeDwellTime=\(settings.edgeDwellTime)s macSwitchEdge=\(macSwitchEdge) haikuReturnEdge=\(haikuReturnEdge)")
+        LOG("Sent settings sync: edgeDwellTime=\(settings.edgeDwellTime)s macSwitchEdge=\(macSwitchEdge) haikuReturnEdge=\(haikuReturnEdge) yOffsetRatio=\(yOffsetRatio)")
     }
 
     func setRemoteScreenSize(width: Float, height: Float) {

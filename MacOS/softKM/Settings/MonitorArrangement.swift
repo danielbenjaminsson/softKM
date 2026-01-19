@@ -88,6 +88,16 @@ struct MonitorArrangement: Codable, Equatable {
         connectedEdge.opposite
     }
 
+    /// Y offset ratio for cursor position adjustment during transitions.
+    /// Represents how much higher/lower Haiku is relative to Mac.
+    /// Positive = Haiku is above Mac (in arrangement coordinates where Y increases downward)
+    /// The ratio is relative to Mac's monitor height for consistent scaling.
+    var yOffsetRatio: CGFloat {
+        // In arrangement coordinates, higher Y means lower on screen
+        // If haikuMonitor.y < macMonitor.y, Haiku's top is higher (above Mac)
+        (macMonitor.y - haikuMonitor.y) / macMonitor.height
+    }
+
     static let snapThreshold: CGFloat = 20.0
 
     static var `default`: MonitorArrangement {

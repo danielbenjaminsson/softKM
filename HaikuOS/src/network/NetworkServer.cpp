@@ -407,18 +407,26 @@ void NetworkServer::ProcessMessage(const uint8* data, size_t length)
 
         case EVENT_SETTINGS_SYNC:
         {
-            // Support both old (4 bytes) and new (6 bytes) payload formats
+            // Support both old (4 bytes) and new (10 bytes) payload formats
             if (header->length >= 4) {  // At minimum, dwell time
                 const SettingsSyncPayload* settingsPayload = (const SettingsSyncPayload*)payload;
                 float dwellTime = settingsPayload->edgeDwellTime;
                 fInputInjector->SetDwellTime(dwellTime);
 
-                // New extended payload with edge configuration
+                // Extended payload with edge configuration and Y offset
                 if (header->length >= sizeof(SettingsSyncPayload)) {
                     uint8 macSwitchEdge = settingsPayload->macSwitchEdge;
                     uint8 haikuReturnEdge = settingsPayload->haikuReturnEdge;
+                    float yOffsetRatio = settingsPayload->yOffsetRatio;
                     fInputInjector->SetReturnEdge(haikuReturnEdge);
-                    LOG("Settings sync: edgeDwellTime=%.2fs macSwitchEdge=%d haikuReturnEdge=%d",
+                    LOG("Settings sync: edgeDwellTime=%.2fs macSwitchEdge=%d haikuReturnEdge=%d yOffsetRatio=%.3f",
+                        dwellTime, macSwitchEdge, haikuReturnEdge, yOffsetRatio);
+                } else if (header->length >= 6) {
+                    // Legacy format without yOffsetRatio
+                    uint8 macSwitchEdge = settingsPayload->macSwitchEdge;
+                    uint8 haikuReturnEdge = settingsPayload->haikuReturnEdge;
+                    fInputInjector->SetReturnEdge(haikuReturnEdge);
+                    LOG("Settings sync: edgeDwellTime=%.2fs macSwitchEdge=%d haikuReturnEdge=%d (no yOffset)",
                         dwellTime, macSwitchEdge, haikuReturnEdge);
                 } else {
                     LOG("Settings sync: edgeDwellTime=%.2fs (legacy format)", dwellTime);

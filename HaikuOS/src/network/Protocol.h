@@ -78,9 +78,10 @@ struct ScreenInfoPayload {
 } __attribute__((packed));
 
 struct SettingsSyncPayload {
-    float   edgeDwellTime;  // dwell time in seconds
-    uint8   macSwitchEdge;  // Edge on Mac side: 0=right, 1=left, 2=top, 3=bottom
+    float   edgeDwellTime;   // dwell time in seconds
+    uint8   macSwitchEdge;   // Edge on Mac side: 0=right, 1=left, 2=top, 3=bottom
     uint8   haikuReturnEdge; // Edge on Haiku side: 0=right, 1=left, 2=top, 3=bottom
+    float   yOffsetRatio;    // Y offset for cursor transition (positive = Haiku above Mac)
 } __attribute__((packed));
 
 // Switch edge constants

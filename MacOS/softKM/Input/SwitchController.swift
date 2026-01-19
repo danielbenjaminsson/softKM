@@ -271,15 +271,22 @@ class SwitchController {
         if currentFlags.contains(.maskCommand) { pressedModifierKeys.insert(55) }  // Left Command
         LOG("Initial modifier keys: \(pressedModifierKeys)")
 
-        // Calculate Y position from bottom for smooth handoff (bottom-aligned monitors)
+        // Calculate Y position from bottom for smooth handoff
         var yFromBottom: Float = 0.0
         if let screen = NSScreen.main {
             let frame = screen.frame
             let mouseLocation = NSEvent.mouseLocation
             // NSEvent.mouseLocation uses bottom-left origin, so Y is already from bottom
-            yFromBottom = Float(mouseLocation.y - frame.minY)
+            let rawYFromBottom = Float(mouseLocation.y - frame.minY)
 
-            LOG("MAC→HAIKU: mouseY=\(mouseLocation.y) frame.minY=\(frame.minY) frame.height=\(frame.height) yFromBottom=\(yFromBottom)")
+            // Apply Y offset from monitor arrangement
+            // Positive yOffsetRatio = Haiku is above Mac, so ADD the offset to yFromBottom
+            // to make the cursor appear higher on Haiku
+            let arrangement = SettingsManager.shared.monitorArrangement
+            let yOffset = Float(arrangement.yOffsetRatio) * Float(frame.height)
+            yFromBottom = rawYFromBottom + yOffset
+
+            LOG("MAC→HAIKU: mouseY=\(mouseLocation.y) frame.minY=\(frame.minY) frame.height=\(frame.height) rawYFromBottom=\(rawYFromBottom) yOffset=\(yOffset) adjustedYFromBottom=\(yFromBottom)")
 
             // Set and warp cursor to edge based on configured switch edge
             let switchEdge = SettingsManager.shared.switchEdge
@@ -330,7 +337,7 @@ class SwitchController {
         // Show cursor
         CGDisplayShowCursor(CGMainDisplayID())
 
-        // Position cursor based on yFromBottom from Haiku (bottom-aligned monitors)
+        // Position cursor based on yFromBottom from Haiku
         if let screen = NSScreen.main {
             let frame = screen.frame
             let switchEdge = SettingsManager.shared.switchEdge
@@ -341,8 +348,13 @@ class SwitchController {
             let remoteHeight = connectionManager.remoteScreenSize.height
             if remoteHeight > 0 {
                 scaledYFromBottom = CGFloat(yFromBottom) * frame.height / remoteHeight
-                LOG("Scaling yFromBottom: \(yFromBottom) * \(frame.height) / \(remoteHeight) = \(scaledYFromBottom)")
             }
+
+            // Subtract Y offset to reverse the adjustment made when going to Haiku
+            // Positive yOffsetRatio = Haiku is above Mac, so we subtract the offset
+            let arrangement = SettingsManager.shared.monitorArrangement
+            let yOffset = CGFloat(arrangement.yOffsetRatio) * frame.height
+            scaledYFromBottom = scaledYFromBottom - yOffset
 
             // Calculate position based on configured edge
             var newX: CGFloat
@@ -373,7 +385,7 @@ class SwitchController {
             if newY < frame.minY { newY = frame.minY }
             if newY > frame.maxY - 1 { newY = frame.maxY - 1 }
 
-            LOG("HAIKU→MAC: yFromBottom=\(yFromBottom) scaled=\(scaledYFromBottom) edge=\(switchEdge) → pos=(\(newX),\(newY))")
+            LOG("HAIKU→MAC: yFromBottom=\(yFromBottom) yOffset=\(yOffset) adjusted=\(scaledYFromBottom) edge=\(switchEdge) → pos=(\(newX),\(newY))")
             CGWarpMouseCursorPosition(CGPoint(x: newX, y: newY))
         }
 
