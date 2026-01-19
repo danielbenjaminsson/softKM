@@ -42,7 +42,7 @@ enum {
 
 static const char* kDeviceName = "SoftKM Keyboard";
 static const char* kPortName = "softKM_keyboard_port";
-static const char* kVersion = "1.7.0";  // Send B_MODIFIERS_CHANGED before key events for Stack and Tile
+static const char* kVersion = "1.6.0";  // Respect macOS character bytes for international keyboards
 
 class SoftKMKeyboard : public BInputServerDevice {
 public:
@@ -233,27 +233,6 @@ void SoftKMKeyboard::_SetKeyState(int32 key, bool pressed)
 void SoftKMKeyboard::_ProcessMessage(BMessage* msg)
 {
     BMessage* event = NULL;
-
-    // Check if this is a modifier key and send B_MODIFIERS_CHANGED FIRST
-    // (before the key event) to ensure app_server's modifier state is updated
-    // before any subsequent events arrive - this is critical for Stack and Tile
-    int32 key = msg->GetInt32("key", 0);
-    int32 modifiers = msg->GetInt32("modifiers", 0);
-    bool isModifierKey = (key == 0x4b || key == 0x56 ||  // Shift
-                          key == 0x5c || key == 0x60 ||  // Control
-                          key == 0x5d || key == 0x5f ||  // Alt (Command)
-                          key == 0x66 || key == 0x67 ||  // Win (Option)
-                          key == 0x3b);                   // Caps Lock
-
-    if (isModifierKey && modifiers != fCurrentModifiers) {
-        DebugLog("B_MODIFIERS_CHANGED (before key): old=0x%08x new=0x%08x", fCurrentModifiers, modifiers);
-        BMessage* modMsg = new BMessage(B_MODIFIERS_CHANGED);
-        modMsg->AddInt64("when", system_time());
-        modMsg->AddInt32("modifiers", modifiers);
-        modMsg->AddInt32("be:old_modifiers", fCurrentModifiers);
-        EnqueueMessage(modMsg);
-        fCurrentModifiers = modifiers;
-    }
 
     switch (msg->what) {
         case SOFTKM_INJECT_KEY_DOWN:
@@ -518,6 +497,27 @@ void SoftKMKeyboard::_ProcessMessage(BMessage* msg)
     if (event != NULL) {
         DebugLog("EnqueueMessage: what=0x%08x", (uint32)event->what);
         EnqueueMessage(event);
+
+        // For modifier keys, also send B_MODIFIERS_CHANGED
+        int32 key = msg->GetInt32("key", 0);
+        int32 modifiers = msg->GetInt32("modifiers", 0);
+
+        // Check if this is a modifier key (Alt, Control, Shift, Option/Win)
+        bool isModifierKey = (key == 0x4b || key == 0x56 ||  // Shift
+                              key == 0x5c || key == 0x60 ||  // Control
+                              key == 0x5d || key == 0x5f ||  // Alt (Command)
+                              key == 0x66 || key == 0x67 ||  // Win (Option)
+                              key == 0x3b);                   // Caps Lock
+
+        if (isModifierKey && modifiers != fCurrentModifiers) {
+            DebugLog("B_MODIFIERS_CHANGED: old=0x%08x new=0x%08x", fCurrentModifiers, modifiers);
+            BMessage* modMsg = new BMessage(B_MODIFIERS_CHANGED);
+            modMsg->AddInt64("when", system_time());
+            modMsg->AddInt32("modifiers", modifiers);
+            modMsg->AddInt32("be:old_modifiers", fCurrentModifiers);
+            EnqueueMessage(modMsg);
+            fCurrentModifiers = modifiers;
+        }
     }
 }
 
