@@ -271,34 +271,41 @@ class SwitchController {
         if currentFlags.contains(.maskCommand) { pressedModifierKeys.insert(55) }  // Left Command
         LOG("Initial modifier keys: \(pressedModifierKeys)")
 
-        // Calculate Y position from bottom for smooth handoff
+        // Calculate Y position from bottom for smooth handoff using overlap region
         var yFromBottom: Float = 0.0
         if let screen = NSScreen.main {
             let frame = screen.frame
             let mouseLocation = NSEvent.mouseLocation
-            // NSEvent.mouseLocation uses bottom-left origin, so Y is already from bottom
+            let macHeight = Float(frame.height)
+
+            // Get cursor position as ratio from bottom (0.0 = bottom, 1.0 = top)
             let rawYFromBottom = Float(mouseLocation.y - frame.minY)
+            let cursorRatioFromBottom = rawYFromBottom / macHeight
 
-            // Apply Y offset from monitor arrangement
-            // yOffsetRatio is the offset of Haiku's bottom from Mac's bottom (as ratio of Mac height)
-            // Positive = Haiku is positioned higher (its bottom is above Mac's bottom)
+            // Get the overlap region (where green line is drawn)
             let arrangement = SettingsManager.shared.monitorArrangement
-            let yOffsetPixels = Float(arrangement.yOffsetRatio) * Float(frame.height)
+            let (topRatio, bottomRatio) = arrangement.overlapRatios
+            // Convert to "from bottom" ratios (arrangement uses top-down Y)
+            let overlapBottomRatio = Float(1.0 - bottomRatio)  // Lower edge of overlap
+            let overlapTopRatio = Float(1.0 - topRatio)        // Upper edge of overlap
+            let overlapHeight = overlapTopRatio - overlapBottomRatio
 
-            // Calculate target position on Haiku (in Haiku's coordinate space)
-            // target = rawY - offset (subtract because Haiku's bottom is higher)
-            let targetOnHaiku = rawYFromBottom - yOffsetPixels
-
-            // Haiku will scale the received value by (haikuHeight / macHeight)
-            // So we need to send: value * (macHeight / haikuHeight) so that after scaling we get target
-            let remoteHeight = connectionManager.remoteScreenSize.height
-            if remoteHeight > 0 {
-                yFromBottom = targetOnHaiku * Float(frame.height) / Float(remoteHeight)
+            // Map cursor position to ratio within overlap region (0.0 to 1.0)
+            // Then this maps directly to Haiku's full height
+            var ratioInOverlap: Float
+            if overlapHeight > 0 {
+                ratioInOverlap = (cursorRatioFromBottom - overlapBottomRatio) / overlapHeight
+                // Clamp to 0.0-1.0 (cursor outside overlap clamps to edge)
+                ratioInOverlap = max(0.0, min(1.0, ratioInOverlap))
             } else {
-                yFromBottom = targetOnHaiku  // No scaling info, send as-is
+                ratioInOverlap = 0.5  // Fallback to center if no overlap
             }
 
-            LOG("MAC→HAIKU: rawY=\(rawYFromBottom) offset=\(yOffsetPixels) target=\(targetOnHaiku) sent=\(yFromBottom)")
+            // Convert ratio to Haiku pixels (Haiku will scale by haikuHeight/macHeight)
+            // So we send: ratio * macHeight, and after Haiku scales, it becomes ratio * haikuHeight
+            yFromBottom = ratioInOverlap * macHeight
+
+            LOG("MAC→HAIKU: cursorY=\(rawYFromBottom) overlap=[\(overlapBottomRatio)-\(overlapTopRatio)] ratio=\(ratioInOverlap) sent=\(yFromBottom)")
 
             // Set and warp cursor to edge based on configured switch edge
             let switchEdge = SettingsManager.shared.switchEdge
@@ -355,21 +362,33 @@ class SwitchController {
             let switchEdge = SettingsManager.shared.switchEdge
             let kEdgeOffset: CGFloat = 100  // Move cursor 100 pixels away from edge
 
-            // Scale yFromBottom from Haiku coordinates to macOS coordinates
-            var scaledYFromBottom = CGFloat(yFromBottom)
+            // Convert Haiku's yFromBottom to a ratio, then map to Mac's overlap region
+            let arrangement = SettingsManager.shared.monitorArrangement
             let remoteHeight = connectionManager.remoteScreenSize.height
+            let macHeight = frame.height
+
+            // Get cursor ratio on Haiku (0.0 = bottom, 1.0 = top)
+            var cursorRatio: CGFloat = 0.5
             if remoteHeight > 0 {
-                scaledYFromBottom = CGFloat(yFromBottom) * frame.height / remoteHeight
+                cursorRatio = CGFloat(yFromBottom) / remoteHeight
             }
 
-            // Add Y offset to convert from Haiku's coordinate space to Mac's
-            // yOffsetRatio is the offset of Haiku's bottom from Mac's bottom
-            // Haiku's yFromBottom is relative to Haiku's bottom, so add offset to get Mac's yFromBottom
-            let arrangement = SettingsManager.shared.monitorArrangement
-            let yOffsetPixels = CGFloat(arrangement.yOffsetRatio) * frame.height
-            scaledYFromBottom = scaledYFromBottom + yOffsetPixels
+            // Get the overlap region on Mac (where green line is drawn)
+            let (topRatio, bottomRatio) = arrangement.overlapRatios
+            // Convert to "from bottom" ratios (arrangement uses top-down Y)
+            let overlapBottomRatio = 1.0 - bottomRatio  // Lower edge of overlap
+            let overlapTopRatio = 1.0 - topRatio        // Upper edge of overlap
+            let overlapHeight = overlapTopRatio - overlapBottomRatio
 
-            LOG("HAIKU→MAC: received=\(yFromBottom) scaled=\(scaledYFromBottom - yOffsetPixels) offset=\(yOffsetPixels) final=\(scaledYFromBottom)")
+            // Map Haiku's cursor ratio to Mac's overlap region
+            var scaledYFromBottom: CGFloat
+            if overlapHeight > 0 {
+                scaledYFromBottom = (overlapBottomRatio + cursorRatio * overlapHeight) * macHeight
+            } else {
+                scaledYFromBottom = macHeight / 2  // Fallback to center
+            }
+
+            LOG("HAIKU→MAC: received=\(yFromBottom) ratio=\(cursorRatio) overlap=[\(overlapBottomRatio)-\(overlapTopRatio)] final=\(scaledYFromBottom)")
 
             // Calculate position based on configured edge
             var newX: CGFloat

@@ -88,15 +88,36 @@ struct MonitorArrangement: Codable, Equatable {
         connectedEdge.opposite
     }
 
-    /// Y offset ratio for cursor position adjustment during transitions.
+    /// The vertical overlap region between Mac and Haiku monitors (in arrangement coordinates)
+    /// Returns (overlapTop, overlapBottom) - the Y range where both monitors overlap
+    var verticalOverlap: (top: CGFloat, bottom: CGFloat) {
+        let macTop = macMonitor.y
+        let macBottom = macMonitor.y + macMonitor.height
+        let haikuTop = haikuMonitor.y
+        let haikuBottom = haikuMonitor.y + haikuMonitor.height
+
+        let overlapTop = max(macTop, haikuTop)
+        let overlapBottom = min(macBottom, haikuBottom)
+
+        return (overlapTop, overlapBottom)
+    }
+
+    /// The overlap region expressed as ratios of Mac's height (0.0 to 1.0)
+    /// - overlapTopRatio: where the overlap starts (from Mac's top)
+    /// - overlapBottomRatio: where the overlap ends (from Mac's top)
+    var overlapRatios: (topRatio: CGFloat, bottomRatio: CGFloat) {
+        let (overlapTop, overlapBottom) = verticalOverlap
+        let topRatio = (overlapTop - macMonitor.y) / macMonitor.height
+        let bottomRatio = (overlapBottom - macMonitor.y) / macMonitor.height
+        return (topRatio, bottomRatio)
+    }
+
+    /// Legacy Y offset ratio for protocol compatibility
     /// This is the offset of Haiku's BOTTOM edge from Mac's BOTTOM edge,
     /// as a ratio of Mac's monitor height.
-    /// Positive = Haiku's bottom is above Mac's bottom (Haiku is positioned higher)
     var yOffsetRatio: CGFloat {
-        // Calculate bottom edges in arrangement coordinates (Y increases downward)
         let macBottom = macMonitor.y + macMonitor.height
         let haikuBottom = haikuMonitor.y + haikuMonitor.height
-        // Positive when Haiku's bottom is higher (smaller Y = higher visually)
         return (macBottom - haikuBottom) / macMonitor.height
     }
 
