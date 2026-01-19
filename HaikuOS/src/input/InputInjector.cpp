@@ -525,17 +525,19 @@ void InputInjector::InjectMouseWheel(float deltaX, float deltaY, uint32 modifier
 
 void InputInjector::InjectTeamMonitor()
 {
-    // Launch ActivityMonitor (Haiku's system monitor)
-    LOG("Launching ActivityMonitor");
+    // Send TEAM_MONITOR message to input_server to show the Team Monitor window
+    // This is the same window that appears when pressing Ctrl+Alt+Del on physical keyboard
+    LOG("Sending TEAM_MONITOR message to input_server");
 
-    status_t result = be_roster->Launch("application/x-vnd.Haiku-ActivityMonitor");
-    if (result != B_OK && result != B_ALREADY_RUNNING) {
-        LOG("Failed to launch ActivityMonitor by signature: %s", strerror(result));
-        // Try by path as fallback
-        result = be_roster->Launch("/boot/system/apps/ActivityMonitor");
-        if (result != B_OK && result != B_ALREADY_RUNNING) {
-            LOG("Failed to launch ActivityMonitor by path: %s", strerror(result));
+    BMessenger inputServer("application/x-vnd.Be-input_server");
+    if (inputServer.IsValid()) {
+        BMessage msg('_Tm_');  // TEAM_MONITOR from kernel/team.h
+        status_t result = inputServer.SendMessage(&msg);
+        if (result != B_OK) {
+            LOG("Failed to send TEAM_MONITOR message: %s", strerror(result));
         }
+    } else {
+        LOG("Could not connect to input_server");
     }
 }
 
