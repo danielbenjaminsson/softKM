@@ -23,7 +23,7 @@ LIBS = be network bnetapi tracker game shared localestub stdc++
 
 LIBPATHS =
 
-SYSTEM_INCLUDE_PATHS = /boot/system/develop/headers/private /boot/system/develop/headers/private/system /boot/system/develop/headers/private/tracker /boot/system/develop/headers/private/shared /boot/system/develop/headers/private/support
+SYSTEM_INCLUDE_PATHS = /boot/system/develop/headers/private /boot/system/develop/headers/private/system /boot/system/develop/headers/private/tracker /boot/system/develop/headers/private/shared /boot/system/develop/headers/private/support /boot/system/develop/headers/private/kernel /boot/system/develop/headers/private/kernel/arch/x86_64
 
 LOCAL_INCLUDE_PATHS = src
 
