@@ -84,16 +84,33 @@ struct SettingsSyncPayload {
 // macOS:  Shift=0x01, Option=0x02, Control=0x04, Fn=0x10, CapsLock=0x20, Command=0x40
 // Haiku generic:  B_SHIFT_KEY=0x01, B_COMMAND_KEY=0x02, B_CONTROL_KEY=0x04,
 //                 B_CAPS_LOCK=0x10, B_NUM_LOCK=0x40, B_OPTION_KEY=0x80
+// Haiku left-specific: B_LEFT_SHIFT_KEY=0x1000, B_LEFT_COMMAND_KEY=0x4000,
+//                      B_LEFT_CONTROL_KEY=0x10000, B_LEFT_OPTION_KEY=0x40000
 inline uint32 MapModifiers(uint32 macModifiers)
 {
     uint32 haikuModifiers = 0;
 
-    // Map to generic modifier flags only (not left/right specific)
-    if (macModifiers & 0x01) haikuModifiers |= 0x01;   // Shift -> B_SHIFT_KEY
-    if (macModifiers & 0x02) haikuModifiers |= 0x80;   // Option -> B_OPTION_KEY
-    if (macModifiers & 0x04) haikuModifiers |= 0x04;   // Control -> B_CONTROL_KEY
-    if (macModifiers & 0x20) haikuModifiers |= 0x10;   // CapsLock -> B_CAPS_LOCK
-    if (macModifiers & 0x40) haikuModifiers |= 0x02;   // Command -> B_COMMAND_KEY
+    // Map to both generic AND left-specific modifier flags
+    // (Twitcher and other system features may check for left/right specific flags)
+    if (macModifiers & 0x01) {
+        haikuModifiers |= 0x01;      // B_SHIFT_KEY
+        haikuModifiers |= 0x1000;    // B_LEFT_SHIFT_KEY
+    }
+    if (macModifiers & 0x02) {
+        haikuModifiers |= 0x80;      // B_OPTION_KEY
+        haikuModifiers |= 0x40000;   // B_LEFT_OPTION_KEY
+    }
+    if (macModifiers & 0x04) {
+        haikuModifiers |= 0x04;      // B_CONTROL_KEY
+        haikuModifiers |= 0x10000;   // B_LEFT_CONTROL_KEY
+    }
+    if (macModifiers & 0x20) {
+        haikuModifiers |= 0x10;      // B_CAPS_LOCK
+    }
+    if (macModifiers & 0x40) {
+        haikuModifiers |= 0x02;      // B_COMMAND_KEY
+        haikuModifiers |= 0x4000;    // B_LEFT_COMMAND_KEY
+    }
 
     return haikuModifiers;
 }
