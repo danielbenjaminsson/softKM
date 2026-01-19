@@ -1,5 +1,6 @@
 import Cocoa
 import CoreGraphics
+import Carbon.HIToolbox
 
 class SwitchController {
     static let shared = SwitchController()
@@ -344,8 +345,124 @@ class SwitchController {
 
         // Fallback to NSEvent method if CGEvent method returns nothing
         if let nsEvent = NSEvent(cgEvent: event) {
-            return nsEvent.characters ?? ""
+            if let characters = nsEvent.characters, !characters.isEmpty {
+                return characters
+            }
         }
+
+        // Use UCKeyTranslate for Option combinations and dead keys
+        // This is needed for international keyboards (Swedish, German, etc.)
+        let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
+        let flags = event.flags
+
+        if let result = translateKeyWithUCKey(keyCode: keyCode, flags: flags) {
+            return result
+        }
+
         return ""
+    }
+
+    private func translateKeyWithUCKey(keyCode: UInt16, flags: CGEventFlags) -> String? {
+        // Try current keyboard input source first
+        var inputSource = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue()
+        var layoutDataRef = inputSource.flatMap { TISGetInputSourceProperty($0, kTISPropertyUnicodeKeyLayoutData) }
+
+        // If no layout data, try ASCII capable keyboard
+        if layoutDataRef == nil {
+            inputSource = TISCopyCurrentASCIICapableKeyboardInputSource()?.takeRetainedValue()
+            layoutDataRef = inputSource.flatMap { TISGetInputSourceProperty($0, kTISPropertyUnicodeKeyLayoutData) }
+            LOG("UCKeyTranslate: Falling back to ASCII capable keyboard")
+        }
+
+        guard let layoutDataRef = layoutDataRef else {
+            LOG("UCKeyTranslate: No keyboard layout data available")
+            return nil
+        }
+
+        let layoutData = unsafeBitCast(layoutDataRef, to: CFData.self)
+        guard let keyboardLayout = CFDataGetBytePtr(layoutData) else {
+            LOG("UCKeyTranslate: Could not get keyboard layout bytes")
+            return nil
+        }
+
+        // Build modifier state
+        var modifierState: UInt32 = 0
+        if flags.contains(.maskShift) { modifierState |= UInt32(shiftKey >> 8) }
+        if flags.contains(.maskAlternate) { modifierState |= UInt32(optionKey >> 8) }
+        if flags.contains(.maskCommand) { modifierState |= UInt32(cmdKey >> 8) }
+        if flags.contains(.maskControl) { modifierState |= UInt32(controlKey >> 8) }
+        if flags.contains(.maskAlphaShift) { modifierState |= UInt32(alphaLock >> 8) }
+
+        var deadKeyState: UInt32 = 0
+        var chars = [UniChar](repeating: 0, count: 4)
+        var length: Int = 0
+
+        let status = UCKeyTranslate(
+            unsafeBitCast(keyboardLayout, to: UnsafePointer<UCKeyboardLayout>.self),
+            keyCode,
+            UInt16(kUCKeyActionDown),
+            modifierState,
+            UInt32(LMGetKbdType()),
+            OptionBits(kUCKeyTranslateNoDeadKeysBit),  // Get actual character, not dead key
+            &deadKeyState,
+            chars.count,
+            &length,
+            &chars
+        )
+
+        LOG("UCKeyTranslate: keyCode=0x\(String(format: "%02X", keyCode)) mods=0x\(String(format: "%02X", modifierState)) status=\(status) length=\(length)")
+
+        if status == noErr && length > 0 {
+            let result = String(utf16CodeUnits: chars, count: length)
+            LOG("UCKeyTranslate: -> '\(result)'")
+            return result
+        }
+
+        // If UCKeyTranslate returned nothing, try common Swedish keyboard mappings
+        if flags.contains(.maskAlternate) {
+            if let char = swedishOptionMapping(keyCode: keyCode, shift: flags.contains(.maskShift)) {
+                LOG("Using Swedish Option mapping: keyCode=0x\(String(format: "%02X", keyCode)) -> '\(char)'")
+                return char
+            }
+        }
+
+        if flags.contains(.maskShift) {
+            if let char = swedishShiftMapping(keyCode: keyCode) {
+                LOG("Using Swedish Shift mapping: keyCode=0x\(String(format: "%02X", keyCode)) -> '\(char)'")
+                return char
+            }
+        }
+
+        return nil
+    }
+
+    // Manual mapping for Swedish keyboard combinations that may not be returned by UCKeyTranslate
+    private func swedishOptionMapping(keyCode: UInt16, shift: Bool) -> String? {
+        // Swedish keyboard Option+key mappings
+        // These are for keys that UCKeyTranslate might not handle correctly
+        switch keyCode {
+        case 0x1E:  // ¨ key (next to Enter) - Option+¨ = ~
+            return "~"
+        case 0x21:  // Key with å - Option might produce other chars
+            return nil
+        case 0x27:  // Key with ä
+            return nil
+        case 0x29:  // Key with ö
+            return nil
+        case 0x0A:  // § key (left of 1) - Option+§ might produce something
+            return nil
+        default:
+            return nil
+        }
+    }
+
+    // Manual mapping for Swedish keyboard Shift combinations
+    private func swedishShiftMapping(keyCode: UInt16) -> String? {
+        switch keyCode {
+        case 0x1E:  // ¨ key (next to Enter) - Shift+¨ = ^
+            return "^"
+        default:
+            return nil
+        }
     }
 }
