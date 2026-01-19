@@ -54,9 +54,9 @@ struct MonitorArrangementView: View {
                             }
                     )
 
-                    // Connection indicator line
+                    // Edge dwell indicator (green line showing trigger zone on Mac)
                     if arrangement.connectedEdge != .none && !isDragging {
-                        ConnectionLine(
+                        EdgeDwellIndicator(
                             macFrame: scaledFrame(arrangement.macMonitor, in: arrangementSize),
                             haikuFrame: scaledFrame(arrangement.haikuMonitor, in: arrangementSize),
                             edge: arrangement.connectedEdge
@@ -207,46 +207,48 @@ struct MonitorView: View {
     }
 }
 
-struct ConnectionLine: View {
+/// Green line on Mac's edge showing where the edge dwell trigger zone is
+/// The line spans the overlapping region between Mac and Haiku monitors
+struct EdgeDwellIndicator: View {
     let macFrame: CGRect
     let haikuFrame: CGRect
     let edge: ConnectedEdge
 
     var body: some View {
         Path { path in
-            let (start, end) = connectionPoints
+            let (start, end) = edgeLinePoints
             path.move(to: start)
             path.addLine(to: end)
         }
-        .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+        .stroke(Color.green, style: StrokeStyle(lineWidth: 4, lineCap: .round))
     }
 
-    private var connectionPoints: (CGPoint, CGPoint) {
+    private var edgeLinePoints: (CGPoint, CGPoint) {
         switch edge {
         case .right:
-            // Line on right edge of Mac / left edge of Haiku
-            let y = max(macFrame.minY, haikuFrame.minY) +
-                    (min(macFrame.maxY, haikuFrame.maxY) - max(macFrame.minY, haikuFrame.minY)) / 2
-            return (CGPoint(x: macFrame.maxX, y: y),
-                    CGPoint(x: haikuFrame.minX, y: y))
+            // Green line on right edge of Mac, spanning overlap with Haiku
+            let overlapTop = max(macFrame.minY, haikuFrame.minY)
+            let overlapBottom = min(macFrame.maxY, haikuFrame.maxY)
+            return (CGPoint(x: macFrame.maxX - 2, y: overlapTop),
+                    CGPoint(x: macFrame.maxX - 2, y: overlapBottom))
         case .left:
-            // Line on left edge of Mac / right edge of Haiku
-            let y = max(macFrame.minY, haikuFrame.minY) +
-                    (min(macFrame.maxY, haikuFrame.maxY) - max(macFrame.minY, haikuFrame.minY)) / 2
-            return (CGPoint(x: macFrame.minX, y: y),
-                    CGPoint(x: haikuFrame.maxX, y: y))
+            // Green line on left edge of Mac, spanning overlap with Haiku
+            let overlapTop = max(macFrame.minY, haikuFrame.minY)
+            let overlapBottom = min(macFrame.maxY, haikuFrame.maxY)
+            return (CGPoint(x: macFrame.minX + 2, y: overlapTop),
+                    CGPoint(x: macFrame.minX + 2, y: overlapBottom))
         case .top:
-            // Line on top edge of Mac / bottom edge of Haiku
-            let x = max(macFrame.minX, haikuFrame.minX) +
-                    (min(macFrame.maxX, haikuFrame.maxX) - max(macFrame.minX, haikuFrame.minX)) / 2
-            return (CGPoint(x: x, y: macFrame.maxY),
-                    CGPoint(x: x, y: haikuFrame.minY))
+            // Green line on top edge of Mac, spanning overlap with Haiku
+            let overlapLeft = max(macFrame.minX, haikuFrame.minX)
+            let overlapRight = min(macFrame.maxX, haikuFrame.maxX)
+            return (CGPoint(x: overlapLeft, y: macFrame.minY + 2),
+                    CGPoint(x: overlapRight, y: macFrame.minY + 2))
         case .bottom:
-            // Line on bottom edge of Mac / top edge of Haiku
-            let x = max(macFrame.minX, haikuFrame.minX) +
-                    (min(macFrame.maxX, haikuFrame.maxX) - max(macFrame.minX, haikuFrame.minX)) / 2
-            return (CGPoint(x: x, y: macFrame.minY),
-                    CGPoint(x: x, y: haikuFrame.maxY))
+            // Green line on bottom edge of Mac, spanning overlap with Haiku
+            let overlapLeft = max(macFrame.minX, haikuFrame.minX)
+            let overlapRight = min(macFrame.maxX, haikuFrame.maxX)
+            return (CGPoint(x: overlapLeft, y: macFrame.maxY - 2),
+                    CGPoint(x: overlapRight, y: macFrame.maxY - 2))
         case .none:
             return (.zero, .zero)
         }
