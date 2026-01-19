@@ -35,7 +35,8 @@
       "Bash(done)",
       "Bash(for code in 20 35 21 36)",
       "WebFetch(domain:raw.githubusercontent.com)",
-      "Bash(make:*)"
+      "Bash(make:*)",
+      "Bash(log show:*)"
     ]
   }
 }

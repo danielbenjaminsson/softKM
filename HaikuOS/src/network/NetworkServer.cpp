@@ -297,28 +297,35 @@ void NetworkServer::ProcessMessage(const uint8* data, size_t length)
 
     switch (header->eventType) {
         case EVENT_KEY_DOWN:
-        case EVENT_KEY_UP:
         {
+            // KEY_DOWN has: keyCode(4) + modifiers(4) + numBytes(1) + bytes
             if (header->length >= sizeof(KeyEventPayload)) {
                 const KeyEventPayload* keyPayload = (const KeyEventPayload*)payload;
-
-                if (header->eventType == EVENT_KEY_DOWN) {
-                    // Get the UTF-8 bytes following the fixed part
-                    const char* bytes = (const char*)(payload + sizeof(KeyEventPayload));
-                    // Log the received bytes for debugging
-                    char bytesHex[64] = {0};
-                    for (int i = 0; i < keyPayload->numBytes && i < 10; i++) {
-                        snprintf(bytesHex + i*3, 4, "%02X ", (uint8)bytes[i]);
-                    }
-                    LOG("KEY_DOWN: macKey=0x%02X macMods=0x%02X numBytes=%d bytes=[%s]",
-                        keyPayload->keyCode, keyPayload->modifiers, keyPayload->numBytes, bytesHex);
-                    fInputInjector->InjectKeyDown(keyPayload->keyCode,
-                        MapModifiers(keyPayload->modifiers),
-                        bytes, keyPayload->numBytes);
-                } else {
-                    fInputInjector->InjectKeyUp(keyPayload->keyCode,
-                        MapModifiers(keyPayload->modifiers));
+                // Get the UTF-8 bytes following the fixed part
+                const char* bytes = (const char*)(payload + sizeof(KeyEventPayload));
+                // Log the received bytes for debugging
+                char bytesHex[64] = {0};
+                for (int i = 0; i < keyPayload->numBytes && i < 10; i++) {
+                    snprintf(bytesHex + i*3, 4, "%02X ", (uint8)bytes[i]);
                 }
+                LOG("KEY_DOWN: macKey=0x%02X macMods=0x%02X numBytes=%d bytes=[%s]",
+                    keyPayload->keyCode, keyPayload->modifiers, keyPayload->numBytes, bytesHex);
+                fInputInjector->InjectKeyDown(keyPayload->keyCode,
+                    MapModifiers(keyPayload->modifiers),
+                    bytes, keyPayload->numBytes);
+            }
+            break;
+        }
+
+        case EVENT_KEY_UP:
+        {
+            // KEY_UP only has: keyCode(4) + modifiers(4) = 8 bytes (no numBytes field)
+            if (header->length >= 8) {
+                const uint32* data = (const uint32*)payload;
+                uint32 keyCode = data[0];
+                uint32 modifiers = data[1];
+                LOG("KEY_UP: macKey=0x%02X macMods=0x%02X", keyCode, modifiers);
+                fInputInjector->InjectKeyUp(keyCode, MapModifiers(modifiers));
             }
             break;
         }
