@@ -42,7 +42,7 @@ enum {
 
 static const char* kDeviceName = "SoftKM Keyboard";
 static const char* kPortName = "softKM_keyboard_port";
-static const char* kVersion = "1.2.0";  // Synthesize Ctrl+letter from keycode if no bytes
+static const char* kVersion = "1.2.1";  // Fix raw_char for control characters
 
 class SoftKMKeyboard : public BInputServerDevice {
 public:
@@ -326,9 +326,10 @@ void SoftKMKeyboard::_ProcessMessage(BMessage* msg)
                         specialByte = ch;
                         byteBuffer[0] = ch;
                         specialBytes = byteBuffer;
-                        rawChar = ch;
+                        // raw_char should be the underlying letter, not control char
+                        rawChar = 'a' + (ch - 1);  // 0x01->'a', 0x0c->'l', etc.
                         bytesProcessed = true;
-                        DebugLog("control char 0x%02x -> passing through", ch);
+                        DebugLog("control char 0x%02x -> rawChar='%c' (0x%02x)", ch, rawChar, rawChar);
                     } else if (ch >= 'a' && ch <= 'z') {
                         // Lowercase letter - convert to control character
                         specialByte = ch - 'a' + 1;
