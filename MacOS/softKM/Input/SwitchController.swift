@@ -15,6 +15,7 @@ class SwitchController {
     private var lastMousePosition: CGPoint = .zero
     private var lockedCursorPosition: CGPoint = .zero  // Position to lock cursor during capture
     private var connectionManager: ConnectionManager { ConnectionManager.shared }
+    private var lastModifierFlags: CGEventFlags = []  // Track modifier state to filter spurious events
 
     private init() {
         // Ensure cursor is visible on startup (reset any stale state)
@@ -185,12 +186,23 @@ class SwitchController {
 
         // Modifier key state changed - send as key event
         let keyCode = UInt32(event.getIntegerValueField(.keyboardEventKeycode))
-        let modifiers = mapModifiers(event.flags)
+        let currentFlags = event.flags
 
-        // Determine if this is a key down or up based on whether the modifier is now set
-        let isDown = isModifierKeyDown(keyCode: keyCode, flags: event.flags)
+        // Check if this modifier key's state actually changed
+        // This filters out spurious macOS events where flags oscillate
+        let wasDown = isModifierKeyDown(keyCode: keyCode, flags: lastModifierFlags)
+        let isDown = isModifierKeyDown(keyCode: keyCode, flags: currentFlags)
 
-        LOG("FlagsChanged: keyCode=0x\(String(format: "%02X", keyCode)) flags=0x\(String(format: "%016llX", event.flags.rawValue)) isDown=\(isDown)")
+        // Only send if state actually changed
+        if wasDown == isDown {
+            LOG("FlagsChanged: keyCode=0x\(String(format: "%02X", keyCode)) IGNORED (no state change, isDown=\(isDown))")
+            return nil
+        }
+
+        lastModifierFlags = currentFlags
+        let modifiers = mapModifiers(currentFlags)
+
+        LOG("FlagsChanged: keyCode=0x\(String(format: "%02X", keyCode)) flags=0x\(String(format: "%016llX", currentFlags.rawValue)) isDown=\(isDown)")
 
         if isDown {
             connectionManager.send(event: .keyDown(keyCode: keyCode, modifiers: modifiers, characters: ""))
@@ -208,6 +220,9 @@ class SwitchController {
         }
 
         LOG("Activating capture mode - switching to Haiku")
+
+        // Reset modifier tracking state
+        lastModifierFlags = CGEventSource.flagsState(.combinedSessionState)
 
         // Calculate Y position from bottom for smooth handoff (bottom-aligned monitors)
         var yFromBottom: Float = 0.0
