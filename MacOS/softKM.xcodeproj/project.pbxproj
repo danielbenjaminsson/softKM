@@ -22,6 +22,7 @@
 		A1000015 /* LogWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000015 /* LogWindow.swift */; };
 		A1000016 /* MonitorArrangement.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000016 /* MonitorArrangement.swift */; };
 		A1000017 /* MonitorArrangementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000017 /* MonitorArrangementView.swift */; };
+		A1000018 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2000018 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -42,6 +43,7 @@
 		A2000015 /* LogWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogWindow.swift; sourceTree = "<group>"; };
 		A2000016 /* MonitorArrangement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitorArrangement.swift; sourceTree = "<group>"; };
 		A2000017 /* MonitorArrangementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitorArrangementView.swift; sourceTree = "<group>"; };
+		A2000018 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A3000001 /* softKM.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = softKM.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -73,6 +75,7 @@
 				A5000006 /* Network */,
 				A5000007 /* Settings */,
 				A5000008 /* Utils */,
+				A2000018 /* Assets.xcassets */,
 				A2000012 /* Info.plist */,
 				A2000013 /* softKM.entitlements */,
 			);
@@ -202,6 +205,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1000018 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
