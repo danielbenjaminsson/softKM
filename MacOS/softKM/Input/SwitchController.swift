@@ -301,11 +301,17 @@ class SwitchController {
                 ratioInOverlap = 0.5  // Fallback to center if no overlap
             }
 
-            // Convert ratio to Haiku pixels (Haiku will scale by haikuHeight/macHeight)
-            // So we send: ratio * macHeight, and after Haiku scales, it becomes ratio * haikuHeight
-            yFromBottom = ratioInOverlap * macHeight
+            // Convert ratio to Haiku pixels using Haiku's screen height
+            // So we send: ratio * haikuHeight, and Haiku uses it directly
+            let remoteHeight = Float(connectionManager.remoteScreenSize.height)
+            if remoteHeight > 0 {
+                yFromBottom = ratioInOverlap * remoteHeight
+            } else {
+                // Fallback to Mac height if remote size unknown
+                yFromBottom = ratioInOverlap * macHeight
+            }
 
-            LOG("MAC→HAIKU: cursorY=\(rawYFromBottom) overlap=[\(overlapBottomRatio)-\(overlapTopRatio)] ratio=\(ratioInOverlap) sent=\(yFromBottom)")
+            LOG("MAC→HAIKU: cursorY=\(rawYFromBottom) overlap=[\(overlapBottomRatio)-\(overlapTopRatio)] ratio=\(ratioInOverlap) remoteH=\(remoteHeight) sent=\(yFromBottom)")
 
             // Set and warp cursor to edge based on configured switch edge
             let switchEdge = SettingsManager.shared.switchEdge
