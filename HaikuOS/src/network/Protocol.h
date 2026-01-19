@@ -69,7 +69,7 @@ struct MouseWheelPayload {
 
 struct ControlSwitchPayload {
     uint8   direction;  // 0 = toHaiku, 1 = toMac
-    float   yFromBottom;  // Y position in pixels from bottom for smooth transition
+    float   yRatio;     // Vertical position ratio: 0.0 = top, 1.0 = bottom
 } __attribute__((packed));
 
 struct ScreenInfoPayload {

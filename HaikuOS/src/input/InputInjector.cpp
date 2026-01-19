@@ -264,7 +264,7 @@ InputInjector::~InputInjector()
 {
 }
 
-void InputInjector::SetActive(bool active, float yFromBottom)
+void InputInjector::SetActive(bool active, float yRatio)
 {
     if (fActive != active) {
         fActive = active;
@@ -273,7 +273,7 @@ void InputInjector::SetActive(bool active, float yFromBottom)
         if (active) {
             // Position mouse near the return edge (where user is coming from)
             // but not too close to trigger immediate switch back (50px from edge)
-            // Use yFromBottom for smooth vertical transition (bottom-aligned monitors)
+            // Use yRatio for smooth vertical transition (0.0 = top, 1.0 = bottom)
             BScreen screen;
             BRect frame = screen.Frame();
             float screenWidth = frame.Width() + 1;
@@ -282,16 +282,11 @@ void InputInjector::SetActive(bool active, float yFromBottom)
             float startX, startY;
             const float kEdgeOffset = 50.0f;  // 50 pixels from edge
 
-            // Haiku Y is top-down, so convert from bottom-up:
-            // Haiku Y = (screenHeight - 1) - yFromBottom
-            // Clamp to screen bounds first
-            if (yFromBottom < 0) {
-                yFromBottom = 0;  // Clamp to bottom
-            }
-            if (yFromBottom >= screenHeight) {
-                yFromBottom = screenHeight - 1;  // Clamp to top
-            }
-            float convertedY = (screenHeight - 1) - yFromBottom;
+            // yRatio is 0.0 = top, 1.0 = bottom - matches Haiku's coordinate system
+            // Clamp to 0.0-1.0
+            if (yRatio < 0.0f) yRatio = 0.0f;
+            if (yRatio > 1.0f) yRatio = 1.0f;
+            float convertedY = yRatio * (screenHeight - 1);
 
             // Position based on return edge (opposite of where Mac is)
             switch (fReturnEdge) {
@@ -329,8 +324,8 @@ void InputInjector::SetActive(bool active, float yFromBottom)
 
             fMousePosition.Set(startX, startY);
             set_mouse_position((int32)fMousePosition.x, (int32)fMousePosition.y);
-            LOG("MAC→HAIKU: yFromBottom=%.0f returnEdge=%d → pos=(%.0f,%.0f)",
-                yFromBottom, fReturnEdge, startX, startY);
+            LOG("MAC→HAIKU: yRatio=%.2f returnEdge=%d → pos=(%.0f,%.0f)",
+                yRatio, fReturnEdge, startX, startY);
 
             // Reset edge detection state
             fAtReturnEdge = false;
@@ -492,11 +487,13 @@ void InputInjector::InjectMouseMove(float x, float y, bool relative, uint32 modi
             bigtime_t dwellTime = system_time() - fEdgeDwellStart;
             if (dwellTime >= fDwellTime && fNetworkServer != nullptr) {
                 LOG("Return edge dwell complete - switching to macOS");
-                // Calculate Y from bottom for macOS
-                float yFromBottom = (screenHeight - 1) - fMousePosition.y;
-                LOG("HAIKU→MAC: mouseY=%.0f screenHeight=%.0f → yFromBottom=%.0f",
-                    fMousePosition.y, screenHeight, yFromBottom);
-                fNetworkServer->SendControlSwitch(1, yFromBottom);  // 1 = toMac
+                // Calculate yRatio (0.0 = top, 1.0 = bottom)
+                float yRatio = fMousePosition.y / (screenHeight - 1);
+                if (yRatio < 0.0f) yRatio = 0.0f;
+                if (yRatio > 1.0f) yRatio = 1.0f;
+                LOG("HAIKU→MAC: mouseY=%.0f screenHeight=%.0f → yRatio=%.2f",
+                    fMousePosition.y, screenHeight, yRatio);
+                fNetworkServer->SendControlSwitch(1, yRatio);  // 1 = toMac
                 fAtReturnEdge = false;
                 fActive = false;
             }

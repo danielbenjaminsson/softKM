@@ -133,7 +133,7 @@ bool SoftKMApp::QuitRequested()
     // If we're currently capturing input, give control back to macOS first
     if (fInputInjector != nullptr && fInputInjector->IsActive()) {
         LOG("Returning control to macOS before quitting...");
-        fNetworkServer->SendControlSwitch(1, 0.0f);  // 1 = toMac
+        fNetworkServer->SendControlSwitch(1, 0.5f);  // 1 = toMac, 0.5 = center
         fInputInjector->SetActive(false);
     }
 

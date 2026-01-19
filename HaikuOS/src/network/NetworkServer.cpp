@@ -376,20 +376,16 @@ void NetworkServer::ProcessMessage(const uint8* data, size_t length)
             if (header->length >= 1) {  // At minimum, direction byte
                 const ControlSwitchPayload* switchPayload = (const ControlSwitchPayload*)payload;
                 bool toHaiku = (switchPayload->direction == 0);
-                float yFromBottom = fLocalHeight / 2;  // Default to center
+                float yRatio = 0.5f;  // Default to center
                 if (header->length >= sizeof(ControlSwitchPayload)) {
-                    yFromBottom = switchPayload->yFromBottom;
-                    // Scale from remote screen to local screen
-                    if (fRemoteHeight > 0) {
-                        LOG("Scaling yFromBottom: %.0f * %.0f / %.0f",
-                            yFromBottom, fLocalHeight, fRemoteHeight);
-                        yFromBottom = yFromBottom * fLocalHeight / fRemoteHeight;
-                    }
-                    // Clamp to local screen height
-                    if (yFromBottom > fLocalHeight) yFromBottom = fLocalHeight;
-                    if (yFromBottom < 0) yFromBottom = 0;
+                    yRatio = switchPayload->yRatio;
+                    // yRatio is already 0.0-1.0, no scaling needed
+                    LOG("Received yRatio: %.2f", yRatio);
+                    // Clamp to valid range
+                    if (yRatio > 1.0f) yRatio = 1.0f;
+                    if (yRatio < 0.0f) yRatio = 0.0f;
                 }
-                fInputInjector->SetActive(toHaiku, yFromBottom);
+                fInputInjector->SetActive(toHaiku, yRatio);
             }
             break;
         }
@@ -490,12 +486,12 @@ void NetworkServer::SendScreenInfo()
     send(fClientSocket, buffer, sizeof(buffer), 0);
 }
 
-void NetworkServer::SendControlSwitch(uint8 direction, float yFromBottom)
+void NetworkServer::SendControlSwitch(uint8 direction, float yRatio)
 {
     if (fClientSocket < 0)
         return;
 
-    LOG("Sending CONTROL_SWITCH direction=%d yFromBottom=%.0f", direction, yFromBottom);
+    LOG("Sending CONTROL_SWITCH direction=%d yRatio=%.2f", direction, yRatio);
 
     uint8 buffer[sizeof(ProtocolHeader) + sizeof(ControlSwitchPayload)];
     ProtocolHeader* header = (ProtocolHeader*)buffer;
@@ -507,7 +503,7 @@ void NetworkServer::SendControlSwitch(uint8 direction, float yFromBottom)
     header->length = sizeof(ControlSwitchPayload);
 
     payload->direction = direction;
-    payload->yFromBottom = yFromBottom;
+    payload->yRatio = yRatio;
 
     send(fClientSocket, buffer, sizeof(buffer), 0);
 }

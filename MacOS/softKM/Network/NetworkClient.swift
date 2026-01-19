@@ -6,7 +6,7 @@ extension Notification.Name {
 }
 
 struct SwitchToMacInfo {
-    let yFromBottom: Float
+    let yRatio: Float  // 0.0 = top, 1.0 = bottom
 }
 
 class NetworkClient: ObservableObject {
@@ -254,16 +254,16 @@ class NetworkClient: ObservableObject {
             }
             let direction = data[8]  // 0=toHaiku, 1=toMac
 
-            // Extract yFromBottom if available (header=8 + direction=1 + yFromBottom=4)
-            var yFromBottom: Float = 0.0
+            // Extract yRatio if available (header=8 + direction=1 + yRatio=4)
+            var yRatio: Float = 0.5
             if data.count >= 13 {
-                yFromBottom = data.subdata(in: 9..<13).withUnsafeBytes { $0.load(as: Float.self) }
+                yRatio = data.subdata(in: 9..<13).withUnsafeBytes { $0.load(as: Float.self) }
             }
-            LOG("Received CONTROL_SWITCH direction=\(direction) yFromBottom=\(yFromBottom)")
+            LOG("Received CONTROL_SWITCH direction=\(direction) yRatio=\(yRatio)")
 
             if direction == 1 {
                 // Switch back to macOS
-                let info = SwitchToMacInfo(yFromBottom: yFromBottom)
+                let info = SwitchToMacInfo(yRatio: yRatio)
                 DispatchQueue.main.async {
                     NotificationCenter.default.post(name: .switchToMac, object: info)
                 }

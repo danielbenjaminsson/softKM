@@ -121,8 +121,8 @@ class ConnectionManager: ObservableObject {
         networkClient?.send(event: event)
     }
 
-    func sendControlSwitch(toHaiku: Bool, yFromBottom: Float = 0.0) {
-        let event = InputEvent.controlSwitch(toHaiku: toHaiku, yFromBottom: yFromBottom)
+    func sendControlSwitch(toHaiku: Bool, yRatio: Float = 0.5) {
+        let event = InputEvent.controlSwitch(toHaiku: toHaiku, yRatio: yRatio)
         send(event: event)
     }
 }

@@ -22,7 +22,7 @@ enum InputEvent {
     case mouseDown(buttons: UInt32, x: Float, y: Float, modifiers: UInt32, clicks: Int32)
     case mouseUp(buttons: UInt32, x: Float, y: Float, modifiers: UInt32)
     case mouseWheel(deltaX: Float, deltaY: Float, modifiers: UInt32)
-    case controlSwitch(toHaiku: Bool, yFromBottom: Float)
+    case controlSwitch(toHaiku: Bool, yRatio: Float)  // 0.0 = top, 1.0 = bottom
     case screenInfo(width: Float, height: Float)
     case settingsSync(edgeDwellTime: Float, macSwitchEdge: UInt8, haikuReturnEdge: UInt8, yOffsetRatio: Float)
     case teamMonitor
@@ -107,9 +107,9 @@ struct Protocol {
             appendFloat(&payload, deltaY)
             appendUInt32(&payload, modifiers)
 
-        case .controlSwitch(let toHaiku, let yFromBottom):
+        case .controlSwitch(let toHaiku, let yRatio):
             payload.append(toHaiku ? 0 : 1)
-            appendFloat(&payload, yFromBottom)
+            appendFloat(&payload, yRatio)
 
         case .screenInfo(let width, let height):
             appendFloat(&payload, width)
