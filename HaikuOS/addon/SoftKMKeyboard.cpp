@@ -42,7 +42,7 @@ enum {
 
 static const char* kDeviceName = "SoftKM Keyboard";
 static const char* kPortName = "softKM_keyboard_port";
-static const char* kVersion = "1.5.0";  // Fix key_states bit ordering for Twitcher
+static const char* kVersion = "1.6.0";  // Respect macOS character bytes for international keyboards
 
 class SoftKMKeyboard : public BInputServerDevice {
 public:
@@ -262,30 +262,50 @@ void SoftKMKeyboard::_ProcessMessage(BMessage* msg)
             event->AddInt32("key", key);
             event->AddInt32("modifiers", modifiers);
 
+            // Check if macOS sent valid printable character bytes
+            // If so, we should use those instead of special key handling
+            const char* macBytes = NULL;
+            bool hasMacBytes = false;
+            if (msg->FindString("bytes", &macBytes) == B_OK && macBytes[0] != '\0') {
+                // Check if it's a printable character (0x20-0x7E) or extended ASCII
+                uint8 firstByte = (uint8)macBytes[0];
+                if (firstByte >= 0x20 && firstByte != 0x7f) {
+                    hasMacBytes = true;
+                    DebugLog("Using macOS bytes: 0x%02x '%c'", firstByte, firstByte);
+                }
+            }
+
             // Handle special keys that need specific byte values
+            // Only apply if macOS didn't send a valid printable character
             char specialByte = 0;
             const char* specialBytes = NULL;
             static char byteBuffer[2] = {0, 0};
 
+            if (!hasMacBytes) {
+                switch (key) {
+                    case 0x1e:  // Backspace
+                        specialByte = 0x08;
+                        break;
+                    case 0x26:  // Tab
+                        specialByte = 0x09;
+                        break;
+                    case 0x47:  // Return/Enter
+                        specialByte = 0x0a;
+                        break;
+                    case 0x01:  // Escape
+                        specialByte = 0x1b;
+                        break;
+                    case 0x34:  // Delete (forward)
+                        specialByte = 0x7f;
+                        break;
+                    case 0x5e:  // Space
+                        specialByte = 0x20;
+                        break;
+                }
+            }
+
+            // Always handle arrow and navigation keys regardless of macBytes
             switch (key) {
-                case 0x1e:  // Backspace
-                    specialByte = 0x08;
-                    break;
-                case 0x26:  // Tab
-                    specialByte = 0x09;
-                    break;
-                case 0x47:  // Return/Enter
-                    specialByte = 0x0a;
-                    break;
-                case 0x01:  // Escape
-                    specialByte = 0x1b;
-                    break;
-                case 0x34:  // Delete (forward)
-                    specialByte = 0x7f;
-                    break;
-                case 0x5e:  // Space
-                    specialByte = 0x20;
-                    break;
                 // Arrow keys - use Haiku's B_*_ARROW constants
                 case 0x61:  // Left Arrow
                     specialByte = B_LEFT_ARROW;

@@ -477,6 +477,8 @@ class SwitchController {
         switch keyCode {
         case 0x1E:  // ¨ key (next to Enter) - produces ¨ (diaeresis)
             return "¨"
+        case 0x18:  // ' key (below ¨) - produces ' (apostrophe)
+            return "'"
         default:
             return nil
         }
