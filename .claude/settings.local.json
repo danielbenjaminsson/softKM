@@ -37,7 +37,18 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(make:*)",
       "Bash(log show:*)",
-      "WebFetch(domain:discuss.haiku-os.org)"
+      "WebFetch(domain:discuss.haiku-os.org)",
+      "WebSearch",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push)",
+      "Bash(git revert:*)",
+      "WebFetch(domain:api.github.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(curl:*)",
+      "Bash(git push:*)",
+      "WebFetch(domain:gitea.microgeni.synology.me)",
+      "Bash(ruby:*)"
     ]
   }
 }

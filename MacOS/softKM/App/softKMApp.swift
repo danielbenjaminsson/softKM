@@ -18,6 +18,6 @@ struct softKMApp: App {
                 .environmentObject(connectionManager)
         }
         .windowResizability(.contentMinSize)
-        .defaultSize(width: 450, height: 500)
+        .defaultSize(width: 500, height: 580)
     }
 }

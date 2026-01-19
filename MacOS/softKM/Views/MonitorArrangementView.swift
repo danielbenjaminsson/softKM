@@ -6,74 +6,69 @@ struct MonitorArrangementView: View {
     var macScreenSize: CGSize
     var haikuScreenSize: CGSize
 
-    private let arrangementSize = CGSize(width: 350, height: 200)
+    private let arrangementHeight: CGFloat = 220
 
     @State private var isDragging = false
     @State private var dragOffset: CGSize = .zero
     @State private var hasInitializedSizes = false
 
-    // Scale factor to fit monitors in the view
-    private var displayScale: CGFloat {
-        let maxMonitorHeight: CGFloat = 100
-        let macScale = maxMonitorHeight / macScreenSize.height
-        let haikuScale = maxMonitorHeight / haikuScreenSize.height
-        return min(macScale, haikuScale, 1.0)
-    }
-
     var body: some View {
-        VStack(spacing: 8) {
-            ZStack {
-                // Background
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color(NSColor.controlBackgroundColor))
-                    .frame(width: arrangementSize.width, height: arrangementSize.height)
+        VStack(spacing: 12) {
+            GeometryReader { geometry in
+                let arrangementSize = CGSize(width: geometry.size.width, height: arrangementHeight)
 
-                // Mac monitor (fixed)
-                MonitorView(
-                    label: "Mac",
-                    icon: "laptopcomputer",
-                    frame: scaledFrame(arrangement.macMonitor),
-                    isConnected: arrangement.connectedEdge != .none,
-                    connectedEdge: nil
-                )
+                ZStack {
+                    // Background
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color(NSColor.windowBackgroundColor).opacity(0.5))
 
-                // Haiku monitor (draggable)
-                MonitorView(
-                    label: "Haiku",
-                    icon: "desktopcomputer",
-                    frame: scaledFrame(arrangement.haikuMonitor),
-                    isConnected: arrangement.connectedEdge != .none,
-                    connectedEdge: arrangement.connectedEdge
-                )
-                .offset(isDragging ? dragOffset : .zero)
-                .gesture(
-                    DragGesture()
-                        .onChanged { value in
-                            isDragging = true
-                            dragOffset = value.translation
-                        }
-                        .onEnded { value in
-                            isDragging = false
-                            applyDrag(value.translation)
-                            dragOffset = .zero
-                        }
-                )
-
-                // Connection indicator line
-                if arrangement.connectedEdge != .none && !isDragging {
-                    ConnectionLine(
-                        macFrame: scaledFrame(arrangement.macMonitor),
-                        haikuFrame: scaledFrame(arrangement.haikuMonitor),
-                        edge: arrangement.connectedEdge
+                    // Mac monitor (fixed)
+                    MonitorView(
+                        label: "Mac",
+                        icon: "laptopcomputer",
+                        frame: scaledFrame(arrangement.macMonitor, in: arrangementSize),
+                        isConnected: arrangement.connectedEdge != .none,
+                        connectedEdge: nil
                     )
+
+                    // Haiku monitor (draggable)
+                    MonitorView(
+                        label: "Haiku",
+                        icon: "desktopcomputer",
+                        frame: scaledFrame(arrangement.haikuMonitor, in: arrangementSize),
+                        isConnected: arrangement.connectedEdge != .none,
+                        connectedEdge: arrangement.connectedEdge
+                    )
+                    .offset(isDragging ? dragOffset : .zero)
+                    .gesture(
+                        DragGesture()
+                            .onChanged { value in
+                                isDragging = true
+                                dragOffset = value.translation
+                            }
+                            .onEnded { value in
+                                isDragging = false
+                                applyDrag(value.translation)
+                                dragOffset = .zero
+                            }
+                    )
+
+                    // Connection indicator line
+                    if arrangement.connectedEdge != .none && !isDragging {
+                        ConnectionLine(
+                            macFrame: scaledFrame(arrangement.macMonitor, in: arrangementSize),
+                            haikuFrame: scaledFrame(arrangement.haikuMonitor, in: arrangementSize),
+                            edge: arrangement.connectedEdge
+                        )
+                    }
                 }
+                .clipped()
             }
-            .frame(width: arrangementSize.width, height: arrangementSize.height)
-            .clipped()
+            .frame(height: arrangementHeight)
 
             // Caption showing connected edge
             Text(edgeDescription)
-                .font(.caption)
+                .font(.callout)
                 .foregroundColor(.secondary)
         }
         .onAppear {
@@ -120,7 +115,7 @@ struct MonitorArrangementView: View {
         }
     }
 
-    private func scaledFrame(_ monitor: MonitorRect) -> CGRect {
+    private func scaledFrame(_ monitor: MonitorRect, in arrangementSize: CGSize) -> CGRect {
         // Scale from arrangement coordinates to view coordinates
         // Center the arrangement in the view
         let scale: CGFloat = 1.0
