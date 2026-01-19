@@ -5,6 +5,7 @@
 #include <Application.h>
 #include <Message.h>
 #include <Messenger.h>
+#include <Roster.h>
 #include <Screen.h>
 #include <InterfaceDefs.h>
 #include <game/WindowScreen.h>
@@ -524,64 +525,19 @@ void InputInjector::InjectMouseWheel(float deltaX, float deltaY, uint32 modifier
 
 void InputInjector::InjectTeamMonitor()
 {
-    // Inject Ctrl+Alt+Delete to trigger Haiku's built-in Team Monitor
-    // This works regardless of whether softKM is active
-    LOG("Injecting Ctrl+Alt+Delete for Team Monitor");
+    // Launch Team Monitor directly
+    // (Key injection doesn't work because Haiku detects Ctrl+Alt+Del at hardware level)
+    LOG("Launching Team Monitor");
 
-    // Haiku key codes
-    const uint32 kCtrlKey = 0x5c;    // Left Control
-    const uint32 kAltKey = 0x5d;     // Left Alt (Command)
-    const uint32 kDeleteKey = 0x34;  // Delete (forward delete)
-
-    // Modifiers for Ctrl+Alt
-    const uint32 kCtrlMod = 0x04 | 0x10000;    // B_CONTROL_KEY | B_LEFT_CONTROL_KEY
-    const uint32 kAltMod = 0x02 | 0x4000;      // B_COMMAND_KEY | B_LEFT_COMMAND_KEY
-    const uint32 kCtrlAltMod = kCtrlMod | kAltMod;
-
-    // Press Ctrl
-    BMessage ctrlDown(SOFTKM_INJECT_KEY_DOWN);
-    ctrlDown.AddInt32("key", kCtrlKey);
-    ctrlDown.AddInt32("modifiers", kCtrlMod);
-    ctrlDown.AddInt32("raw_char", 0);
-    ctrlDown.AddString("bytes", "");
-    SendToKeyboardAddon(&ctrlDown);
-
-    // Press Alt
-    BMessage altDown(SOFTKM_INJECT_KEY_DOWN);
-    altDown.AddInt32("key", kAltKey);
-    altDown.AddInt32("modifiers", kCtrlAltMod);
-    altDown.AddInt32("raw_char", 0);
-    altDown.AddString("bytes", "");
-    SendToKeyboardAddon(&altDown);
-
-    // Press Delete
-    BMessage delDown(SOFTKM_INJECT_KEY_DOWN);
-    delDown.AddInt32("key", kDeleteKey);
-    delDown.AddInt32("modifiers", kCtrlAltMod);
-    delDown.AddInt32("raw_char", 0x7f);  // DEL character
-    delDown.AddString("bytes", "\x7f");
-    SendToKeyboardAddon(&delDown);
-
-    // Small delay
-    snooze(50000);  // 50ms
-
-    // Release Delete
-    BMessage delUp(SOFTKM_INJECT_KEY_UP);
-    delUp.AddInt32("key", kDeleteKey);
-    delUp.AddInt32("modifiers", kCtrlAltMod);
-    SendToKeyboardAddon(&delUp);
-
-    // Release Alt
-    BMessage altUp(SOFTKM_INJECT_KEY_UP);
-    altUp.AddInt32("key", kAltKey);
-    altUp.AddInt32("modifiers", kCtrlMod);
-    SendToKeyboardAddon(&altUp);
-
-    // Release Ctrl
-    BMessage ctrlUp(SOFTKM_INJECT_KEY_UP);
-    ctrlUp.AddInt32("key", kCtrlKey);
-    ctrlUp.AddInt32("modifiers", 0);
-    SendToKeyboardAddon(&ctrlUp);
+    status_t result = be_roster->Launch("application/x-vnd.Haiku-TeamMonitor");
+    if (result != B_OK && result != B_ALREADY_RUNNING) {
+        LOG("Failed to launch Team Monitor: %s", strerror(result));
+        // Try by path as fallback
+        result = be_roster->Launch("/boot/system/apps/TeamMonitor");
+        if (result != B_OK && result != B_ALREADY_RUNNING) {
+            LOG("Failed to launch Team Monitor by path: %s", strerror(result));
+        }
+    }
 }
 
 void InputInjector::ProcessEvent(BMessage* message)
