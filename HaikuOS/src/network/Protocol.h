@@ -79,7 +79,17 @@ struct ScreenInfoPayload {
 
 struct SettingsSyncPayload {
     float   edgeDwellTime;  // dwell time in seconds
+    uint8   macSwitchEdge;  // Edge on Mac side: 0=right, 1=left, 2=top, 3=bottom
+    uint8   haikuReturnEdge; // Edge on Haiku side: 0=right, 1=left, 2=top, 3=bottom
 } __attribute__((packed));
+
+// Switch edge constants
+enum SwitchEdge {
+    EDGE_RIGHT  = 0,
+    EDGE_LEFT   = 1,
+    EDGE_TOP    = 2,
+    EDGE_BOTTOM = 3
+};
 
 // Modifier key mapping (macOS -> Haiku)
 // macOS:  Shift=0x01, Option=0x02, Control=0x04, Fn=0x10, CapsLock=0x20, Command=0x40

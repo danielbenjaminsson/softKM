@@ -6,8 +6,7 @@ class EdgeDetector {
     var edgeThreshold: CGFloat { settings.edgeThresholdAsCGFloat }
     var activationDelay: TimeInterval { settings.edgeDwellTime }
     var activeEdge: ScreenEdge {
-        get { settings.switchEdge }
-        set { settings.switchEdge = newValue }
+        settings.switchEdge
     }
 
     private var edgeEntryTime: Date?

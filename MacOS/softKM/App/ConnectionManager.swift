@@ -85,9 +85,16 @@ class ConnectionManager: ObservableObject {
 
     private func sendSettings() {
         let settings = SettingsManager.shared
-        let event = InputEvent.settingsSync(edgeDwellTime: Float(settings.edgeDwellTime))
+        let arrangement = settings.monitorArrangement
+        let macSwitchEdge = arrangement.connectedEdge.wireValue
+        let haikuReturnEdge = arrangement.returnEdge.wireValue
+        let event = InputEvent.settingsSync(
+            edgeDwellTime: Float(settings.edgeDwellTime),
+            macSwitchEdge: macSwitchEdge,
+            haikuReturnEdge: haikuReturnEdge
+        )
         send(event: event)
-        LOG("Sent settings sync: edgeDwellTime=\(settings.edgeDwellTime)s")
+        LOG("Sent settings sync: edgeDwellTime=\(settings.edgeDwellTime)s macSwitchEdge=\(macSwitchEdge) haikuReturnEdge=\(haikuReturnEdge)")
     }
 
     func setRemoteScreenSize(width: Float, height: Float) {

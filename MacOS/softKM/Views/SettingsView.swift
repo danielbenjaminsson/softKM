@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var connectionManager: ConnectionManager
     @StateObject private var settings = SettingsManager.shared
+    @State private var arrangement: MonitorArrangement = SettingsManager.shared.monitorArrangement
 
     var body: some View {
         Form {
@@ -16,14 +17,11 @@ struct SettingsView: View {
                 Toggle("Use TLS Encryption", isOn: $settings.useTLS)
             }
 
-            Section("Edge Switching") {
-                Picker("Switch Edge", selection: $settings.switchEdge) {
-                    Text("Right").tag(ScreenEdge.right)
-                    Text("Left").tag(ScreenEdge.left)
-                    Text("Top").tag(ScreenEdge.top)
-                    Text("Bottom").tag(ScreenEdge.bottom)
-                }
-                .pickerStyle(.segmented)
+            Section("Monitor Arrangement") {
+                MonitorArrangementView(arrangement: $arrangement)
+                    .onChange(of: arrangement) { newValue in
+                        settings.monitorArrangement = newValue
+                    }
 
                 HStack {
                     Text("Edge Dwell Time")
@@ -46,7 +44,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 400, height: 320)
+        .frame(width: 420, height: 480)
         .padding()
     }
 
@@ -67,8 +65,4 @@ struct SettingsView: View {
         case .error: return .red
         }
     }
-}
-
-enum ScreenEdge: String, CaseIterable, Codable {
-    case left, right, top, bottom
 }

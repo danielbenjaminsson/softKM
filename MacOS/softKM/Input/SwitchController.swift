@@ -281,8 +281,18 @@ class SwitchController {
 
             LOG("MAC→HAIKU: mouseY=\(mouseLocation.y) frame.minY=\(frame.minY) frame.height=\(frame.height) yFromBottom=\(yFromBottom)")
 
-            // Set and warp cursor to edge - this position will be maintained during capture
-            lockedCursorPosition = CGPoint(x: frame.maxX - 1, y: mouseLocation.y)
+            // Set and warp cursor to edge based on configured switch edge
+            let switchEdge = SettingsManager.shared.switchEdge
+            switch switchEdge {
+            case .right:
+                lockedCursorPosition = CGPoint(x: frame.maxX - 1, y: mouseLocation.y)
+            case .left:
+                lockedCursorPosition = CGPoint(x: frame.minX + 1, y: mouseLocation.y)
+            case .top:
+                lockedCursorPosition = CGPoint(x: mouseLocation.x, y: frame.maxY - 1)
+            case .bottom:
+                lockedCursorPosition = CGPoint(x: mouseLocation.x, y: frame.minY + 1)
+            }
             CGWarpMouseCursorPosition(lockedCursorPosition)
         }
 
@@ -323,8 +333,8 @@ class SwitchController {
         // Position cursor based on yFromBottom from Haiku (bottom-aligned monitors)
         if let screen = NSScreen.main {
             let frame = screen.frame
-            // Move cursor 100 pixels away from the right edge to prevent immediate re-trigger
-            let newX = frame.maxX - 100
+            let switchEdge = SettingsManager.shared.switchEdge
+            let kEdgeOffset: CGFloat = 100  // Move cursor 100 pixels away from edge
 
             // Scale yFromBottom from Haiku coordinates to macOS coordinates
             var scaledYFromBottom = CGFloat(yFromBottom)
@@ -334,14 +344,36 @@ class SwitchController {
                 LOG("Scaling yFromBottom: \(yFromBottom) * \(frame.height) / \(remoteHeight) = \(scaledYFromBottom)")
             }
 
-            // Calculate Y position from scaled yFromBottom
-            // Use same coordinate system as activateCaptureMode: newY = yFromBottom + frame.minY
-            var newY = scaledYFromBottom + frame.minY
+            // Calculate position based on configured edge
+            var newX: CGFloat
+            var newY: CGFloat
+
+            switch switchEdge {
+            case .right:
+                // Move cursor away from right edge
+                newX = frame.maxX - kEdgeOffset
+                newY = scaledYFromBottom + frame.minY
+            case .left:
+                // Move cursor away from left edge
+                newX = frame.minX + kEdgeOffset
+                newY = scaledYFromBottom + frame.minY
+            case .top:
+                // Move cursor away from top edge
+                newX = frame.midX
+                newY = frame.maxY - kEdgeOffset
+            case .bottom:
+                // Move cursor away from bottom edge
+                newX = frame.midX
+                newY = frame.minY + kEdgeOffset
+            }
+
             // Clamp to screen bounds
+            if newX < frame.minX { newX = frame.minX }
+            if newX > frame.maxX - 1 { newX = frame.maxX - 1 }
             if newY < frame.minY { newY = frame.minY }
             if newY > frame.maxY - 1 { newY = frame.maxY - 1 }
 
-            LOG("HAIKU→MAC: yFromBottom=\(yFromBottom) scaled=\(scaledYFromBottom) frame.height=\(frame.height) frame.minY=\(frame.minY) → newY=\(newY)")
+            LOG("HAIKU→MAC: yFromBottom=\(yFromBottom) scaled=\(scaledYFromBottom) edge=\(switchEdge) → pos=(\(newX),\(newY))")
             CGWarpMouseCursorPosition(CGPoint(x: newX, y: newY))
         }
 

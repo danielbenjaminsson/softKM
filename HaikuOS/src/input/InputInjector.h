@@ -31,6 +31,8 @@ public:
 
     void SetNetworkServer(NetworkServer* server) { fNetworkServer = server; }
     void SetDwellTime(float seconds) { fDwellTime = (bigtime_t)(seconds * 1000000); }
+    void SetReturnEdge(uint8 edge) { fReturnEdge = edge; }
+    uint8 GetReturnEdge() const { return fReturnEdge; }
 
 private:
     uint32 TranslateKeyCode(uint32 macKeyCode);
@@ -49,7 +51,8 @@ private:
     NetworkServer* fNetworkServer;
     bigtime_t fEdgeDwellStart;
     bigtime_t fDwellTime;  // configurable dwell time in microseconds
-    bool fAtLeftEdge;
+    bool fAtReturnEdge;
+    uint8 fReturnEdge;  // Which edge triggers return to Mac (0=right, 1=left, 2=top, 3=bottom)
 
     // Double-click tracking
     bigtime_t fLastClickTime;

@@ -407,11 +407,22 @@ void NetworkServer::ProcessMessage(const uint8* data, size_t length)
 
         case EVENT_SETTINGS_SYNC:
         {
-            if (header->length >= sizeof(SettingsSyncPayload)) {
+            // Support both old (4 bytes) and new (6 bytes) payload formats
+            if (header->length >= 4) {  // At minimum, dwell time
                 const SettingsSyncPayload* settingsPayload = (const SettingsSyncPayload*)payload;
                 float dwellTime = settingsPayload->edgeDwellTime;
-                LOG("Settings sync: edgeDwellTime=%.2fs", dwellTime);
                 fInputInjector->SetDwellTime(dwellTime);
+
+                // New extended payload with edge configuration
+                if (header->length >= sizeof(SettingsSyncPayload)) {
+                    uint8 macSwitchEdge = settingsPayload->macSwitchEdge;
+                    uint8 haikuReturnEdge = settingsPayload->haikuReturnEdge;
+                    fInputInjector->SetReturnEdge(haikuReturnEdge);
+                    LOG("Settings sync: edgeDwellTime=%.2fs macSwitchEdge=%d haikuReturnEdge=%d",
+                        dwellTime, macSwitchEdge, haikuReturnEdge);
+                } else {
+                    LOG("Settings sync: edgeDwellTime=%.2fs (legacy format)", dwellTime);
+                }
             }
             break;
         }

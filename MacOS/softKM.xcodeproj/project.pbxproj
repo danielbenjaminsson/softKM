@@ -20,6 +20,8 @@
 		A1000011 /* SwitchController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000011 /* SwitchController.swift */; };
 		A1000012 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000014 /* Logger.swift */; };
 		A1000015 /* LogWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000015 /* LogWindow.swift */; };
+		A1000016 /* MonitorArrangement.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000016 /* MonitorArrangement.swift */; };
+		A1000017 /* MonitorArrangementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000017 /* MonitorArrangementView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -38,6 +40,8 @@
 		A2000013 /* softKM.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = softKM.entitlements; sourceTree = "<group>"; };
 		A2000014 /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
 		A2000015 /* LogWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogWindow.swift; sourceTree = "<group>"; };
+		A2000016 /* MonitorArrangement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitorArrangement.swift; sourceTree = "<group>"; };
+		A2000017 /* MonitorArrangementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitorArrangementView.swift; sourceTree = "<group>"; };
 		A3000001 /* softKM.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = softKM.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -91,6 +95,7 @@
 				A2000004 /* StatusBarView.swift */,
 				A2000005 /* SettingsView.swift */,
 				A2000015 /* LogWindow.swift */,
+				A2000017 /* MonitorArrangementView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -118,6 +123,7 @@
 			isa = PBXGroup;
 			children = (
 				A2000006 /* SettingsManager.swift */,
+				A2000016 /* MonitorArrangement.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -213,6 +219,8 @@
 				A1000005 /* SettingsView.swift in Sources */,
 				A1000015 /* LogWindow.swift in Sources */,
 				A1000006 /* SettingsManager.swift in Sources */,
+				A1000016 /* MonitorArrangement.swift in Sources */,
+				A1000017 /* MonitorArrangementView.swift in Sources */,
 				A1000007 /* Protocol.swift in Sources */,
 				A1000008 /* NetworkClient.swift in Sources */,
 				A1000009 /* EventCapture.swift in Sources */,

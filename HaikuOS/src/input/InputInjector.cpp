@@ -1,5 +1,6 @@
 #include "InputInjector.h"
 #include "../network/NetworkServer.h"
+#include "../network/Protocol.h"
 #include "../Logger.h"
 #include "../ui/TeamMonitorWindow.h"
 
@@ -157,7 +158,8 @@ InputInjector::InputInjector()
       fNetworkServer(nullptr),
       fEdgeDwellStart(0),
       fDwellTime(300000),  // default 300ms
-      fAtLeftEdge(false),
+      fAtReturnEdge(false),
+      fReturnEdge(EDGE_LEFT),  // default: left edge returns to Mac
       fLastClickTime(0),
       fLastClickPosition(0, 0),
       fClickCount(0),
@@ -269,33 +271,65 @@ void InputInjector::SetActive(bool active, float yFromBottom)
         LOG("Input injection %s", active ? "ACTIVATED" : "DEACTIVATED");
 
         if (active) {
-            // Position mouse near left edge (where user is coming from)
+            // Position mouse near the return edge (where user is coming from)
             // but not too close to trigger immediate switch back (50px from edge)
             // Use yFromBottom for smooth vertical transition (bottom-aligned monitors)
             BScreen screen;
             BRect frame = screen.Frame();
+            float screenWidth = frame.Width() + 1;
             float screenHeight = frame.Height() + 1;  // BRect Height() returns h-1
-            float startX = 50.0f;  // 50 pixels from left edge
+
+            float startX, startY;
+            const float kEdgeOffset = 50.0f;  // 50 pixels from edge
 
             // Haiku Y is top-down, so convert from bottom-up:
             // Haiku Y = (screenHeight - 1) - yFromBottom
-            // But we also need to clamp yFromBottom to our screen height first
             if (yFromBottom >= screenHeight) {
                 yFromBottom = screenHeight - 1;  // Clamp to top
             }
-            float startY = (screenHeight - 1) - yFromBottom;
+            float convertedY = (screenHeight - 1) - yFromBottom;
 
-            // Clamp to screen bounds (shouldn't be needed but safety)
+            // Position based on return edge (opposite of where Mac is)
+            switch (fReturnEdge) {
+                case EDGE_LEFT:
+                    // Mac is on right, user enters from right, position near left edge
+                    startX = kEdgeOffset;
+                    startY = convertedY;
+                    break;
+                case EDGE_RIGHT:
+                    // Mac is on left, user enters from left, position near right edge
+                    startX = screenWidth - kEdgeOffset;
+                    startY = convertedY;
+                    break;
+                case EDGE_TOP:
+                    // Mac is below, user enters from bottom, position near top edge
+                    startX = screenWidth / 2;
+                    startY = kEdgeOffset;
+                    break;
+                case EDGE_BOTTOM:
+                    // Mac is above, user enters from top, position near bottom edge
+                    startX = screenWidth / 2;
+                    startY = screenHeight - kEdgeOffset;
+                    break;
+                default:
+                    startX = kEdgeOffset;
+                    startY = convertedY;
+                    break;
+            }
+
+            // Clamp to screen bounds
+            if (startX < 0) startX = 0;
+            if (startX > screenWidth - 1) startX = screenWidth - 1;
             if (startY < 0) startY = 0;
             if (startY > screenHeight - 1) startY = screenHeight - 1;
 
             fMousePosition.Set(startX, startY);
             set_mouse_position((int32)fMousePosition.x, (int32)fMousePosition.y);
-            LOG("MAC→HAIKU: yFromBottom=%.0f screenHeight=%.0f → startY=%.0f",
-                yFromBottom, screenHeight, startY);
+            LOG("MAC→HAIKU: yFromBottom=%.0f returnEdge=%d → pos=(%.0f,%.0f)",
+                yFromBottom, fReturnEdge, startX, startY);
 
             // Reset edge detection state
-            fAtLeftEdge = false;
+            fAtReturnEdge = false;
             fEdgeDwellStart = 0;
         }
     }
@@ -420,36 +454,55 @@ void InputInjector::InjectMouseMove(float x, float y, bool relative, uint32 modi
 
     // Edge detection for switching back to macOS
     const float kEdgeThreshold = 5.0f;
+    BScreen screen;
+    BRect frame = screen.Frame();
+    float screenWidth = frame.Width() + 1;
+    float screenHeight = frame.Height() + 1;
 
-    if (fMousePosition.x <= kEdgeThreshold) {
-        if (!fAtLeftEdge) {
-            // Just entered left edge
-            fAtLeftEdge = true;
+    // Check if at the configured return edge
+    bool atEdge = false;
+    switch (fReturnEdge) {
+        case EDGE_LEFT:
+            atEdge = (fMousePosition.x <= kEdgeThreshold);
+            break;
+        case EDGE_RIGHT:
+            atEdge = (fMousePosition.x >= screenWidth - kEdgeThreshold);
+            break;
+        case EDGE_TOP:
+            atEdge = (fMousePosition.y <= kEdgeThreshold);
+            break;
+        case EDGE_BOTTOM:
+            atEdge = (fMousePosition.y >= screenHeight - kEdgeThreshold);
+            break;
+    }
+
+    if (atEdge) {
+        if (!fAtReturnEdge) {
+            // Just entered return edge
+            fAtReturnEdge = true;
             fEdgeDwellStart = system_time();
-            LOG("Entered left edge - starting dwell timer (%.1fs)", fDwellTime / 1000000.0f);
+            LOG("Entered return edge %d - starting dwell timer (%.1fs)",
+                fReturnEdge, fDwellTime / 1000000.0f);
         } else {
-            // Still at left edge - check dwell time
+            // Still at return edge - check dwell time
             bigtime_t dwellTime = system_time() - fEdgeDwellStart;
             if (dwellTime >= fDwellTime && fNetworkServer != nullptr) {
-                LOG("Left edge dwell complete - switching to macOS");
+                LOG("Return edge dwell complete - switching to macOS");
                 // Calculate Y from bottom for macOS
-                BScreen screen;
-                BRect frame = screen.Frame();
-                float screenHeight = frame.Height() + 1;
                 float yFromBottom = (screenHeight - 1) - fMousePosition.y;
                 LOG("HAIKU→MAC: mouseY=%.0f screenHeight=%.0f → yFromBottom=%.0f",
                     fMousePosition.y, screenHeight, yFromBottom);
                 fNetworkServer->SendControlSwitch(1, yFromBottom);  // 1 = toMac
-                fAtLeftEdge = false;
+                fAtReturnEdge = false;
                 fActive = false;
             }
         }
     } else {
-        // Not at left edge - reset
-        if (fAtLeftEdge) {
-            LOG("Left edge - dwell cancelled");
+        // Not at return edge - reset
+        if (fAtReturnEdge) {
+            LOG("Return edge - dwell cancelled");
         }
-        fAtLeftEdge = false;
+        fAtReturnEdge = false;
         fEdgeDwellStart = 0;
     }
 }
