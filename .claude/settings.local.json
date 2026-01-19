@@ -48,7 +48,10 @@
       "Bash(curl:*)",
       "Bash(git push:*)",
       "WebFetch(domain:gitea.microgeni.synology.me)",
-      "Bash(ruby:*)"
+      "Bash(ruby:*)",
+      "Bash(system_profiler:*)",
+      "Bash(defaults read:*)",
+      "Bash(defaults domains:*)"
     ]
   }
 }
