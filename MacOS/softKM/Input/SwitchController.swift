@@ -313,10 +313,6 @@ class SwitchController {
 
         // Clear modifier tracking state
         pressedModifierKeys.removeAll()
-        for (_, workItem) in pendingModifierRelease {
-            workItem.cancel()
-        }
-        pendingModifierRelease.removeAll()
 
         // Reconnect cursor to mouse movement
         CGAssociateMouseAndMouseCursorPosition(1)
