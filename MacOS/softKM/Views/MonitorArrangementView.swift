@@ -192,14 +192,14 @@ struct MonitorView: View {
 
             // Input icons (keyboard + mouse) in bottom left
             if showInputIcons {
-                HStack(spacing: 2) {
+                HStack(spacing: 3) {
                     Image(systemName: "keyboard")
-                        .font(.system(size: 9))
+                        .font(.system(size: 12))
                     Image(systemName: "computermouse")
-                        .font(.system(size: 9))
+                        .font(.system(size: 12))
                 }
                 .foregroundColor(.white.opacity(0.7))
-                .position(x: 18, y: frame.height - 10)
+                .position(x: 22, y: frame.height - 12)
             }
         }
         .frame(width: frame.width, height: frame.height)
