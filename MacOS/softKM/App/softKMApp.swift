@@ -10,7 +10,8 @@ struct softKMApp: App {
             StatusBarView()
                 .environmentObject(connectionManager)
         } label: {
-            Image(systemName: connectionManager.isConnected ? "keyboard.fill" : "keyboard")
+            Image("MenuBarIcon")
+                .renderingMode(.original)
         }
 
         Window("softKM Settings", id: "settings") {
