@@ -42,7 +42,7 @@ enum {
 
 static const char* kDeviceName = "SoftKM Keyboard";
 static const char* kPortName = "softKM_keyboard_port";
-static const char* kVersion = "1.1.0";  // Version for debugging
+static const char* kVersion = "1.2.0";  // Synthesize Ctrl+letter from keycode if no bytes
 
 class SoftKMKeyboard : public BInputServerDevice {
 public:
@@ -314,46 +314,87 @@ void SoftKMKeyboard::_ProcessMessage(BMessage* msg)
             if (specialByte == 0 && (modifiers & 0x04)) {
                 DebugLog("Ctrl key detected, checking bytes");
                 const char* bytes;
-                if (msg->FindString("bytes", &bytes) == B_OK) {
+                bool bytesProcessed = false;
+                if (msg->FindString("bytes", &bytes) == B_OK && bytes[0] != '\0') {
                     DebugLog("bytes field found: bytes[0]=0x%02x", (uint8)bytes[0]);
-                    if (bytes[0] != '\0') {
-                        char ch = bytes[0];
-                        // If it's a control character (1-26), convert back to letter
-                        // for the raw_char, but keep the control char in bytes
-                        if (ch >= 1 && ch <= 26) {
-                            // Control character from macOS - pass it through directly
-                            // Terminal and other apps expect the actual control character
-                            specialByte = ch;
-                            byteBuffer[0] = ch;
-                            specialBytes = byteBuffer;
-                            rawChar = ch;
-                            DebugLog("control char 0x%02x -> passing through", ch);
-                        } else if (ch >= 'a' && ch <= 'z') {
-                            // Lowercase letter - convert to control character
-                            specialByte = ch - 'a' + 1;
-                            byteBuffer[0] = specialByte;
-                            specialBytes = byteBuffer;
-                            rawChar = ch;
-                            DebugLog("letter '%c' -> control char 0x%02x", ch, specialByte);
-                        } else if (ch >= 'A' && ch <= 'Z') {
-                            // Uppercase letter - convert to control character
-                            specialByte = ch - 'A' + 1;
-                            byteBuffer[0] = specialByte;
-                            specialBytes = byteBuffer;
-                            rawChar = ch;
-                            DebugLog("letter '%c' -> control char 0x%02x", ch, specialByte);
-                        } else {
-                            DebugLog("ch=0x%02x not a letter or control char", (uint8)ch);
-                        }
-                        if (specialByte != 0) {
-                            DebugLog("Set specialBytes to 0x%02x, rawChar=0x%02x", (uint8)specialByte, rawChar);
-                            fprintf(stderr, "SoftKMKeyboard: Ctrl+letter -> control char 0x%02x\n", specialByte);
-                        }
+                    char ch = bytes[0];
+                    // If it's a control character (1-26), convert back to letter
+                    // for the raw_char, but keep the control char in bytes
+                    if (ch >= 1 && ch <= 26) {
+                        // Control character from macOS - pass it through directly
+                        // Terminal and other apps expect the actual control character
+                        specialByte = ch;
+                        byteBuffer[0] = ch;
+                        specialBytes = byteBuffer;
+                        rawChar = ch;
+                        bytesProcessed = true;
+                        DebugLog("control char 0x%02x -> passing through", ch);
+                    } else if (ch >= 'a' && ch <= 'z') {
+                        // Lowercase letter - convert to control character
+                        specialByte = ch - 'a' + 1;
+                        byteBuffer[0] = specialByte;
+                        specialBytes = byteBuffer;
+                        rawChar = ch;
+                        bytesProcessed = true;
+                        DebugLog("letter '%c' -> control char 0x%02x", ch, specialByte);
+                    } else if (ch >= 'A' && ch <= 'Z') {
+                        // Uppercase letter - convert to control character
+                        specialByte = ch - 'A' + 1;
+                        byteBuffer[0] = specialByte;
+                        specialBytes = byteBuffer;
+                        rawChar = ch;
+                        bytesProcessed = true;
+                        DebugLog("letter '%c' -> control char 0x%02x", ch, specialByte);
                     } else {
-                        DebugLog("bytes[0] is null");
+                        DebugLog("ch=0x%02x not a letter or control char", (uint8)ch);
                     }
-                } else {
-                    DebugLog("bytes field not found in message");
+                }
+
+                // If no bytes received, synthesize control character from key code
+                // This handles the case where macOS doesn't send character bytes for Ctrl+key
+                if (!bytesProcessed) {
+                    DebugLog("No bytes or empty, synthesizing from key code 0x%02x", key);
+                    // Map Haiku key codes to letters
+                    char letter = 0;
+                    switch (key) {
+                        case 0x3c: letter = 'a'; break;  // A
+                        case 0x40: letter = 'b'; break;  // B
+                        case 0x52: letter = 'c'; break;  // C
+                        case 0x3e: letter = 'd'; break;  // D
+                        case 0x2b: letter = 'e'; break;  // E
+                        case 0x3d: letter = 'f'; break;  // F
+                        case 0x3f: letter = 'g'; break;  // G
+                        case 0x4d: letter = 'h'; break;  // H
+                        case 0x30: letter = 'i'; break;  // I
+                        case 0x31: letter = 'j'; break;  // J
+                        case 0x43: letter = 'k'; break;  // K
+                        case 0x53: letter = 'l'; break;  // L
+                        case 0x58: letter = 'm'; break;  // M
+                        case 0x44: letter = 'n'; break;  // N
+                        case 0x41: letter = 'o'; break;  // O
+                        case 0x42: letter = 'p'; break;  // P
+                        case 0x29: letter = 'q'; break;  // Q
+                        case 0x2c: letter = 'r'; break;  // R
+                        case 0x50: letter = 's'; break;  // S
+                        case 0x2d: letter = 't'; break;  // T
+                        case 0x2f: letter = 'u'; break;  // U
+                        case 0x4e: letter = 'v'; break;  // V
+                        case 0x2a: letter = 'w'; break;  // W
+                        case 0x51: letter = 'x'; break;  // X
+                        case 0x2e: letter = 'y'; break;  // Y
+                        case 0x4f: letter = 'z'; break;  // Z
+                    }
+                    if (letter != 0) {
+                        specialByte = letter - 'a' + 1;  // a=1, b=2, ..., z=26
+                        byteBuffer[0] = specialByte;
+                        specialBytes = byteBuffer;
+                        rawChar = letter;
+                        DebugLog("Synthesized Ctrl+%c -> control char 0x%02x", letter, specialByte);
+                        fprintf(stderr, "SoftKMKeyboard: Synthesized Ctrl+%c -> 0x%02x\n", letter, specialByte);
+                    }
+                } else if (specialByte != 0) {
+                    DebugLog("Set specialBytes to 0x%02x, rawChar=0x%02x", (uint8)specialByte, rawChar);
+                    fprintf(stderr, "SoftKMKeyboard: Ctrl+letter -> control char 0x%02x\n", specialByte);
                 }
             }
 
