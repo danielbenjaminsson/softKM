@@ -4,6 +4,7 @@ struct StatusBarView: View {
     @EnvironmentObject var connectionManager: ConnectionManager
     @StateObject private var settings = SettingsManager.shared
     @ObservedObject private var logWindowController = LogWindowController.shared
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -56,21 +57,13 @@ struct StatusBarView: View {
 
             Divider()
 
-            if #available(macOS 14.0, *) {
-                SettingsLink {
-                    Label("Settings...", systemImage: "gear")
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal)
-            } else {
-                Button(action: {
-                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-                }) {
-                    Label("Settings...", systemImage: "gear")
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal)
+            Button(action: {
+                openWindow(id: "settings")
+            }) {
+                Label("Settings...", systemImage: "gear")
             }
+            .buttonStyle(.plain)
+            .padding(.horizontal)
 
             Divider()
 

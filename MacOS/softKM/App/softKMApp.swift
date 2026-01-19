@@ -13,9 +13,11 @@ struct softKMApp: App {
             Image(systemName: connectionManager.isConnected ? "keyboard.fill" : "keyboard")
         }
 
-        Settings {
+        Window("softKM Settings", id: "settings") {
             SettingsView()
                 .environmentObject(connectionManager)
         }
+        .windowResizability(.contentMinSize)
+        .defaultSize(width: 450, height: 500)
     }
 }
