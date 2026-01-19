@@ -10,6 +10,8 @@ SRCS = \
 	src/ui/DeskbarReplicant.cpp \
 	src/ui/SettingsWindow.cpp \
 	src/ui/LogWindow.cpp \
+	src/ui/TeamMonitorWindow.cpp \
+	src/ui/TeamListItem.cpp \
 	src/network/NetworkServer.cpp \
 	src/network/Protocol.cpp \
 	src/input/InputInjector.cpp \
@@ -17,11 +19,11 @@ SRCS = \
 
 RDEFS = resources/SoftKM.rdef
 
-LIBS = be network bnetapi tracker game stdc++
+LIBS = be network bnetapi tracker game shared localestub stdc++
 
 LIBPATHS =
 
-SYSTEM_INCLUDE_PATHS =
+SYSTEM_INCLUDE_PATHS = /boot/system/develop/headers/private/system /boot/system/develop/headers/private/tracker /boot/system/develop/headers/private/shared
 
 LOCAL_INCLUDE_PATHS = src
 

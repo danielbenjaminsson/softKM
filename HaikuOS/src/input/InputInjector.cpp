@@ -1,6 +1,7 @@
 #include "InputInjector.h"
 #include "../network/NetworkServer.h"
 #include "../Logger.h"
+#include "../ui/TeamMonitorWindow.h"
 
 #include <Application.h>
 #include <Message.h>
@@ -525,17 +526,22 @@ void InputInjector::InjectMouseWheel(float deltaX, float deltaY, uint32 modifier
 
 void InputInjector::InjectTeamMonitor()
 {
-    // Try sending kMsgCtrlAltDelPressed ('TMcp') to input_server
-    // This is the message TeamMonitorWindow responds to
-    LOG("Sending kMsgCtrlAltDelPressed to input_server");
+    LOG("InjectTeamMonitor: showing Team Monitor window");
 
-    BMessenger inputServer("application/x-vnd.Be-input_server");
-    if (inputServer.IsValid()) {
-        BMessage msg('TMcp');  // kMsgCtrlAltDelPressed from TeamMonitorWindow.h
-        status_t result = inputServer.SendMessage(&msg);
-        LOG("SendMessage result: %s", strerror(result));
+    // The global gTeamMonitorWindow is declared in TeamMonitorWindow.cpp
+    extern TeamMonitorWindow* gTeamMonitorWindow;
+
+    if (gTeamMonitorWindow == NULL) {
+        // Create the window - constructor sets gTeamMonitorWindow
+        new TeamMonitorWindow();
+        LOG("Created new TeamMonitorWindow");
+    }
+
+    if (gTeamMonitorWindow != NULL) {
+        gTeamMonitorWindow->Enable();
+        LOG("TeamMonitorWindow enabled");
     } else {
-        LOG("Could not connect to input_server");
+        LOG("ERROR: Failed to create TeamMonitorWindow");
     }
 }
 
