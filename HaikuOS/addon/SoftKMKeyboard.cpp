@@ -42,7 +42,7 @@ enum {
 
 static const char* kDeviceName = "SoftKM Keyboard";
 static const char* kPortName = "softKM_keyboard_port";
-static const char* kVersion = "1.4.0";  // Proper key repeat detection
+static const char* kVersion = "1.5.0";  // Fix key_states bit ordering for Twitcher
 
 class SoftKMKeyboard : public BInputServerDevice {
 public:
@@ -218,7 +218,10 @@ void SoftKMKeyboard::_SetKeyState(int32 key, bool pressed)
         return;
 
     int byteIndex = key / 8;
-    int bitIndex = key % 8;
+    // IMPORTANT: Haiku's key_states uses "left to right" bit numbering
+    // Bit 0 is the MSB (0x80), not the LSB (0x01)
+    // This matches how Twitcher's IsKeyDown() checks: (1 << ((7 - key) & 7))
+    int bitIndex = 7 - (key % 8);
 
     if (pressed) {
         fKeyStates[byteIndex] |= (1 << bitIndex);
@@ -239,10 +242,11 @@ void SoftKMKeyboard::_ProcessMessage(BMessage* msg)
             int32 rawChar = msg->GetInt32("raw_char", 0);
 
             // Check if this is a repeat (key already pressed)
+            // Use same bit ordering as _SetKeyState (left-to-right)
             bool isRepeat = false;
             if (key >= 0 && key < KEY_STATES_SIZE * 8) {
                 int byteIndex = key / 8;
-                int bitIndex = key % 8;
+                int bitIndex = 7 - (key % 8);
                 isRepeat = (fKeyStates[byteIndex] & (1 << bitIndex)) != 0;
             }
 
