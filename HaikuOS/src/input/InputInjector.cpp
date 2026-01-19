@@ -525,17 +525,18 @@ void InputInjector::InjectMouseWheel(float deltaX, float deltaY, uint32 modifier
 
 void InputInjector::InjectTeamMonitor()
 {
-    // Launch Team Monitor directly
-    // (Key injection doesn't work because Haiku detects Ctrl+Alt+Del at hardware level)
-    LOG("Launching Team Monitor");
+    // Launch ProcessController (Haiku's process manager)
+    // Team Monitor is a built-in feature triggered by hardware Ctrl+Alt+Del,
+    // but ProcessController provides similar functionality
+    LOG("Launching ProcessController");
 
-    status_t result = be_roster->Launch("application/x-vnd.Haiku-TeamMonitor");
+    status_t result = be_roster->Launch("application/x-vnd.Be-TSKB");
     if (result != B_OK && result != B_ALREADY_RUNNING) {
-        LOG("Failed to launch Team Monitor: %s", strerror(result));
+        LOG("Failed to launch ProcessController by signature: %s", strerror(result));
         // Try by path as fallback
-        result = be_roster->Launch("/boot/system/apps/TeamMonitor");
+        result = be_roster->Launch("/boot/system/apps/ProcessController");
         if (result != B_OK && result != B_ALREADY_RUNNING) {
-            LOG("Failed to launch Team Monitor by path: %s", strerror(result));
+            LOG("Failed to launch ProcessController by path: %s", strerror(result));
         }
     }
 }
