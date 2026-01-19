@@ -394,23 +394,28 @@ class SwitchController {
             var newX: CGFloat
             var newY: CGFloat
 
+            // Convert scaledYFromBottom to screen Y coordinate
+            // CGWarpMouseCursorPosition uses Quartz coordinates (Y=0 at top, increases downward)
+            // scaledYFromBottom is from bottom, so invert: screenY = maxY - yFromBottom
+            let screenY = frame.maxY - scaledYFromBottom
+
             switch switchEdge {
             case .right:
                 // Move cursor away from right edge
                 newX = frame.maxX - kEdgeOffset
-                newY = scaledYFromBottom + frame.minY
+                newY = screenY
             case .left:
                 // Move cursor away from left edge
                 newX = frame.minX + kEdgeOffset
-                newY = scaledYFromBottom + frame.minY
+                newY = screenY
             case .top:
                 // Move cursor away from top edge
                 newX = frame.midX
-                newY = frame.maxY - kEdgeOffset
+                newY = frame.minY + kEdgeOffset  // Near top in Quartz coords
             case .bottom:
                 // Move cursor away from bottom edge
                 newX = frame.midX
-                newY = frame.minY + kEdgeOffset
+                newY = frame.maxY - kEdgeOffset  // Near bottom in Quartz coords
             }
 
             // Clamp to screen bounds
