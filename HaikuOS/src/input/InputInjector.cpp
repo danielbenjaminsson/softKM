@@ -448,8 +448,12 @@ void InputInjector::InjectMouseMove(float x, float y, bool relative, uint32 modi
     msg.AddInt32("modifiers", modifiers);
     SendToMouseAddon(&msg);
 
-    // Also update cursor position directly for immediate feedback
-    set_mouse_position((int32)fMousePosition.x, (int32)fMousePosition.y);
+    // Only update cursor position directly when NOT dragging
+    // During drag operations (buttons pressed), let the addon handle positioning
+    // through the B_MOUSE_MOVED event to preserve drag state
+    if (fCurrentButtons == 0) {
+        set_mouse_position((int32)fMousePosition.x, (int32)fMousePosition.y);
+    }
 
     // Edge detection for switching back to macOS
     const float kEdgeThreshold = 5.0f;
