@@ -153,16 +153,16 @@ struct MonitorArrangement: Codable, Equatable {
             }
         }
 
-        // Check top edge of Mac (Haiku above)
-        if abs(mac.maxY - haiku.minY) < Self.snapThreshold {
+        // Check top edge of Mac (Haiku above) - in SwiftUI coords, minY is top
+        if abs(mac.minY - haiku.maxY) < Self.snapThreshold {
             let overlapX = min(mac.maxX, haiku.maxX) - max(mac.minX, haiku.minX)
             if overlapX > 0 {
                 return .top
             }
         }
 
-        // Check bottom edge of Mac (Haiku below)
-        if abs(mac.minY - haiku.maxY) < Self.snapThreshold {
+        // Check bottom edge of Mac (Haiku below) - in SwiftUI coords, maxY is bottom
+        if abs(mac.maxY - haiku.minY) < Self.snapThreshold {
             let overlapX = min(mac.maxX, haiku.maxX) - max(mac.minX, haiku.minX)
             if overlapX > 0 {
                 return .bottom
@@ -178,11 +178,11 @@ struct MonitorArrangement: Codable, Equatable {
         let mac = macMonitor.frame
         var haiku = haikuMonitor.frame
 
-        // Calculate distances to each edge
+        // Calculate distances to each edge (SwiftUI coords: minY is top, maxY is bottom)
         let distToRight = abs(haiku.minX - mac.maxX)
         let distToLeft = abs(haiku.maxX - mac.minX)
-        let distToTop = abs(haiku.minY - mac.maxY)
-        let distToBottom = abs(haiku.maxY - mac.minY)
+        let distToTop = abs(haiku.maxY - mac.minY)      // Haiku's bottom to Mac's top
+        let distToBottom = abs(haiku.minY - mac.maxY)   // Haiku's top to Mac's bottom
 
         let minDist = min(distToRight, distToLeft, distToTop, distToBottom)
 
@@ -197,11 +197,11 @@ struct MonitorArrangement: Codable, Equatable {
             // Snap to left edge - only adjust X, keep Y position
             haiku.origin.x = mac.minX - haiku.width
         } else if minDist == distToTop {
-            // Snap to top edge - only adjust Y, keep X position
-            haiku.origin.y = mac.maxY
-        } else if minDist == distToBottom {
-            // Snap to bottom edge - only adjust Y, keep X position
+            // Snap to top edge (Haiku above Mac) - only adjust Y, keep X position
             haiku.origin.y = mac.minY - haiku.height
+        } else if minDist == distToBottom {
+            // Snap to bottom edge (Haiku below Mac) - only adjust Y, keep X position
+            haiku.origin.y = mac.maxY
         }
 
         haikuMonitor = MonitorRect(frame: haiku)
