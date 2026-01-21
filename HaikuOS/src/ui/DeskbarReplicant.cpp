@@ -73,10 +73,10 @@ void DeskbarReplicant::CreateIcons()
     uint32* connBits = (uint32*)fConnectedIcon->Bits();
     uint32* discBits = (uint32*)fDisconnectedIcon->Bits();
 
-    // Colors in BGRA format (Haiku's B_RGBA32 is actually BGRA)
+    // Colors as 0xAARRGGBB (B_RGBA32 on little-endian stores B,G,R,A in memory)
     // Connected: Green background with white μ symbol (matching macOS icon #54C784)
-    uint32 connBg      = 0xFF84C754;  // Green background (BGRA for #54C784)
-    uint32 connBorder  = 0xFF4F7732;  // Darker green border
+    uint32 connBg      = 0xFF54C784;  // Green background #54C784
+    uint32 connBorder  = 0xFF327749;  // Darker green border
     uint32 connSymbol  = 0xFFFFFFFF;  // White μ symbol
 
     // Disconnected: Gray background with white μ symbol
