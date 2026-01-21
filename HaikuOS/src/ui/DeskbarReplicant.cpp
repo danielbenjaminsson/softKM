@@ -10,8 +10,8 @@
 
 #include <cstring>
 
-// 16x16 icon pattern for μ (mu) symbol
-// 0 = transparent, 1 = transparent, 2 = symbol (green), 3 = transparent
+// 16x16 icon pattern for μ (mu) symbol on rounded square
+// 0 = transparent, 1 = background (green), 2 = symbol (white), 3 = border
 static const uint8 kIconPattern[16][16] = {
     {0,0,0,3,3,3,3,3,3,3,3,3,3,0,0,0},
     {0,0,3,1,1,1,1,1,1,1,1,1,1,3,0,0},
@@ -74,15 +74,15 @@ void DeskbarReplicant::CreateIcons()
     uint32* discBits = (uint32*)fDisconnectedIcon->Bits();
 
     // Colors in BGRA format (Haiku's B_RGBA32 is actually BGRA)
-    // Connected: Green μ symbol (matching Microgeni logo green #58C98A)
-    uint32 connBg      = 0x00000000;  // Transparent background
-    uint32 connBorder  = 0x00000000;  // Transparent border
-    uint32 connSymbol  = 0xFF8AC958;  // Green μ symbol (BGRA for #58C98A)
+    // Connected: Green background with white μ symbol
+    uint32 connBg      = 0xFF8AC958;  // Green background (BGRA for #58C98A)
+    uint32 connBorder  = 0xFF6EAA3D;  // Darker green border
+    uint32 connSymbol  = 0xFFFFFFFF;  // White μ symbol
 
-    // Disconnected: Gray μ symbol
-    uint32 discBg      = 0x00000000;  // Transparent background
-    uint32 discBorder  = 0x00000000;  // Transparent border
-    uint32 discSymbol  = 0xFF888888;  // Gray μ symbol
+    // Disconnected: Gray background with white μ symbol
+    uint32 discBg      = 0xFF888888;  // Gray background
+    uint32 discBorder  = 0xFF666666;  // Darker gray border
+    uint32 discSymbol  = 0xFFCCCCCC;  // Light gray μ symbol
 
     uint32 transparent = 0x00000000;
 
