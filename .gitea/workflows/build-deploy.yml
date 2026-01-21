@@ -291,17 +291,69 @@ jobs:
           echo "hpkg_path=$HPKG_NAME" >> $GITHUB_OUTPUT
         id: haiku_hpkg
 
-      - name: Upload Release Artifacts
+      - name: Upload Release to Gitea
         if: steps.changes.outputs.is_release == 'true'
+        env:
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
           VERSION="${{ steps.changes.outputs.version }}"
-          echo "=== Release Artifacts for v$VERSION ==="
+          TAG="v${VERSION}"
+          REPO="daniel/softKM"
+          API_URL="https://gitea.microgeni.synology.me/api/v1"
 
-          # List artifacts
-          ls -la *.dmg *.hpkg 2>/dev/null || echo "No artifacts found"
+          echo "=== Creating Release $TAG ==="
 
-          # Note: Gitea will automatically attach these as release assets
-          # when using gitea-release-action or manual upload
+          # Create release
+          RELEASE_RESPONSE=$(curl -s -X POST \
+            -H "Authorization: token $RELEASE_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"tag_name\": \"$TAG\", \"name\": \"$TAG\", \"body\": \"Release $VERSION\n\n## Downloads\n- macOS: softKM-${VERSION}-macOS.dmg\n- Haiku: softKM-${VERSION}-haiku-x86_64.hpkg\", \"draft\": false, \"prerelease\": false}" \
+            "$API_URL/repos/$REPO/releases")
+
+          echo "Release response: $RELEASE_RESPONSE"
+
+          # Extract release ID
+          RELEASE_ID=$(echo "$RELEASE_RESPONSE" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
+
+          if [ -z "$RELEASE_ID" ]; then
+            echo "Failed to create release or get release ID"
+            # Try to get existing release
+            RELEASE_ID=$(curl -s -H "Authorization: token $RELEASE_TOKEN" \
+              "$API_URL/repos/$REPO/releases/tags/$TAG" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
+          fi
+
+          echo "Release ID: $RELEASE_ID"
+
+          if [ -n "$RELEASE_ID" ]; then
+            # Upload macOS DMG
+            DMG_FILE="softKM-${VERSION}-macOS.dmg"
+            if [ -f "$DMG_FILE" ]; then
+              echo "Uploading $DMG_FILE..."
+              curl -s -X POST \
+                -H "Authorization: token $RELEASE_TOKEN" \
+                -H "Content-Type: application/octet-stream" \
+                --data-binary @"$DMG_FILE" \
+                "$API_URL/repos/$REPO/releases/$RELEASE_ID/assets?name=$DMG_FILE"
+              echo "Uploaded $DMG_FILE"
+            fi
+
+            # Upload Haiku HPKG
+            HPKG_FILE="softKM-${VERSION}-haiku-x86_64.hpkg"
+            if [ -f "$HPKG_FILE" ]; then
+              echo "Uploading $HPKG_FILE..."
+              curl -s -X POST \
+                -H "Authorization: token $RELEASE_TOKEN" \
+                -H "Content-Type: application/octet-stream" \
+                --data-binary @"$HPKG_FILE" \
+                "$API_URL/repos/$REPO/releases/$RELEASE_ID/assets?name=$HPKG_FILE"
+              echo "Uploaded $HPKG_FILE"
+            fi
+
+            echo "=== Release published: $TAG ==="
+          else
+            echo "ERROR: Could not get release ID"
+            exit 1
+          fi
 
       - name: Summary
         if: always()
