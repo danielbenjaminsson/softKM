@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- softKM icon optimized for 32x32 (standard Haiku icon size)
+     Convert to HVIF using Icon-O-Matic -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <defs>
+    <!-- Main green gradient - top-left lighting -->
+    <linearGradient id="greenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6BD493"/>
+      <stop offset="50%" style="stop-color:#58C98A"/>
+      <stop offset="100%" style="stop-color:#3DAA6E"/>
+    </linearGradient>
+    <!-- Top highlight -->
+    <linearGradient id="topHighlight" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#8DE4AD"/>
+      <stop offset="100%" style="stop-color:#58C98A"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background rounded square - 1px outline per Haiku guidelines -->
+  <rect x="2" y="3" width="28" height="27" rx="5" ry="5"
+        fill="url(#greenGrad)"
+        stroke="#2D8A58" stroke-width="1"/>
+
+  <!-- Top surface highlight -->
+  <rect x="3" y="4" width="26" height="12" rx="4" ry="4"
+        fill="url(#topHighlight)" opacity="0.25"/>
+
+  <!-- Mu symbol - simplified for 32x32 -->
+  <text x="16" y="25"
+        font-family="Georgia, serif"
+        font-size="22"
+        font-style="italic"
+        fill="#FFFFFF"
+        text-anchor="middle">μ</text>
+</svg>

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- softKM application icon for Haiku OS
+     Based on Haiku Icon Guidelines:
+     - Top-left lighting with warm secondary ambient light
+     - Isometric-inspired perspective
+     - Saturated colors, avoiding pure colors
+     - 1px outline at 32x32 size
+     Convert to HVIF using Icon-O-Matic or hvif-tools -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <!-- Main green gradient - top-left lighting -->
+    <linearGradient id="greenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6BD493"/>
+      <stop offset="50%" style="stop-color:#58C98A"/>
+      <stop offset="100%" style="stop-color:#3DAA6E"/>
+    </linearGradient>
+
+    <!-- Top surface highlight -->
+    <linearGradient id="topHighlight" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#8DE4AD"/>
+      <stop offset="100%" style="stop-color:#58C98A"/>
+    </linearGradient>
+
+    <!-- Subtle inner shadow for depth -->
+    <filter id="innerShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="1" result="blur"/>
+      <feOffset in="blur" dx="1" dy="1" result="offsetBlur"/>
+      <feComposite in="SourceGraphic" in2="offsetBlur" operator="over"/>
+    </filter>
+
+    <!-- White symbol gradient for subtle lighting -->
+    <linearGradient id="whiteGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFFFFF"/>
+      <stop offset="100%" style="stop-color:#E8F5ED"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background rounded square with Haiku-style 3D effect -->
+  <!-- Main body -->
+  <rect x="4" y="6" width="56" height="54" rx="10" ry="10"
+        fill="url(#greenGrad)"
+        stroke="#2D8A58" stroke-width="1.5"/>
+
+  <!-- Top surface highlight (lighter) -->
+  <rect x="6" y="7" width="52" height="24" rx="8" ry="8"
+        fill="url(#topHighlight)" opacity="0.3"/>
+
+  <!-- Mu (μ) symbol - white, italic style matching macOS icon -->
+  <text x="32" y="50"
+        font-family="Georgia, serif"
+        font-size="44"
+        font-style="italic"
+        font-weight="normal"
+        fill="url(#whiteGrad)"
+        text-anchor="middle"
+        dominant-baseline="auto">μ</text>
+</svg>

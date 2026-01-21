@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- softKM deskbar icon (16x16) - reference design
+     The actual deskbar icon is rendered programmatically in DeskbarReplicant.cpp -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
+  <defs>
+    <linearGradient id="greenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6BD493"/>
+      <stop offset="100%" style="stop-color:#3DAA6E"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded square background -->
+  <rect x="1" y="1" width="14" height="14" rx="3" ry="3"
+        fill="url(#greenGrad)"
+        stroke="#3DAA6E" stroke-width="0.5"/>
+
+  <!-- Mu (μ) symbol - simplified for 16px -->
+  <text x="8" y="13"
+        font-family="Georgia, serif"
+        font-size="11"
+        font-style="italic"
+        fill="#FFFFFF"
+        text-anchor="middle">μ</text>
+</svg>

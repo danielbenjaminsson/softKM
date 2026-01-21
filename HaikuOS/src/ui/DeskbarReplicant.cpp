@@ -10,27 +10,25 @@
 
 #include <cstring>
 
-// Icon data (simple 16x16 icons)
-static const uint8 kConnectedIconData[] = {
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x1f, 0x1f, 0x1f, 0x1f, 0x00, 0x00,
-    0x00, 0x1f, 0x00, 0x00, 0x00, 0x00, 0x1f, 0x00,
-    0x00, 0x1f, 0x00, 0x3f, 0x3f, 0x00, 0x1f, 0x00,
-    0x00, 0x1f, 0x00, 0x3f, 0x3f, 0x00, 0x1f, 0x00,
-    0x00, 0x1f, 0x00, 0x00, 0x00, 0x00, 0x1f, 0x00,
-    0x00, 0x00, 0x1f, 0x1f, 0x1f, 0x1f, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-};
-
-static const uint8 kDisconnectedIconData[] = {
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x0f, 0x0f, 0x0f, 0x0f, 0x00, 0x00,
-    0x00, 0x0f, 0x00, 0x00, 0x00, 0x00, 0x0f, 0x00,
-    0x00, 0x0f, 0x00, 0x0f, 0x0f, 0x00, 0x0f, 0x00,
-    0x00, 0x0f, 0x00, 0x0f, 0x0f, 0x00, 0x0f, 0x00,
-    0x00, 0x0f, 0x00, 0x00, 0x00, 0x00, 0x0f, 0x00,
-    0x00, 0x00, 0x0f, 0x0f, 0x0f, 0x0f, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+// 16x16 icon pattern for μ (mu) symbol on rounded square
+// 0 = transparent, 1 = background, 2 = symbol (white), 3 = border/darker
+static const uint8 kIconPattern[16][16] = {
+    {0,0,0,3,3,3,3,3,3,3,3,3,3,0,0,0},
+    {0,0,3,1,1,1,1,1,1,1,1,1,1,3,0,0},
+    {0,3,1,1,1,1,1,1,1,1,1,1,1,1,3,0},
+    {3,1,1,1,1,1,1,1,1,1,1,1,1,1,1,3},
+    {3,1,1,2,2,1,1,1,1,2,2,1,1,1,1,3},
+    {3,1,1,2,2,1,1,1,1,2,2,1,1,1,1,3},
+    {3,1,1,2,2,1,1,1,1,2,2,1,1,1,1,3},
+    {3,1,1,2,2,1,1,1,1,2,2,1,1,1,1,3},
+    {3,1,1,2,2,1,1,1,1,2,2,1,1,1,1,3},
+    {3,1,1,2,2,2,1,1,2,2,2,1,1,1,1,3},
+    {3,1,1,1,2,2,2,2,2,2,2,1,1,1,1,3},
+    {3,1,1,1,1,2,2,2,2,1,2,2,1,1,1,3},
+    {3,1,1,1,1,1,1,1,1,1,2,2,1,1,1,3},
+    {0,3,1,1,1,1,1,1,1,1,2,2,1,1,3,0},
+    {0,0,3,1,1,1,1,1,1,1,1,1,1,3,0,0},
+    {0,0,0,3,3,3,3,3,3,3,3,3,3,0,0,0}
 };
 
 DeskbarReplicant::DeskbarReplicant(BRect frame, const char* name)
@@ -66,45 +64,50 @@ void DeskbarReplicant::Init()
 
 void DeskbarReplicant::CreateIcons()
 {
-    // Create simple color icons
+    // Create 16x16 RGBA icons with μ symbol
     BRect iconRect(0, 0, 15, 15);
 
     fConnectedIcon = new BBitmap(iconRect, B_RGBA32);
     fDisconnectedIcon = new BBitmap(iconRect, B_RGBA32);
 
-    // Fill with colors (green for connected, gray for disconnected)
     uint32* connBits = (uint32*)fConnectedIcon->Bits();
     uint32* discBits = (uint32*)fDisconnectedIcon->Bits();
 
-    // Green color (connected)
-    uint32 green = 0xFF00CC00;
-    uint32 darkGreen = 0xFF008800;
+    // Colors in BGRA format (Haiku's B_RGBA32 is actually BGRA)
+    // Connected: Microgeni green theme
+    uint32 connBg      = 0xFF8AC958;  // Main green (matching macOS icon #58C98A)
+    uint32 connBorder  = 0xFF6EAA3D;  // Darker green border
+    uint32 connSymbol  = 0xFFFFFFFF;  // White μ symbol
 
-    // Gray color (disconnected)
-    uint32 gray = 0xFF888888;
-    uint32 darkGray = 0xFF666666;
+    // Disconnected: Gray theme
+    uint32 discBg      = 0xFF888888;  // Gray background
+    uint32 discBorder  = 0xFF666666;  // Darker gray border
+    uint32 discSymbol  = 0xFFCCCCCC;  // Light gray symbol
 
-    // Transparent
     uint32 transparent = 0x00000000;
 
     for (int y = 0; y < 16; y++) {
         for (int x = 0; x < 16; x++) {
             int idx = y * 16 + x;
+            uint8 pattern = kIconPattern[y][x];
 
-            // Create a simple keyboard-like shape
-            bool isBorder = (y == 2 || y == 13) && (x >= 2 && x <= 13);
-            isBorder |= (x == 2 || x == 13) && (y >= 2 && y <= 13);
-            bool isInner = (y >= 5 && y <= 10) && (x >= 5 && x <= 10);
-
-            if (isBorder) {
-                connBits[idx] = darkGreen;
-                discBits[idx] = darkGray;
-            } else if (isInner) {
-                connBits[idx] = green;
-                discBits[idx] = gray;
-            } else {
-                connBits[idx] = transparent;
-                discBits[idx] = transparent;
+            switch (pattern) {
+                case 0:  // Transparent
+                    connBits[idx] = transparent;
+                    discBits[idx] = transparent;
+                    break;
+                case 1:  // Background
+                    connBits[idx] = connBg;
+                    discBits[idx] = discBg;
+                    break;
+                case 2:  // Symbol (μ)
+                    connBits[idx] = connSymbol;
+                    discBits[idx] = discSymbol;
+                    break;
+                case 3:  // Border
+                    connBits[idx] = connBorder;
+                    discBits[idx] = discBorder;
+                    break;
             }
         }
     }
