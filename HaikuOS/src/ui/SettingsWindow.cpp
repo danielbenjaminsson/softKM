@@ -140,7 +140,7 @@ void SettingsWindow::SaveSettings()
 void SettingsWindow::ShowAbout()
 {
     const char* authors[] = {
-        "Daniel Jameson",
+        "Daniel Benjaminsson (alias dodo75)",
         nullptr
     };
 
@@ -151,7 +151,7 @@ void SettingsWindow::ShowAbout()
         "computers over a network.\n\n"
         "Move your mouse to the screen edge to seamlessly switch "
         "control between computers.");
-    about->AddCopyright(2025, "Microgeni");
+    about->AddCopyright(2025, "Microgeni AB");
     about->AddAuthors(authors);
     about->Show();
 }
