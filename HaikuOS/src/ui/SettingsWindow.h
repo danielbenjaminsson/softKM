@@ -6,6 +6,7 @@
 class BTextControl;
 class BCheckBox;
 class BButton;
+class BMenuBar;
 
 class SettingsWindow : public BWindow {
 public:
@@ -18,7 +19,9 @@ public:
 private:
     void LoadSettings();
     void SaveSettings();
+    void ShowAbout();
 
+    BMenuBar* fMenuBar;
     BTextControl* fPortControl;
     BCheckBox* fAutoStartCheck;
     BButton* fSaveButton;
@@ -27,7 +30,8 @@ private:
 
 enum {
     MSG_SAVE_SETTINGS = 'save',
-    MSG_CANCEL_SETTINGS = 'canc'
+    MSG_CANCEL_SETTINGS = 'canc',
+    MSG_ABOUT = 'abou'
 };
 
 #endif // SETTINGS_WINDOW_H
