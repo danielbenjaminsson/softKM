@@ -79,10 +79,10 @@ void DeskbarReplicant::CreateIcons()
     uint32 connBorder  = 0xFF327749;  // Darker green border
     uint32 connSymbol  = 0xFFFFFFFF;  // White μ symbol
 
-    // Disconnected: Gray background with white μ symbol
-    uint32 discBg      = 0xFF888888;  // Gray background
-    uint32 discBorder  = 0xFF666666;  // Darker gray border
-    uint32 discSymbol  = 0xFFCCCCCC;  // Light gray μ symbol
+    // Disconnected: Also green for now (testing color)
+    uint32 discBg      = 0xFF54C784;  // Green background (same as connected for testing)
+    uint32 discBorder  = 0xFF327749;  // Darker green border
+    uint32 discSymbol  = 0xFFFFFFFF;  // White μ symbol
 
     uint32 transparent = 0x00000000;
 
