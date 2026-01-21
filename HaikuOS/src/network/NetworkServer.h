@@ -5,6 +5,7 @@
 #include <SupportDefs.h>
 
 class InputInjector;
+class ClipboardManager;
 
 class NetworkServer {
 public:
@@ -19,6 +20,9 @@ public:
 
     void SendControlSwitch(uint8 direction, float yRatio = 0.5f);  // 0=toHaiku, 1=toMac; yRatio: 0=top, 1=bottom
     void SendScreenInfo();
+    void SendClipboardSync();
+
+    void SetClipboardManager(ClipboardManager* manager) { fClipboardManager = manager; }
 
     // Screen dimensions
     float GetLocalWidth() const { return fLocalWidth; }
@@ -37,6 +41,7 @@ private:
 
     uint16 fPort;
     InputInjector* fInputInjector;
+    ClipboardManager* fClipboardManager;
     int fServerSocket;
     int fClientSocket;
     thread_id fListenThread;

@@ -281,6 +281,26 @@ class NetworkClient: ObservableObject {
             DispatchQueue.main.async {
                 ConnectionManager.shared.setRemoteScreenSize(width: width, height: height)
             }
+        } else if eventType == EventType.clipboardSync.rawValue {
+            // Haiku is sending its clipboard content
+            guard data.count >= 13 else {  // header(8) + contentType(1) + dataLength(4)
+                LOG("CLIPBOARD_SYNC message too short")
+                return
+            }
+            let contentType = data[8]
+            let dataLength = data.subdata(in: 9..<13).withUnsafeBytes { $0.load(as: UInt32.self) }
+
+            guard data.count >= 13 + Int(dataLength) else {
+                LOG("CLIPBOARD_SYNC data incomplete: expected \(13 + dataLength), got \(data.count)")
+                return
+            }
+
+            let clipboardData = data.subdata(in: 13..<(13 + Int(dataLength)))
+            LOG("Received clipboard from Haiku: \(dataLength) bytes")
+
+            DispatchQueue.main.async {
+                ClipboardManager.shared.setClipboardFromSync(contentType: contentType, data: clipboardData)
+            }
         } else {
             LOG("Received event type: 0x\(String(format: "%02X", eventType))")
         }

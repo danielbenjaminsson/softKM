@@ -24,6 +24,7 @@
 		A1000017 /* MonitorArrangementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000017 /* MonitorArrangementView.swift */; };
 		A1000018 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2000018 /* Assets.xcassets */; };
 		A1000019 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000019 /* AboutView.swift */; };
+		A1000020 /* ClipboardManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000020 /* ClipboardManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -46,6 +47,7 @@
 		A2000017 /* MonitorArrangementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitorArrangementView.swift; sourceTree = "<group>"; };
 		A2000018 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A2000019 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
+		A2000020 /* ClipboardManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardManager.swift; sourceTree = "<group>"; };
 		A3000001 /* softKM.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = softKM.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -77,6 +79,7 @@
 				A5000006 /* Network */,
 				A5000007 /* Settings */,
 				A5000008 /* Utils */,
+				A5000010 /* Clipboard */,
 				A2000018 /* Assets.xcassets */,
 				A2000012 /* Info.plist */,
 				A2000013 /* softKM.entitlements */,
@@ -140,6 +143,14 @@
 				A2000014 /* Logger.swift */,
 			);
 			path = Utils;
+			sourceTree = "<group>";
+		};
+		A5000010 /* Clipboard */ = {
+			isa = PBXGroup;
+			children = (
+				A2000020 /* ClipboardManager.swift */,
+			);
+			path = Clipboard;
 			sourceTree = "<group>";
 		};
 		A5000009 /* Products */ = {
@@ -235,6 +246,7 @@
 				A1000010 /* EdgeDetector.swift in Sources */,
 				A1000011 /* SwitchController.swift in Sources */,
 				A1000019 /* AboutView.swift in Sources */,
+				A1000020 /* ClipboardManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

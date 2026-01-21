@@ -11,6 +11,7 @@ enum EventType: UInt8 {
     case screenInfo = 0x11
     case settingsSync = 0x12
     case teamMonitor = 0x13
+    case clipboardSync = 0x14
     case heartbeat = 0xF0
     case heartbeatAck = 0xF1
 }
@@ -26,6 +27,7 @@ enum InputEvent {
     case screenInfo(width: Float, height: Float)
     case settingsSync(edgeDwellTime: Float, macSwitchEdge: UInt8, haikuReturnEdge: UInt8, yOffsetRatio: Float)
     case teamMonitor
+    case clipboardSync(contentType: UInt8, data: Data)
     case heartbeat
     case heartbeatAck
 
@@ -41,6 +43,7 @@ enum InputEvent {
         case .screenInfo: return .screenInfo
         case .settingsSync: return .settingsSync
         case .teamMonitor: return .teamMonitor
+        case .clipboardSync: return .clipboardSync
         case .heartbeat: return .heartbeat
         case .heartbeatAck: return .heartbeatAck
         }
@@ -120,6 +123,11 @@ struct Protocol {
             payload.append(macSwitchEdge)
             payload.append(haikuReturnEdge)
             appendFloat(&payload, yOffsetRatio)
+
+        case .clipboardSync(let contentType, let data):
+            payload.append(contentType)
+            appendUInt32(&payload, UInt32(data.count))
+            payload.append(data)
 
         case .teamMonitor, .heartbeat, .heartbeatAck:
             break

@@ -19,6 +19,7 @@ enum EventType {
     EVENT_SCREEN_INFO   = 0x11,
     EVENT_SETTINGS_SYNC = 0x12,
     EVENT_TEAM_MONITOR  = 0x13,
+    EVENT_CLIPBOARD_SYNC = 0x14,
     EVENT_HEARTBEAT     = 0xF0,
     EVENT_HEARTBEAT_ACK = 0xF1
 };
@@ -82,6 +83,12 @@ struct SettingsSyncPayload {
     uint8   macSwitchEdge;   // Edge on Mac side: 0=right, 1=left, 2=top, 3=bottom
     uint8   haikuReturnEdge; // Edge on Haiku side: 0=right, 1=left, 2=top, 3=bottom
     float   yOffsetRatio;    // Y offset for cursor transition (positive = Haiku above Mac)
+} __attribute__((packed));
+
+struct ClipboardSyncPayload {
+    uint8   contentType;     // 0x00 = plain text (UTF-8)
+    uint32  dataLength;      // Length of clipboard data following this header
+    // followed by: uint8 data[dataLength]
 } __attribute__((packed));
 
 // Switch edge constants

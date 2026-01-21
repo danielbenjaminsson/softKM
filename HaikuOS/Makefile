@@ -15,6 +15,7 @@ SRCS = \
 	src/network/NetworkServer.cpp \
 	src/network/Protocol.cpp \
 	src/input/InputInjector.cpp \
+	src/clipboard/ClipboardManager.cpp \
 	src/settings/Settings.cpp
 
 RDEFS = resources/SoftKM.rdef

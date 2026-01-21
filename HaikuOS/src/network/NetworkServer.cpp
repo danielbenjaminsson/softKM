@@ -1,6 +1,7 @@
 #include "NetworkServer.h"
 #include "Protocol.h"
 #include "../input/InputInjector.h"
+#include "../clipboard/ClipboardManager.h"
 #include "../SoftKMApp.h"
 #include "../Logger.h"
 
@@ -19,6 +20,7 @@
 NetworkServer::NetworkServer(uint16 port, InputInjector* injector)
     : fPort(port),
       fInputInjector(injector),
+      fClipboardManager(nullptr),
       fServerSocket(-1),
       fClientSocket(-1),
       fListenThread(-1),
@@ -444,6 +446,25 @@ void NetworkServer::ProcessMessage(const uint8* data, size_t length)
             fInputInjector->InjectTeamMonitor();
             break;
 
+        case EVENT_CLIPBOARD_SYNC:
+        {
+            LOG("Received: CLIPBOARD_SYNC");
+            if (header->length >= sizeof(ClipboardSyncPayload)) {
+                const ClipboardSyncPayload* clipPayload = (const ClipboardSyncPayload*)payload;
+                if (header->length >= sizeof(ClipboardSyncPayload) + clipPayload->dataLength) {
+                    const uint8* clipData = payload + sizeof(ClipboardSyncPayload);
+                    if (fClipboardManager != nullptr) {
+                        fClipboardManager->SetClipboardFromSync(
+                            clipPayload->contentType, clipData, clipPayload->dataLength);
+                    }
+                } else {
+                    LOG("CLIPBOARD_SYNC: incomplete data (expected %lu, got %u)",
+                        sizeof(ClipboardSyncPayload) + clipPayload->dataLength, header->length);
+                }
+            }
+            break;
+        }
+
         default:
             LOG("Unknown event type: 0x%02X", header->eventType);
             break;
@@ -506,4 +527,37 @@ void NetworkServer::SendControlSwitch(uint8 direction, float yRatio)
     payload->yRatio = yRatio;
 
     send(fClientSocket, buffer, sizeof(buffer), 0);
+}
+
+void NetworkServer::SendClipboardSync()
+{
+    if (fClientSocket < 0 || fClipboardManager == nullptr)
+        return;
+
+    uint32 dataLength = 0;
+    uint8* clipData = fClipboardManager->GetClipboardForSync(&dataLength);
+    if (clipData == nullptr || dataLength == 0)
+        return;
+
+    LOG("Sending clipboard to macOS: %lu bytes", dataLength);
+
+    size_t totalSize = sizeof(ProtocolHeader) + sizeof(ClipboardSyncPayload) + dataLength;
+    uint8* buffer = new uint8[totalSize];
+
+    ProtocolHeader* header = (ProtocolHeader*)buffer;
+    header->magic = PROTOCOL_MAGIC;
+    header->version = PROTOCOL_VERSION;
+    header->eventType = EVENT_CLIPBOARD_SYNC;
+    header->length = sizeof(ClipboardSyncPayload) + dataLength;
+
+    ClipboardSyncPayload* payload = (ClipboardSyncPayload*)(buffer + sizeof(ProtocolHeader));
+    payload->contentType = 0x00;  // plain text
+    payload->dataLength = dataLength;
+
+    memcpy(buffer + sizeof(ProtocolHeader) + sizeof(ClipboardSyncPayload), clipData, dataLength);
+
+    send(fClientSocket, buffer, totalSize, 0);
+
+    delete[] buffer;
+    delete[] clipData;
 }

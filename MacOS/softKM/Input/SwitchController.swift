@@ -325,6 +325,12 @@ class SwitchController {
         // Now set mode after cursor is locked
         mode = .capturing
 
+        // Send clipboard to Haiku before switching
+        if let clipboardData = ClipboardManager.shared.getClipboardForSync() {
+            LOG("Sending clipboard to Haiku: \(clipboardData.count) bytes")
+            connectionManager.send(event: .clipboardSync(contentType: 0x00, data: clipboardData))
+        }
+
         // Notify Haiku with Y ratio for smooth cursor transition
         connectionManager.sendControlSwitch(toHaiku: true, yRatio: yRatio)
         LOG("Sending control switch with yRatio=\(yRatio)")

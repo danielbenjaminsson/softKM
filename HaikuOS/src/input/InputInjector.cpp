@@ -497,6 +497,8 @@ void InputInjector::InjectMouseMove(float x, float y, bool relative, uint32 modi
                 if (yRatio > 1.0f) yRatio = 1.0f;
                 LOG("HAIKU→MAC: mouseY=%.0f screenHeight=%.0f → yRatio=%.2f",
                     fMousePosition.y, screenHeight, yRatio);
+                // Send clipboard to Mac before switching
+                fNetworkServer->SendClipboardSync();
                 fNetworkServer->SendControlSwitch(1, yRatio);  // 1 = toMac
                 fAtReturnEdge = false;
                 fActive = false;
