@@ -141,7 +141,7 @@ void SettingsWindow::ShowAbout()
     about->AddDescription(
         "Software Keyboard/Mouse Switch for Haiku\n\n"
         "Share keyboard and mouse input between macOS and Haiku OS "
-        "computers over a network, similar to Synergy/Barrier.\n\n"
+        "computers over a network.\n\n"
         "Move your mouse to the screen edge to seamlessly switch "
         "control between computers.");
     about->AddCopyright(2025, "Microgeni");
