@@ -21,22 +21,8 @@ resource file_types message {
 };
 
 /*
- * Application Icon
- *
- * To add the icon:
- * 1. Open Icon-O-Matic on Haiku
- * 2. Import softKM_icon.svg or softKM_icon_32.svg from this directory
- * 3. Adjust colors/paths if needed to match Haiku guidelines
- * 4. Export as HVIF and save to this directory as softKM_icon.hvif
- * 5. Use: resource(101, "BEOS:ICON") #'VICN' import "softKM_icon.hvif";
- *
- * Alternatively, use hvif-tools to convert:
- *   icon2icon softKM_icon.svg softKM_icon.hvif
- *
- * The icon design is a green rounded square with white μ (mu) symbol,
+ * Application Icon - green rounded square with white μ (mu) symbol,
  * matching the macOS application icon design from Microgeni branding.
+ * Generated from softKM_icon.svg using hvif-tools.
  */
-
-/* Uncomment when HVIF file is available:
 resource(101, "BEOS:ICON") #'VICN' import "softKM_icon.hvif";
-*/
