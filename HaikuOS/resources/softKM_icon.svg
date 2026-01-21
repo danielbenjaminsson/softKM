@@ -1,57 +1,52 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- softKM application icon for Haiku OS
-     Based on Haiku Icon Guidelines:
-     - Top-left lighting with warm secondary ambient light
-     - Isometric-inspired perspective
-     - Saturated colors, avoiding pure colors
-     - 1px outline at 32x32 size
-     Convert to HVIF using Icon-O-Matic or hvif-tools -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<!-- softKM icon - Haiku isometric: μ fully inside green box -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
   <defs>
-    <!-- Main green gradient - top-left lighting -->
-    <linearGradient id="greenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#6BD493"/>
-      <stop offset="50%" style="stop-color:#58C98A"/>
-      <stop offset="100%" style="stop-color:#3DAA6E"/>
-    </linearGradient>
-
-    <!-- Top surface highlight -->
-    <linearGradient id="topHighlight" x1="0%" y1="0%" x2="0%" y2="100%">
+    <!-- Top face - brightest -->
+    <linearGradient id="topFace" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:#8DE4AD"/>
-      <stop offset="100%" style="stop-color:#58C98A"/>
+      <stop offset="50%" style="stop-color:#54C784"/>
+      <stop offset="100%" style="stop-color:#45B876"/>
     </linearGradient>
 
-    <!-- Subtle inner shadow for depth -->
-    <filter id="innerShadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur in="SourceAlpha" stdDeviation="1" result="blur"/>
-      <feOffset in="blur" dx="1" dy="1" result="offsetBlur"/>
-      <feComposite in="SourceGraphic" in2="offsetBlur" operator="over"/>
-    </filter>
+    <!-- Right edge - shadow -->
+    <linearGradient id="rightEdge" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#3DAA6E"/>
+      <stop offset="100%" style="stop-color:#2D8A58"/>
+    </linearGradient>
 
-    <!-- White symbol gradient for subtle lighting -->
-    <linearGradient id="whiteGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#FFFFFF"/>
-      <stop offset="100%" style="stop-color:#E8F5ED"/>
+    <!-- Bottom edge - darkest -->
+    <linearGradient id="bottomEdge" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#2D8A58"/>
+      <stop offset="100%" style="stop-color:#1F6B42"/>
     </linearGradient>
   </defs>
 
-  <!-- Background rounded square with Haiku-style 3D effect -->
-  <!-- Main body -->
-  <rect x="4" y="6" width="56" height="54" rx="10" ry="10"
-        fill="url(#greenGrad)"
-        stroke="#2D8A58" stroke-width="1.5"/>
+  <!-- Drop shadow behind green box (offset down-right) -->
+  <path d="M 5 8 L 31 13 L 31 30 L 5 25 Z" fill="#000000" opacity="0.25"/>
+  <path d="M 4 7 L 30 12 L 30 31 L 4 26 Z" fill="#000000" opacity="0.15"/>
 
-  <!-- Top surface highlight (lighter) -->
-  <rect x="6" y="7" width="52" height="24" rx="8" ry="8"
-        fill="url(#topHighlight)" opacity="0.3"/>
+  <!-- Bottom edge (thickness) -->
+  <path d="M 1 26 L 28 31 L 28 29 L 1 24 Z" fill="url(#bottomEdge)"/>
 
-  <!-- Mu (μ) symbol - white, italic style matching macOS icon -->
-  <text x="32" y="50"
-        font-family="Georgia, serif"
-        font-size="44"
-        font-style="italic"
-        font-weight="normal"
-        fill="url(#whiteGrad)"
-        text-anchor="middle"
-        dominant-baseline="auto">μ</text>
+  <!-- Right edge (thickness) -->
+  <path d="M 28 29 L 31 31 L 31 11 L 28 9 Z" fill="url(#rightEdge)"/>
+
+  <!-- Top face - full size box -->
+  <path d="M 1 3 Q 1 1 3 1 L 26 5 Q 28 5.5 28 7 L 28 26 Q 28 28 26 28 L 3 24 Q 1 23.5 1 22 Z"
+        fill="url(#topFace)"/>
+
+  <!-- Highlight strip top-left -->
+  <path d="M 3 2 L 24 5.5 Q 26 6 26 7 L 26 11 Q 26 12 24 11.5 L 3 8 Q 2 7.8 2 7 L 2 3 Q 2 2 3 2 Z"
+        fill="#FFFFFF" opacity="0.35"/>
+
+  <!-- Georgia Italic μ - smaller to fit inside with padding -->
+  <g transform="translate(6, 23) scale(0.30, -0.30) skewY(5)">
+    <path fill="#FFFFFF" d="M 34 6 L 34 6 Q 29 2 25 0 Q 22 -1 17 -1 Q 14 -1 12 0 Q 9 1 8 3 L 8 3 Q 7 0 7 -3 Q 7 -6 7 -9 Q 7 -16 6 -18 Q 4 -21 1 -21 Q 0 -21 -2 -20 Q -3 -19 -3 -16 Q -3 -15 -1 -10 Q 0 -6 1 -2 Q 2 1 3 2 Q 3 4 4 6 L 13 47 L 22 48 L 22 47 L 15 16 Q 15 15 15 13 Q 14 12 14 11 Q 14 8 16 6 Q 18 4 22 4 Q 25 4 28 6 Q 32 7 35 11 L 43 47 L 52 48 L 52 47 L 45 16 Q 45 14 44 12 Q 44 10 44 9 Q 44 6 45 5 Q 46 4 49 4 Q 50 4 52 4 Q 53 5 54 5 L 54 2 Q 50 0 47 0 Q 44 0 42 0 Q 38 0 36 1 Q 34 3 34 6 Z"/>
+  </g>
+
+  <!-- μ shadow (darker, more offset) -->
+  <g transform="translate(7.2, 24.2) scale(0.30, -0.30) skewY(5)">
+    <path fill="#1A5A38" opacity="0.4" d="M 34 6 L 34 6 Q 29 2 25 0 Q 22 -1 17 -1 Q 14 -1 12 0 Q 9 1 8 3 L 8 3 Q 7 0 7 -3 Q 7 -6 7 -9 Q 7 -16 6 -18 Q 4 -21 1 -21 Q 0 -21 -2 -20 Q -3 -19 -3 -16 Q -3 -15 -1 -10 Q 0 -6 1 -2 Q 2 1 3 2 Q 3 4 4 6 L 13 47 L 22 48 L 22 47 L 15 16 Q 15 15 15 13 Q 14 12 14 11 Q 14 8 16 6 Q 18 4 22 4 Q 25 4 28 6 Q 32 7 35 11 L 43 47 L 52 48 L 52 47 L 45 16 Q 45 14 44 12 Q 44 10 44 9 Q 44 6 45 5 Q 46 4 49 4 Q 50 4 52 4 Q 53 5 54 5 L 54 2 Q 50 0 47 0 Q 44 0 42 0 Q 38 0 36 1 Q 34 3 34 6 Z"/>
+  </g>
 </svg>
