@@ -337,7 +337,7 @@ class SwitchController {
         _ = EventCapture.shared.startCapture()
     }
 
-    private func deactivateCaptureMode(yRatio: Float = 0.5) {
+    func deactivateCaptureMode(yRatio: Float = 0.5) {
         LOG("Deactivating capture mode - switching back to macOS, yRatio=\(yRatio)")
         mode = .monitoring
 
