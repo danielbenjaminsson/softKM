@@ -229,8 +229,8 @@ jobs:
 
             cd /Data/Code/Projects/softKM
 
-            # Fetch and checkout the tag
-            git fetch origin --tags
+            # Fetch and checkout the tag (force to handle tag updates)
+            git fetch origin --tags --force
             git checkout -f v${VERSION}
 
             # Build the app
