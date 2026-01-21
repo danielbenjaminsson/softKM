@@ -68,6 +68,15 @@ struct StatusBarView: View {
 
             Divider()
 
+            Button(action: {
+                openWindow(id: "about")
+                NSApplication.shared.activate(ignoringOtherApps: true)
+            }) {
+                Label("About softKM", systemImage: "info.circle")
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal)
+
             Button(action: { NSApplication.shared.terminate(nil) }) {
                 Label("Quit softKM", systemImage: "power")
             }

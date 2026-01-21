@@ -20,5 +20,11 @@ struct softKMApp: App {
         }
         .windowResizability(.contentMinSize)
         .defaultSize(width: 500, height: 580)
+
+        Window("About softKM", id: "about") {
+            AboutView()
+        }
+        .windowResizability(.contentSize)
+        .windowStyle(.hiddenTitleBar)
     }
 }

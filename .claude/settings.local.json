@@ -60,7 +60,8 @@
       "*",
       "WebFetch(domain:www.haiku-os.org)",
       "Bash(file:*)",
-      "Bash(identify:*)"
+      "Bash(identify:*)",
+      "Bash(scp:*)"
     ]
   }
 }
