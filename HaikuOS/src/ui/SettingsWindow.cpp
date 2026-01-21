@@ -10,7 +10,7 @@
 #include <MenuBar.h>
 #include <Menu.h>
 #include <MenuItem.h>
-#include <AboutWindow.h>
+#include <private/interface/AboutWindow.h>
 #include <AppFileInfo.h>
 #include <Application.h>
 #include <Roster.h>
