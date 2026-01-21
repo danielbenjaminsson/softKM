@@ -36,7 +36,8 @@ DeskbarReplicant::DeskbarReplicant(BRect frame, const char* name)
       fConnectedIcon(nullptr),
       fDisconnectedIcon(nullptr),
       fIsConnected(false),
-      fDragger(nullptr)
+      fDragger(nullptr),
+      fStatusPoller(nullptr)
 {
     Init();
 }
@@ -46,13 +47,15 @@ DeskbarReplicant::DeskbarReplicant(BMessage* archive)
       fConnectedIcon(nullptr),
       fDisconnectedIcon(nullptr),
       fIsConnected(false),
-      fDragger(nullptr)
+      fDragger(nullptr),
+      fStatusPoller(nullptr)
 {
     Init();
 }
 
 DeskbarReplicant::~DeskbarReplicant()
 {
+    delete fStatusPoller;
     delete fConnectedIcon;
     delete fDisconnectedIcon;
 }
@@ -124,6 +127,39 @@ void DeskbarReplicant::AttachedToWindow()
     }
 
     SetLowColor(ViewColor());
+
+    // Start polling for connection status every second
+    if (fStatusPoller == nullptr) {
+        BMessage pollMsg(MSG_POLL_STATUS);
+        fStatusPoller = new BMessageRunner(BMessenger(this),
+            &pollMsg, 1000000);  // 1 second interval
+    }
+
+    // Query status immediately
+    QueryConnectionStatus();
+}
+
+void DeskbarReplicant::DetachedFromWindow()
+{
+    delete fStatusPoller;
+    fStatusPoller = nullptr;
+
+    BView::DetachedFromWindow();
+}
+
+void DeskbarReplicant::QueryConnectionStatus()
+{
+    BMessenger appMessenger("application/x-vnd.softKM");
+    if (appMessenger.IsValid()) {
+        BMessage query(MSG_QUERY_CONNECTION_STATUS);
+        BMessage reply;
+        if (appMessenger.SendMessage(&query, &reply, 500000, 500000) == B_OK) {
+            bool connected;
+            if (reply.FindBool("connected", &connected) == B_OK) {
+                SetConnected(connected);
+            }
+        }
+    }
 }
 
 status_t DeskbarReplicant::Archive(BMessage* archive, bool deep) const
@@ -192,6 +228,10 @@ void DeskbarReplicant::MouseDown(BPoint where)
 void DeskbarReplicant::MessageReceived(BMessage* message)
 {
     switch (message->what) {
+        case MSG_POLL_STATUS:
+            QueryConnectionStatus();
+            break;
+
         case MSG_CONNECTION_STATUS:
         {
             bool connected;

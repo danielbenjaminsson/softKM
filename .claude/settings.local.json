@@ -56,7 +56,11 @@
       "Bash(python3:*)",
       "Bash(sips -g all:*)",
       "Bash(sips -g pixelWidth -g pixelHeight:*)",
-      "Bash(killall:*)"
+      "Bash(killall:*)",
+      "*",
+      "WebFetch(domain:www.haiku-os.org)",
+      "Bash(file:*)",
+      "Bash(identify:*)"
     ]
   }
 }

@@ -16,6 +16,7 @@ enum {
     MSG_TOGGLE_LOG = 'tlog',
     MSG_QUERY_LOG_VISIBLE = 'qlog',
     MSG_CONNECTION_STATUS = 'csts',
+    MSG_QUERY_CONNECTION_STATUS = 'qcst',
     MSG_CLIENT_CONNECTED = 'ccon',
     MSG_CLIENT_DISCONNECTED = 'cdis',
     MSG_INPUT_EVENT = 'inev',

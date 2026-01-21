@@ -100,6 +100,14 @@ void SoftKMApp::MessageReceived(BMessage* message)
             break;
         }
 
+        case MSG_QUERY_CONNECTION_STATUS:
+        {
+            BMessage reply(B_REPLY);
+            reply.AddBool("connected", fClientConnected);
+            message->SendReply(&reply);
+            break;
+        }
+
         case MSG_CLIENT_CONNECTED:
             SetClientConnected(true);
             break;
@@ -145,18 +153,7 @@ bool SoftKMApp::QuitRequested()
 void SoftKMApp::SetClientConnected(bool connected)
 {
     fClientConnected = connected;
-
-    // Notify Deskbar replicant of status change
-    BDeskbar deskbar;
-    if (deskbar.HasItem(REPLICANT_NAME)) {
-        BMessage statusMsg(MSG_CONNECTION_STATUS);
-        statusMsg.AddBool("connected", connected);
-
-        BMessenger messenger(REPLICANT_NAME, -1, nullptr);
-        if (messenger.IsValid()) {
-            messenger.SendMessage(&statusMsg);
-        }
-    }
+    // Status will be queried by deskbar replicant via MSG_QUERY_CONNECTION_STATUS
 }
 
 void SoftKMApp::InstallDeskbarReplicant()

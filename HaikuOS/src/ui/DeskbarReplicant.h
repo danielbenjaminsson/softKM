@@ -3,8 +3,14 @@
 
 #include <View.h>
 #include <Bitmap.h>
+#include <MessageRunner.h>
 
 #define REPLICANT_NAME "softKM"
+
+// Message for polling connection status
+enum {
+    MSG_POLL_STATUS = 'poll'
+};
 
 class BDragger;
 class BPopUpMenu;
@@ -28,6 +34,7 @@ public:
     virtual void MouseDown(BPoint where) override;
     virtual void MessageReceived(BMessage* message) override;
     virtual void AttachedToWindow() override;
+    virtual void DetachedFromWindow() override;
 
     void SetConnected(bool connected);
 
@@ -35,11 +42,13 @@ private:
     void Init();
     void CreateIcons();
     void ShowPopUpMenu(BPoint where);
+    void QueryConnectionStatus();
 
     BBitmap* fConnectedIcon;
     BBitmap* fDisconnectedIcon;
     bool fIsConnected;
     BDragger* fDragger;
+    BMessageRunner* fStatusPoller;
 };
 
 // Required export for replicant instantiation
