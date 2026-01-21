@@ -16,6 +16,7 @@
 #include <Application.h>
 #include <Roster.h>
 #include <File.h>
+#include <Messenger.h>
 
 #include <cstdlib>
 #include <cstdio>
@@ -31,7 +32,8 @@ SettingsWindow::SettingsWindow()
     appMenu->AddItem(new BMenuItem("About softKM" B_UTF8_ELLIPSIS,
         new BMessage(MSG_ABOUT)));
     appMenu->AddSeparatorItem();
-    appMenu->AddItem(new BMenuItem("Show Logs", new BMessage(MSG_SHOW_LOGS), 'L'));
+    fLogMenuItem = new BMenuItem("Show Log", new BMessage(MSG_SHOW_LOGS), 'L');
+    appMenu->AddItem(fLogMenuItem);
     appMenu->AddSeparatorItem();
     appMenu->AddItem(new BMenuItem("Quit", new BMessage(B_QUIT_REQUESTED), 'Q'));
     fMenuBar->AddItem(appMenu);
@@ -80,6 +82,24 @@ SettingsWindow::SettingsWindow()
 
 SettingsWindow::~SettingsWindow()
 {
+}
+
+void SettingsWindow::MenusBeginning()
+{
+    BWindow::MenusBeginning();
+
+    // Update log menu item text based on current log visibility
+    BMessenger messenger("application/x-vnd.softKM");
+    if (messenger.IsValid()) {
+        BMessage query(MSG_QUERY_LOG_VISIBLE);
+        BMessage reply;
+        if (messenger.SendMessage(&query, &reply, 500000, 500000) == B_OK) {
+            bool visible = false;
+            if (reply.FindBool("visible", &visible) == B_OK) {
+                fLogMenuItem->SetLabel(visible ? "Hide Log" : "Show Log");
+            }
+        }
+    }
 }
 
 void SettingsWindow::MessageReceived(BMessage* message)
@@ -140,7 +160,7 @@ void SettingsWindow::SaveSettings()
 void SettingsWindow::ShowAbout()
 {
     const char* authors[] = {
-        "Daniel Benjaminsson (alias dodo75)",
+        "Daniel Benjaminsson",
         nullptr
     };
 

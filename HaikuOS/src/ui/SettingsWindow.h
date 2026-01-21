@@ -7,6 +7,7 @@ class BTextControl;
 class BCheckBox;
 class BButton;
 class BMenuBar;
+class BMenuItem;
 
 class SettingsWindow : public BWindow {
 public:
@@ -15,6 +16,7 @@ public:
 
     virtual void MessageReceived(BMessage* message) override;
     virtual bool QuitRequested() override;
+    virtual void MenusBeginning() override;
 
 private:
     void LoadSettings();
@@ -22,6 +24,7 @@ private:
     void ShowAbout();
 
     BMenuBar* fMenuBar;
+    BMenuItem* fLogMenuItem;
     BTextControl* fPortControl;
     BCheckBox* fAutoStartCheck;
     BButton* fSaveButton;
