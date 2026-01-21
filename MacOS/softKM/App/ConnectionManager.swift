@@ -56,6 +56,12 @@ class ConnectionManager: ObservableObject {
                     self.sendScreenInfo()
                     self.sendSettings()
                 }
+
+                // Auto-switch to monitor mode when connection is lost while capturing
+                if wasConnected && !self.isConnected && self.isCapturing {
+                    LOG("Connection lost while capturing - switching to monitor mode")
+                    SwitchController.shared.deactivateCaptureMode()
+                }
             }
             .store(in: &cancellables)
     }
