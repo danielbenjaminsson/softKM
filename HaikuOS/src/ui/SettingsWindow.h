@@ -31,7 +31,8 @@ private:
 enum {
     MSG_SAVE_SETTINGS = 'save',
     MSG_CANCEL_SETTINGS = 'canc',
-    MSG_ABOUT = 'abou'
+    MSG_ABOUT = 'abou',
+    MSG_SHOW_LOGS = 'logs'
 };
 
 #endif // SETTINGS_WINDOW_H

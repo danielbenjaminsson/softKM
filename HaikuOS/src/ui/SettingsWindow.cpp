@@ -1,4 +1,5 @@
 #include "SettingsWindow.h"
+#include "../SoftKMApp.h"
 #include "../settings/Settings.h"
 
 #include <LayoutBuilder.h>
@@ -29,6 +30,8 @@ SettingsWindow::SettingsWindow()
     BMenu* appMenu = new BMenu("softKM");
     appMenu->AddItem(new BMenuItem("About softKM" B_UTF8_ELLIPSIS,
         new BMessage(MSG_ABOUT)));
+    appMenu->AddSeparatorItem();
+    appMenu->AddItem(new BMenuItem("Show Logs", new BMessage(MSG_SHOW_LOGS), 'L'));
     appMenu->AddSeparatorItem();
     appMenu->AddItem(new BMenuItem("Quit", new BMessage(B_QUIT_REQUESTED), 'Q'));
     fMenuBar->AddItem(appMenu);
@@ -84,6 +87,10 @@ void SettingsWindow::MessageReceived(BMessage* message)
     switch (message->what) {
         case MSG_ABOUT:
             ShowAbout();
+            break;
+
+        case MSG_SHOW_LOGS:
+            be_app->PostMessage(MSG_TOGGLE_LOG);
             break;
 
         case MSG_SAVE_SETTINGS:
