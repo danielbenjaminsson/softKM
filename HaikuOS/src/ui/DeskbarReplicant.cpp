@@ -7,29 +7,11 @@
 #include <Roster.h>
 #include <Messenger.h>
 #include <Window.h>
+#include <IconUtils.h>
+#include <Resources.h>
+#include <File.h>
 
 #include <cstring>
-
-// 16x16 icon pattern for μ (mu) symbol on rounded square
-// 0 = transparent, 1 = background (green), 2 = symbol (white), 3 = border
-static const uint8 kIconPattern[16][16] = {
-    {0,0,0,3,3,3,3,3,3,3,3,3,3,0,0,0},
-    {0,0,3,1,1,1,1,1,1,1,1,1,1,3,0,0},
-    {0,3,1,1,1,1,1,1,1,1,1,1,1,1,3,0},
-    {3,1,1,1,1,1,1,1,1,1,1,1,1,1,1,3},
-    {3,1,1,2,2,1,1,1,1,2,2,1,1,1,1,3},
-    {3,1,1,2,2,1,1,1,1,2,2,1,1,1,1,3},
-    {3,1,1,2,2,1,1,1,1,2,2,1,1,1,1,3},
-    {3,1,1,2,2,1,1,1,1,2,2,1,1,1,1,3},
-    {3,1,1,2,2,1,1,1,1,2,2,1,1,1,1,3},
-    {3,1,1,2,2,2,1,1,2,2,2,1,1,1,1,3},
-    {3,1,1,1,2,2,2,2,2,2,2,1,1,1,1,3},
-    {3,1,1,1,1,2,2,2,2,1,2,2,1,1,1,3},
-    {3,1,1,1,1,1,1,1,1,1,2,2,1,1,1,3},
-    {0,3,1,1,1,1,1,1,1,1,2,2,1,1,3,0},
-    {0,0,3,1,1,1,1,1,1,1,1,1,1,3,0,0},
-    {0,0,0,3,3,3,3,3,3,3,3,3,3,0,0,0}
-};
 
 DeskbarReplicant::DeskbarReplicant(BRect frame, const char* name)
     : BView(frame, name, B_FOLLOW_ALL, B_WILL_DRAW),
@@ -67,53 +49,51 @@ void DeskbarReplicant::Init()
 
 void DeskbarReplicant::CreateIcons()
 {
-    // Create 16x16 RGBA icons with μ symbol
+    // Create 16x16 RGBA icons
     BRect iconRect(0, 0, 15, 15);
 
     fConnectedIcon = new BBitmap(iconRect, B_RGBA32);
     fDisconnectedIcon = new BBitmap(iconRect, B_RGBA32);
 
-    uint32* connBits = (uint32*)fConnectedIcon->Bits();
-    uint32* discBits = (uint32*)fDisconnectedIcon->Bits();
+    // Try to load HVIF icon from app resources
+    entry_ref ref;
+    if (be_roster->FindApp("application/x-vnd.softKM", &ref) == B_OK) {
+        BFile file(&ref, B_READ_ONLY);
+        BResources resources(&file);
 
-    // Colors as 0xAARRGGBB (B_RGBA32 on little-endian stores B,G,R,A in memory)
-    // Connected: Green background with white μ symbol (matching macOS icon #54C784)
-    uint32 connBg      = 0xFF54C784;  // Green background #54C784
-    uint32 connBorder  = 0xFF327749;  // Darker green border
-    uint32 connSymbol  = 0xFFFFFFFF;  // White μ symbol
+        size_t size;
+        const void* data = resources.LoadResource(B_VECTOR_ICON_TYPE, "BEOS:ICON", &size);
 
-    // Disconnected: Gray background with light gray μ symbol
-    uint32 discBg      = 0xFF888888;  // Gray background
-    uint32 discBorder  = 0xFF666666;  // Darker gray border
-    uint32 discSymbol  = 0xFFDDDDDD;  // Light gray μ symbol
+        if (data != nullptr && size > 0) {
+            // Render connected icon (full color)
+            BIconUtils::GetVectorIcon((const uint8*)data, size, fConnectedIcon);
 
-    uint32 transparent = 0x00000000;
+            // Render disconnected icon, then convert to grayscale
+            BIconUtils::GetVectorIcon((const uint8*)data, size, fDisconnectedIcon);
 
-    for (int y = 0; y < 16; y++) {
-        for (int x = 0; x < 16; x++) {
-            int idx = y * 16 + x;
-            uint8 pattern = kIconPattern[y][x];
+            // Convert disconnected icon to grayscale
+            uint8* bits = (uint8*)fDisconnectedIcon->Bits();
+            int32 length = fDisconnectedIcon->BitsLength();
 
-            switch (pattern) {
-                case 0:  // Transparent
-                    connBits[idx] = transparent;
-                    discBits[idx] = transparent;
-                    break;
-                case 1:  // Background
-                    connBits[idx] = connBg;
-                    discBits[idx] = discBg;
-                    break;
-                case 2:  // Symbol (μ)
-                    connBits[idx] = connSymbol;
-                    discBits[idx] = discSymbol;
-                    break;
-                case 3:  // Border
-                    connBits[idx] = connBorder;
-                    discBits[idx] = discBorder;
-                    break;
+            for (int32 i = 0; i < length; i += 4) {
+                // B_RGBA32: bytes are B, G, R, A
+                uint8 b = bits[i];
+                uint8 g = bits[i + 1];
+                uint8 r = bits[i + 2];
+                // Luminance formula
+                uint8 gray = (uint8)(0.299 * r + 0.587 * g + 0.114 * b);
+                bits[i] = gray;
+                bits[i + 1] = gray;
+                bits[i + 2] = gray;
+                // Alpha stays the same
             }
+            return;
         }
     }
+
+    // Fallback: solid color icons if HVIF loading fails
+    memset(fConnectedIcon->Bits(), 0x54, fConnectedIcon->BitsLength());
+    memset(fDisconnectedIcon->Bits(), 0x88, fDisconnectedIcon->BitsLength());
 }
 
 void DeskbarReplicant::AttachedToWindow()
