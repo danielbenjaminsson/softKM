@@ -132,7 +132,7 @@ jobs:
         id: macos_dmg
 
       - name: Deploy to Haiku
-        if: steps.changes.outputs.haiku_changed != '0' || github.event_name == 'workflow_dispatch'
+        if: (steps.changes.outputs.haiku_changed != '0' || github.event_name == 'workflow_dispatch') && steps.changes.outputs.is_release != 'true'
         run: |
           ssh -o StrictHostKeyChecking=no $HAIKU_USER@$HAIKU_HOST << 'ENDSSH'
             set -e
@@ -225,7 +225,24 @@ jobs:
 
           ssh -o StrictHostKeyChecking=no $HAIKU_USER@$HAIKU_HOST << ENDSSH
             set -e
-            cd /Data/Code/Projects/softKM/HaikuOS
+            echo "=== Building Haiku release package ==="
+
+            cd /Data/Code/Projects/softKM
+
+            # Fetch and checkout the tag
+            git fetch origin --tags
+            git checkout -f v${VERSION}
+
+            # Build the app
+            cd HaikuOS
+            make clean
+            make
+
+            # Build addons
+            cd addon
+            make clean
+            make
+            cd ..
 
             # Update .PackageInfo with correct version
             sed -i "s/^version.*/version\t\t\t${VERSION}-${BUILD_NUMBER}/" .PackageInfo
