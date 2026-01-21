@@ -1,0 +1,16 @@
+name			softKM
+version			1.0.0-1
+architecture		x86_64
+summary			"Software Keyboard/Mouse Switch for Haiku"
+description		"Share keyboard and mouse input between macOS and Haiku OS computers over a network. Move your mouse to the screen edge to seamlessly switch control between computers."
+packager		"Daniel Benjaminsson <daniel@microgeni.se>"
+vendor			"Microgeni AB"
+copyrights		"2025 Microgeni AB"
+licenses		MIT
+provides {
+	softKM = 1.0.0-1
+	app:softKM = 1.0.0-1
+}
+requires {
+	haiku >= r1~beta4
+}

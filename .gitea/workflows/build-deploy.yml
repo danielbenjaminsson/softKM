@@ -5,6 +5,8 @@ on:
     branches:
       - main
       - dev
+    tags:
+      - 'v*'
   pull_request:
     branches:
       - main
@@ -28,31 +30,52 @@ jobs:
       - name: Check for changes
         id: changes
         run: |
-          # Check what directories have changes
-          MACOS_CHANGED=$(git diff --name-only HEAD~1 -- MacOS/ 2>/dev/null | wc -l | tr -d ' ')
-          HAIKU_CHANGED=$(git diff --name-only HEAD~1 -- HaikuOS/ 2>/dev/null | wc -l | tr -d ' ')
+          # Check if this is a release (tag push)
+          IS_RELEASE="false"
+          VERSION=""
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            IS_RELEASE="true"
+            VERSION="${{ github.ref_name }}"
+            VERSION="${VERSION#v}"  # Remove 'v' prefix
+            echo "Release build: version $VERSION"
+          fi
+          echo "is_release=$IS_RELEASE" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-          # If workflow file changed, build both
-          WORKFLOW_CHANGED=$(git diff --name-only HEAD~1 -- .gitea/workflows/ 2>/dev/null | wc -l | tr -d ' ')
-
-          if [ "$WORKFLOW_CHANGED" -gt 0 ]; then
+          # For releases, always build both platforms
+          if [ "$IS_RELEASE" = "true" ]; then
             MACOS_CHANGED=1
             HAIKU_CHANGED=1
+          else
+            # Check what directories have changes
+            MACOS_CHANGED=$(git diff --name-only HEAD~1 -- MacOS/ 2>/dev/null | wc -l | tr -d ' ')
+            HAIKU_CHANGED=$(git diff --name-only HEAD~1 -- HaikuOS/ 2>/dev/null | wc -l | tr -d ' ')
+
+            # If workflow file changed, build both
+            WORKFLOW_CHANGED=$(git diff --name-only HEAD~1 -- .gitea/workflows/ 2>/dev/null | wc -l | tr -d ' ')
+
+            if [ "$WORKFLOW_CHANGED" -gt 0 ]; then
+              MACOS_CHANGED=1
+              HAIKU_CHANGED=1
+            fi
           fi
 
           echo "macos_changed=$MACOS_CHANGED" >> $GITHUB_OUTPUT
           echo "haiku_changed=$HAIKU_CHANGED" >> $GITHUB_OUTPUT
           echo "branch=${{ github.ref_name }}" >> $GITHUB_OUTPUT
-          echo "MacOS changes: $MACOS_CHANGED, Haiku changes: $HAIKU_CHANGED, Branch: ${{ github.ref_name }}"
+          echo "MacOS changes: $MACOS_CHANGED, Haiku changes: $HAIKU_CHANGED, Branch: ${{ github.ref_name }}, Release: $IS_RELEASE"
 
       - name: Build macOS App
         if: steps.changes.outputs.macos_changed != '0' || github.event_name == 'workflow_dispatch'
         run: |
           cd MacOS
+          BUILD_NUMBER="${{ github.run_number }}"
+          echo "Building with build number: $BUILD_NUMBER"
           xcodebuild -project softKM.xcodeproj \
             -scheme softKM \
             -configuration Release \
             -derivedDataPath build \
+            CURRENT_PROJECT_VERSION=$BUILD_NUMBER \
             clean build
 
       - name: Install macOS App
@@ -74,10 +97,39 @@ jobs:
           fi
 
       - name: Launch macOS App
-        if: steps.changes.outputs.macos_changed != '0' || github.event_name == 'workflow_dispatch'
+        if: (steps.changes.outputs.macos_changed != '0' || github.event_name == 'workflow_dispatch') && steps.changes.outputs.is_release != 'true'
         run: |
           open /Applications/softKM.app
           echo "macOS app launched"
+
+      - name: Create macOS DMG
+        if: steps.changes.outputs.is_release == 'true'
+        run: |
+          VERSION="${{ steps.changes.outputs.version }}"
+          APP_PATH="MacOS/build/Build/Products/Release/softKM.app"
+          DMG_NAME="softKM-${VERSION}-macOS.dmg"
+
+          echo "Creating DMG: $DMG_NAME"
+
+          # Create a temporary directory for the DMG contents
+          mkdir -p dmg_contents
+          cp -R "$APP_PATH" dmg_contents/
+          ln -s /Applications dmg_contents/Applications
+
+          # Create the DMG
+          hdiutil create -volname "softKM $VERSION" \
+            -srcfolder dmg_contents \
+            -ov -format UDZO \
+            "$DMG_NAME"
+
+          rm -rf dmg_contents
+
+          echo "DMG created: $DMG_NAME"
+          ls -la "$DMG_NAME"
+
+          # Store DMG path for later upload
+          echo "dmg_path=$DMG_NAME" >> $GITHUB_OUTPUT
+        id: macos_dmg
 
       - name: Deploy to Haiku
         if: steps.changes.outputs.haiku_changed != '0' || github.event_name == 'workflow_dispatch'
@@ -162,31 +214,114 @@ jobs:
             echo "=== Deployment complete ==="
           ENDSSH
 
+      - name: Create Haiku HPKG
+        if: steps.changes.outputs.is_release == 'true'
+        run: |
+          VERSION="${{ steps.changes.outputs.version }}"
+          BUILD_NUMBER="${{ github.run_number }}"
+          HPKG_NAME="softKM-${VERSION}-haiku-x86_64.hpkg"
+
+          echo "Creating HPKG: $HPKG_NAME"
+
+          ssh -o StrictHostKeyChecking=no $HAIKU_USER@$HAIKU_HOST << ENDSSH
+            set -e
+            cd /Data/Code/Projects/softKM/HaikuOS
+
+            # Update .PackageInfo with correct version
+            sed -i "s/^version.*/version\t\t\t${VERSION}-${BUILD_NUMBER}/" .PackageInfo
+            sed -i "s/softKM = .*/softKM = ${VERSION}-${BUILD_NUMBER}/" .PackageInfo
+            sed -i "s/app:softKM = .*/app:softKM = ${VERSION}-${BUILD_NUMBER}/" .PackageInfo
+
+            # Create package directory structure
+            rm -rf package_temp
+            mkdir -p package_temp/apps
+            mkdir -p package_temp/add-ons/input_server/devices
+
+            # Copy built files
+            BINARY=\$(find objects.* -name "softKM" -type f 2>/dev/null | head -1)
+            cp "\$BINARY" package_temp/apps/
+
+            # Copy addons
+            KEYBOARD_ADDON=\$(find addon/objects.* -name "SoftKMKeyboard" -type f 2>/dev/null | head -1)
+            MOUSE_ADDON=\$(find addon/objects.* -name "SoftKMMouse" -type f 2>/dev/null | head -1)
+            if [ -n "\$KEYBOARD_ADDON" ]; then
+              cp "\$KEYBOARD_ADDON" package_temp/add-ons/input_server/devices/
+            fi
+            if [ -n "\$MOUSE_ADDON" ]; then
+              cp "\$MOUSE_ADDON" package_temp/add-ons/input_server/devices/
+            fi
+
+            # Copy .PackageInfo
+            cp .PackageInfo package_temp/
+
+            # Create HPKG
+            cd package_temp
+            package create -b ../${HPKG_NAME}
+            cd ..
+
+            echo "HPKG created: ${HPKG_NAME}"
+            ls -la ${HPKG_NAME}
+
+            rm -rf package_temp
+          ENDSSH
+
+          # Copy HPKG back to runner
+          scp -o StrictHostKeyChecking=no $HAIKU_USER@$HAIKU_HOST:/Data/Code/Projects/softKM/HaikuOS/${HPKG_NAME} .
+
+          echo "HPKG downloaded: $HPKG_NAME"
+          ls -la "$HPKG_NAME"
+
+          echo "hpkg_path=$HPKG_NAME" >> $GITHUB_OUTPUT
+        id: haiku_hpkg
+
+      - name: Upload Release Artifacts
+        if: steps.changes.outputs.is_release == 'true'
+        run: |
+          VERSION="${{ steps.changes.outputs.version }}"
+          echo "=== Release Artifacts for v$VERSION ==="
+
+          # List artifacts
+          ls -la *.dmg *.hpkg 2>/dev/null || echo "No artifacts found"
+
+          # Note: Gitea will automatically attach these as release assets
+          # when using gitea-release-action or manual upload
+
       - name: Summary
         if: always()
         run: |
           echo "=== Build Summary ==="
-          echo "Branch: ${{ github.ref_name }}"
+          echo "Ref: ${{ github.ref_name }}"
+          echo "Build Number: ${{ github.run_number }}"
+
+          IS_RELEASE="${{ steps.changes.outputs.is_release }}"
+          if [ "$IS_RELEASE" = "true" ]; then
+            echo "Type: RELEASE v${{ steps.changes.outputs.version }}"
+          else
+            echo "Type: Development build"
+          fi
 
           MACOS_CHANGES="${{ steps.changes.outputs.macos_changed != '0' }}"
           HAIKU_CHANGES="${{ steps.changes.outputs.haiku_changed != '0' }}"
 
           if [ "$MACOS_CHANGES" = "true" ]; then
-            echo "macOS: Built and installed"
+            if [ "$IS_RELEASE" = "true" ]; then
+              echo "macOS: Built and packaged (DMG)"
+            else
+              echo "macOS: Built and installed"
+            fi
           else
             echo "macOS: Skipped (no changes)"
           fi
 
           if [ "$HAIKU_CHANGES" = "true" ]; then
-            echo "Haiku: Built and deployed"
+            if [ "$IS_RELEASE" = "true" ]; then
+              echo "Haiku: Built and packaged (HPKG)"
+            else
+              echo "Haiku: Built and deployed"
+            fi
           else
             echo "Haiku: Skipped (no changes)"
           fi
 
-          if [ "$MACOS_CHANGES" = "false" ] && [ "$HAIKU_CHANGES" = "false" ]; then
-            echo ""
-            echo "Status: No builds performed (no relevant changes detected)"
-          else
-            echo ""
-            echo "Status: ${{ job.status }}"
-          fi
+          echo ""
+          echo "Status: ${{ job.status }}"

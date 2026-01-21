@@ -8,7 +8,7 @@ resource app_version {
     major  = 1,
     middle = 0,
     minor  = 0,
-    variety = B_APPV_ALPHA,
+    variety = B_APPV_FINAL,
     internal = 0,
     short_info = "softKM",
     long_info = "Software Keyboard/Mouse Switch for Haiku"
