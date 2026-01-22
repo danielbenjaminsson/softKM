@@ -428,6 +428,27 @@ jobs:
 
           echo "=== Creating Release $TAG ==="
 
+          # Generate release notes from commits since last tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            echo "Generating release notes from $PREV_TAG to $TAG"
+            COMMITS=$(git log --pretty=format:"- %s" "$PREV_TAG"..HEAD --no-merges | grep -v "Co-Authored-By" | head -50)
+          else
+            echo "No previous tag found, using all commits"
+            COMMITS=$(git log --pretty=format:"- %s" --no-merges | grep -v "Co-Authored-By" | head -50)
+          fi
+
+          # Build release body
+          RELEASE_BODY="## What's Changed
+${COMMITS}
+
+## Downloads
+- **macOS**: softKM-${VERSION}-macOS.dmg (signed and notarized)
+- **Haiku**: softKM-${VERSION}-haiku-x86_64.hpkg"
+
+          # Escape for JSON
+          RELEASE_BODY_JSON=$(echo "$RELEASE_BODY" | jq -Rs .)
+
           # Check if release already exists and delete it
           EXISTING_RELEASE=$(curl -s -H "Authorization: token $RELEASE_TOKEN" \
             "$API_URL/repos/$REPO/releases/tags/$TAG")
@@ -445,7 +466,7 @@ jobs:
           RELEASE_RESPONSE=$(curl -s -X POST \
             -H "Authorization: token $RELEASE_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"tag_name\": \"$TAG\", \"target_commitish\": \"${{ github.sha }}\", \"name\": \"softKM $VERSION\", \"body\": \"## Downloads\\n- **macOS**: softKM-${VERSION}-macOS.dmg (signed and notarized)\\n- **Haiku**: softKM-${VERSION}-haiku-x86_64.hpkg\", \"draft\": false, \"prerelease\": false}" \
+            -d "{\"tag_name\": \"$TAG\", \"target_commitish\": \"${{ github.sha }}\", \"name\": \"softKM $VERSION\", \"body\": $RELEASE_BODY_JSON, \"draft\": false, \"prerelease\": false}" \
             "$API_URL/repos/$REPO/releases")
 
           echo "Release response: $RELEASE_RESPONSE"
