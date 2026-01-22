@@ -196,6 +196,11 @@ jobs:
           echo "DMG created and signed: $DMG_NAME"
           ls -la "$DMG_NAME"
 
+          # Generate checksum
+          DMG_SHA256=$(shasum -a 256 "$DMG_NAME" | cut -d' ' -f1)
+          echo "DMG SHA256: $DMG_SHA256"
+          echo "dmg_sha256=$DMG_SHA256" >> $GITHUB_OUTPUT
+
           # Store DMG path for later upload
           echo "dmg_path=$DMG_NAME" >> $GITHUB_OUTPUT
         id: macos_dmg
@@ -447,6 +452,11 @@ jobs:
           echo "HPKG downloaded: $HPKG_NAME"
           ls -la "$HPKG_NAME"
 
+          # Generate and verify checksum
+          HPKG_SHA256=$(shasum -a 256 "$HPKG_NAME" | cut -d' ' -f1)
+          echo "HPKG SHA256: $HPKG_SHA256"
+          echo "hpkg_sha256=$HPKG_SHA256" >> $GITHUB_OUTPUT
+
           echo "hpkg_path=$HPKG_NAME" >> $GITHUB_OUTPUT
         id: haiku_hpkg
 
@@ -481,6 +491,10 @@ jobs:
           # Ensure commits file exists
           touch /tmp/commits.txt
 
+          # Get checksums from previous steps
+          DMG_SHA256="${{ steps.macos_dmg.outputs.dmg_sha256 }}"
+          HPKG_SHA256="${{ steps.haiku_hpkg.outputs.hpkg_sha256 }}"
+
           # Build release body in temp file
           echo "## What's Changed" > /tmp/release_body.txt
           cat /tmp/commits.txt >> /tmp/release_body.txt
@@ -488,6 +502,12 @@ jobs:
           echo "## Downloads" >> /tmp/release_body.txt
           echo "- **macOS**: softKM-${VERSION}-macOS.dmg (signed and notarized)" >> /tmp/release_body.txt
           echo "- **Haiku**: softKM-${VERSION}-haiku-x86_64.hpkg" >> /tmp/release_body.txt
+          echo "" >> /tmp/release_body.txt
+          echo "## Checksums (SHA256)" >> /tmp/release_body.txt
+          echo "\`\`\`" >> /tmp/release_body.txt
+          echo "${DMG_SHA256}  softKM-${VERSION}-macOS.dmg" >> /tmp/release_body.txt
+          echo "${HPKG_SHA256}  softKM-${VERSION}-haiku-x86_64.hpkg" >> /tmp/release_body.txt
+          echo "\`\`\`" >> /tmp/release_body.txt
 
           # Convert to JSON
           RELEASE_BODY_JSON=$(cat /tmp/release_body.txt | jq -Rs .)
