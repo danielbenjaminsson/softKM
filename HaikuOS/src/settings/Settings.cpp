@@ -47,12 +47,11 @@ void Settings::Load()
         sAutoStart = autoStart;
     }
 
-    bool gameMode;
-    if (settings.FindBool("gameMode", &gameMode) == B_OK) {
-        sGameMode = gameMode;
-    }
+    // Note: gameMode is intentionally not loaded - always starts as false
+    // User must enable it each session for safety (normal apps work better without it)
+    sGameMode = false;
 
-    printf("Settings loaded: port=%d, autoStart=%d, gameMode=%d\n", sPort, sAutoStart, sGameMode);
+    printf("Settings loaded: port=%d, autoStart=%d, gameMode=%d (always false on start)\n", sPort, sAutoStart, sGameMode);
 }
 
 void Settings::Save()
