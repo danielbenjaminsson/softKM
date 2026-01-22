@@ -14,7 +14,7 @@ resource app_version {
     long_info = "Software Keyboard/Mouse Switch for Haiku"
 };
 
-resource app_flags B_SINGLE_LAUNCH;
+resource app_flags B_SINGLE_LAUNCH | B_BACKGROUND_APP;
 
 resource file_types message {
     "types" = "application/x-vnd.softKM"
