@@ -116,6 +116,9 @@ jobs:
           if [ "$IS_RELEASE" = "true" ] && [ -n "$VERSION" ]; then
             echo "Building release version: $VERSION (build $BUILD_NUMBER)"
             VERSION_FLAG="MARKETING_VERSION=$VERSION"
+
+            # Change default host address for public release
+            sed -i '' 's/taurus.microgeni.synology.me/enter computer hostname/' softKM/Settings/SettingsManager.swift
           else
             echo "Building dev version (build $BUILD_NUMBER)"
             VERSION_FLAG=""
