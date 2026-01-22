@@ -377,14 +377,7 @@ void InputInjector::InjectKeyDown(uint32 keyCode, uint32 modifiers,
 
     uint32 haikuKey = TranslateKeyCode(keyCode);
     fCurrentModifiers = modifiers;
-
-    // Log bytes for debugging
-    char bytesHex[64] = {0};
-    for (int i = 0; i < numBytes && i < 10; i++) {
-        snprintf(bytesHex + i*3, 4, "%02X ", (uint8)bytes[i]);
-    }
-    LOG("KeyDown: mac=0x%02X haiku=0x%02X mods=0x%02X numBytes=%d bytes=[%s]",
-        keyCode, haikuKey, modifiers, numBytes, bytesHex);
+    // Note: Removed per-key logging for performance
 
     BMessage msg(SOFTKM_INJECT_KEY_DOWN);
     msg.AddInt32("key", haikuKey);
@@ -399,11 +392,9 @@ void InputInjector::InjectKeyDown(uint32 keyCode, uint32 modifiers,
         memcpy(str, bytes, len);
         str[len] = '\0';
         msg.AddString("bytes", str);
-        LOG("  -> Sending raw_char=0x%02X bytes=[0x%02X]", (uint8)bytes[0], (uint8)str[0]);
     } else {
         msg.AddInt32("raw_char", 0);
         msg.AddString("bytes", "");
-        LOG("  -> No bytes to send");
     }
 
     // Send through keyboard add-on
@@ -437,8 +428,7 @@ void InputInjector::InjectMouseMove(float x, float y, bool relative, uint32 modi
 
     fCurrentModifiers = modifiers;
     UpdateMousePosition(x, y, relative);
-    LOG("MouseMove: rel=%d pos=(%.1f,%.1f) mods=0x%08X",
-        relative, fMousePosition.x, fMousePosition.y, modifiers);
+    // Note: Removed per-move logging for performance (was causing lag in games)
 
     // Send through mouse addon so B_MOUSE_MOVED includes modifiers
     // (needed for Stack and Tile window grouping with Option key)

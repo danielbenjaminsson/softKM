@@ -16,7 +16,9 @@
 #include <stdarg.h>
 #include <math.h>
 
-// Debug logging to file
+// Debug logging - disabled for performance
+// Enable by setting SOFTKM_DEBUG=1
+#ifdef SOFTKM_DEBUG
 static void DebugLog(const char* fmt, ...) {
     FILE* f = fopen("/boot/home/softKM_mouse.log", "a");
     if (f) {
@@ -31,6 +33,9 @@ static void DebugLog(const char* fmt, ...) {
         fclose(f);
     }
 }
+#else
+#define DebugLog(...) ((void)0)
+#endif
 
 // Message codes for communication with main app
 enum {
