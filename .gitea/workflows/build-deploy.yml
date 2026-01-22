@@ -550,14 +550,21 @@ jobs:
 
             # Upload Haiku HPKG
             HPKG_FILE="softKM-${VERSION}-haiku-x86_64.hpkg"
+            echo "Looking for HPKG: $HPKG_FILE"
+            echo "Current directory: $(pwd)"
+            ls -la *.hpkg 2>/dev/null || echo "No .hpkg files in current directory"
+            ls -la "$HPKG_FILE" 2>/dev/null || echo "HPKG file not found at $HPKG_FILE"
             if [ -f "$HPKG_FILE" ]; then
-              echo "Uploading $HPKG_FILE..."
-              curl -s -X POST \
+              FILE_SIZE=$(stat -f%z "$HPKG_FILE" 2>/dev/null || stat -c%s "$HPKG_FILE" 2>/dev/null)
+              echo "Uploading $HPKG_FILE ($FILE_SIZE bytes)..."
+              UPLOAD_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST \
                 -H "Authorization: token $RELEASE_TOKEN" \
                 -H "Content-Type: application/octet-stream" \
                 --data-binary @"$HPKG_FILE" \
-                "$API_URL/repos/$REPO/releases/$RELEASE_ID/assets?name=$HPKG_FILE"
-              echo "Uploaded $HPKG_FILE"
+                "$API_URL/repos/$REPO/releases/$RELEASE_ID/assets?name=$HPKG_FILE")
+              echo "Upload response: $UPLOAD_RESPONSE"
+            else
+              echo "ERROR: HPKG file not found!"
             fi
 
             echo "=== Release published: $TAG ==="
