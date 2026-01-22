@@ -440,6 +440,14 @@ void InputInjector::InjectMouseMove(float x, float y, bool relative, uint32 modi
         float centerX = frame.Width() / 2;
         float centerY = frame.Height() / 2;
         positionToSend.Set(centerX + x, centerY + y);
+
+        // Debug: log deltas periodically
+        static int logCount = 0;
+        if (++logCount >= 100) {
+            LOG("GameMode delta: x=%.2f y=%.2f -> pos=(%.0f,%.0f)",
+                x, y, positionToSend.x, positionToSend.y);
+            logCount = 0;
+        }
     } else {
         // Normal mode: track absolute position
         UpdateMousePosition(x, y, relative);
