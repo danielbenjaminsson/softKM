@@ -65,6 +65,17 @@ jobs:
           echo "branch=${{ github.ref_name }}" >> $GITHUB_OUTPUT
           echo "MacOS changes: $MACOS_CHANGED, Haiku changes: $HAIKU_CHANGED, Branch: ${{ github.ref_name }}, Release: $IS_RELEASE"
 
+      - name: Setup Keychain
+        if: steps.changes.outputs.macos_changed != '0' || github.event_name == 'workflow_dispatch'
+        run: |
+          # Unlock keychain for code signing
+          security unlock-keychain -p "" ~/Library/Keychains/login.keychain-db 2>/dev/null || true
+          security set-keychain-settings -lut 3600 ~/Library/Keychains/login.keychain-db
+
+          # List available signing identities
+          echo "Available signing identities:"
+          security find-identity -v -p codesigning
+
       - name: Build macOS App
         if: steps.changes.outputs.macos_changed != '0' || github.event_name == 'workflow_dispatch'
         run: |
