@@ -438,13 +438,8 @@ jobs:
             COMMITS=$(git log --pretty=format:"- %s" --no-merges | grep -v "Co-Authored-By" | head -50)
           fi
 
-          # Build release body
-          RELEASE_BODY="## What's Changed
-${COMMITS}
-
-## Downloads
-- **macOS**: softKM-${VERSION}-macOS.dmg (signed and notarized)
-- **Haiku**: softKM-${VERSION}-haiku-x86_64.hpkg"
+          # Build release body (use printf to avoid YAML parsing issues)
+          RELEASE_BODY=$(printf "## What's Changed\n%s\n\n## Downloads\n- **macOS**: softKM-%s-macOS.dmg (signed and notarized)\n- **Haiku**: softKM-%s-haiku-x86_64.hpkg" "$COMMITS" "$VERSION" "$VERSION")
 
           # Escape for JSON
           RELEASE_BODY_JSON=$(echo "$RELEASE_BODY" | jq -Rs .)
