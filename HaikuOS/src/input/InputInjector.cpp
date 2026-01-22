@@ -430,28 +430,25 @@ void InputInjector::InjectMouseMove(float x, float y, bool relative, uint32 modi
     fCurrentModifiers = modifiers;
     bool gameMode = Settings::GetGameMode();
 
-    // Log game mode state periodically (every 500 events)
-    static int logCounter = 0;
-    if (++logCounter >= 500) {
-        LOG("GameMode=%d relative=%d delta=(%.1f,%.1f)", gameMode, relative, x, y);
-        logCounter = 0;
-    }
+    // Always track absolute position
+    UpdateMousePosition(x, y, relative);
 
     BPoint positionToSend;
 
-    if (gameMode && relative) {
-        // Game mode: SDL calculates delta as (event_pos - window_center)
-        // For fullscreen games, window center ≈ screen center
-        // Send: screen_center + delta, so SDL gets correct delta
+    // In game mode, detect if we're in SDL relative mouse mode by checking cursor visibility
+    // SDL hides cursor when in relative mode, shows it in menus
+    bool cursorHidden = be_app->IsCursorHidden();
+
+    if (gameMode && cursorHidden && relative) {
+        // SDL relative mode: cursor hidden, SDL warps to center and calculates delta
+        // Send: screen_center + delta, so SDL calculates correct delta
         BScreen screen;
         BRect frame = screen.Frame();
         float centerX = frame.Width() / 2;
         float centerY = frame.Height() / 2;
         positionToSend.Set(centerX + x, centerY + y);
-        // Don't accumulate position in game mode - each event is independent
     } else {
-        // Normal mode: track absolute position
-        UpdateMousePosition(x, y, relative);
+        // Normal mode or game menus: use absolute position
         positionToSend = fMousePosition;
     }
 
@@ -462,10 +459,10 @@ void InputInjector::InjectMouseMove(float x, float y, bool relative, uint32 modi
     msg.AddInt32("modifiers", modifiers);
     SendToMouseAddon(&msg);
 
-    // Update system cursor position directly
-    // Skip in game mode - SDL games manage cursor position themselves
-    // and calling set_mouse_position conflicts with relative mouse mode
-    if (fCurrentButtons == 0 && !gameMode) {
+    // Update system cursor position
+    // In game mode with hidden cursor (SDL relative mode), skip - SDL manages cursor
+    // Otherwise, update cursor position for normal apps and game menus
+    if (fCurrentButtons == 0 && !(gameMode && cursorHidden)) {
         set_mouse_position((int32)fMousePosition.x, (int32)fMousePosition.y);
     }
 
