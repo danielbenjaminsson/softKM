@@ -237,10 +237,19 @@ void SoftKMMouse::_ProcessMessage(BMessage* msg)
         {
             BPoint where;
             if (msg->FindPoint("where", &where) == B_OK) {
+                int32 buttons = msg->GetInt32("buttons", 0);
+
+                // Update system cursor position
+                // Only when not dragging to avoid interfering with drag operations
+                if (buttons == 0) {
+                    set_mouse_position((int32)where.x, (int32)where.y);
+                }
+
+                // Send B_MOUSE_MOVED event to applications
                 event = new BMessage(B_MOUSE_MOVED);
                 event->AddInt64("when", system_time());
                 event->AddPoint("where", where);
-                event->AddInt32("buttons", msg->GetInt32("buttons", 0));
+                event->AddInt32("buttons", buttons);
                 event->AddInt32("modifiers", msg->GetInt32("modifiers", 0));
             }
             break;
