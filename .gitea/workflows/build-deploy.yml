@@ -136,7 +136,7 @@ jobs:
             clean build
 
       - name: Install macOS App
-        if: steps.changes.outputs.macos_changed != '0' || github.event_name == 'workflow_dispatch'
+        if: (steps.changes.outputs.macos_changed != '0' || github.event_name == 'workflow_dispatch') && steps.changes.outputs.is_release != 'true'
         run: |
           APP_PATH="MacOS/build/Build/Products/Release/softKM.app"
           if [ -d "$APP_PATH" ]; then
