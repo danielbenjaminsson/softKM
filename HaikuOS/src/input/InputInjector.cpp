@@ -430,13 +430,18 @@ void InputInjector::InjectMouseMove(float x, float y, bool relative, uint32 modi
     UpdateMousePosition(x, y, relative);
     // Note: Removed per-move logging for performance (was causing lag in games)
 
-    // Send all mouse movement through the addon for consistent input pipeline
-    // The addon will handle both cursor positioning and B_MOUSE_MOVED events
+    // Send B_MOUSE_MOVED event through addon for applications
     BMessage msg(SOFTKM_INJECT_MOUSE_MOVE);
     msg.AddPoint("where", fMousePosition);
     msg.AddInt32("buttons", fCurrentButtons);
     msg.AddInt32("modifiers", modifiers);
     SendToMouseAddon(&msg);
+
+    // Update system cursor position directly
+    // (set_mouse_position isn't available in input_server addon context)
+    if (fCurrentButtons == 0) {
+        set_mouse_position((int32)fMousePosition.x, (int32)fMousePosition.y);
+    }
 
     // Edge detection for switching back to macOS
     const float kEdgeThreshold = 5.0f;
