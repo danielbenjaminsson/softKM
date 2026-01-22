@@ -430,6 +430,13 @@ void InputInjector::InjectMouseMove(float x, float y, bool relative, uint32 modi
     fCurrentModifiers = modifiers;
     bool gameMode = Settings::GetGameMode();
 
+    // Log game mode state periodically (every 500 events)
+    static int logCounter = 0;
+    if (++logCounter >= 500) {
+        LOG("GameMode=%d relative=%d delta=(%.1f,%.1f)", gameMode, relative, x, y);
+        logCounter = 0;
+    }
+
     BPoint positionToSend;
 
     if (gameMode && relative) {
