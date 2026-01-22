@@ -238,11 +238,17 @@ void SoftKMApp::ShowAbout()
     version_info versionInfo;
     char versionString[256] = "";
     if (appFileInfo.GetVersionInfo(&versionInfo, B_APP_VERSION_KIND) == B_OK) {
-        snprintf(versionString, sizeof(versionString), "Version %lu.%lu.%lu (%lu)",
-            (unsigned long)versionInfo.major,
-            (unsigned long)versionInfo.middle,
-            (unsigned long)versionInfo.minor,
-            (unsigned long)versionInfo.internal);
+        // Dev builds have default version 1.0.0, just show build number
+        if (versionInfo.major == 1 && versionInfo.middle == 0 && versionInfo.minor == 0) {
+            snprintf(versionString, sizeof(versionString), "Build %lu",
+                (unsigned long)versionInfo.internal);
+        } else {
+            snprintf(versionString, sizeof(versionString), "Version %lu.%lu.%lu (%lu)",
+                (unsigned long)versionInfo.major,
+                (unsigned long)versionInfo.middle,
+                (unsigned long)versionInfo.minor,
+                (unsigned long)versionInfo.internal);
+        }
     }
 
     const char* authors[] = {
