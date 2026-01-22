@@ -264,6 +264,7 @@ jobs:
             git fetch origin
             git checkout -f ${{ github.ref_name }} || git checkout -b ${{ github.ref_name }} origin/${{ github.ref_name }}
             git reset --hard origin/${{ github.ref_name }}
+            git clean -fd  # Remove untracked files to ensure clean state
 
             echo "Stopping existing softKM..."
             for pid in $(ps | grep softKM | grep -v grep | awk '{print $2}'); do
