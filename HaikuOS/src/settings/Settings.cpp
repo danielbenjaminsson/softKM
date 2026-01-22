@@ -10,7 +10,6 @@
 // Default values
 uint16 Settings::sPort = 31337;  // leet!
 bool Settings::sAutoStart = false;
-bool Settings::sGameMode = false;
 
 static const char* kSettingsFileName = "softKM_settings";
 
@@ -47,11 +46,7 @@ void Settings::Load()
         sAutoStart = autoStart;
     }
 
-    // Note: gameMode is intentionally not loaded - always starts as false
-    // User must enable it each session for safety (normal apps work better without it)
-    sGameMode = false;
-
-    printf("Settings loaded: port=%d, autoStart=%d, gameMode=%d (always false on start)\n", sPort, sAutoStart, sGameMode);
+    printf("Settings loaded: port=%d, autoStart=%d\n", sPort, sAutoStart);
 }
 
 void Settings::Save()
@@ -69,12 +64,11 @@ void Settings::Save()
     BMessage settings;
     settings.AddUInt16("port", sPort);
     settings.AddBool("autoStart", sAutoStart);
-    settings.AddBool("gameMode", sGameMode);
 
     if (settings.Flatten(&file) != B_OK) {
         fprintf(stderr, "Failed to write settings\n");
         return;
     }
 
-    printf("Settings saved: port=%d, autoStart=%d, gameMode=%d\n", sPort, sAutoStart, sGameMode);
+    printf("Settings saved: port=%d, autoStart=%d\n", sPort, sAutoStart);
 }

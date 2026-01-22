@@ -2,7 +2,6 @@
 #include "../network/NetworkServer.h"
 #include "../network/Protocol.h"
 #include "../Logger.h"
-#include "../settings/Settings.h"
 #include "../ui/TeamMonitorWindow.h"
 
 #include <Application.h>
@@ -16,7 +15,6 @@
 
 #include <cstring>
 #include <cstdio>
-#include <cmath>
 
 // Message codes for communication with input_server add-on
 enum {
@@ -164,7 +162,11 @@ InputInjector::InputInjector()
       fLastClickTime(0),
       fLastClickPosition(0, 0),
       fClickCount(0),
-      fLastClickButtons(0)
+      fLastClickButtons(0),
+      fCursorHistoryIndex(0),
+      fCursorHistoryCount(0),
+      fAutoGameMode(false),
+      fMovementSampleCount(0)
 {
     // Initialize mouse position to center of screen
     BScreen screen;
@@ -422,20 +424,83 @@ void InputInjector::InjectKeyUp(uint32 keyCode, uint32 modifiers)
     }
 }
 
+void InputInjector::UpdateGameModeDetection()
+{
+    // Sample actual cursor position
+    BPoint actualPos;
+    uint32 buttons;
+    if (get_mouse(&actualPos, &buttons) != B_OK)
+        return;
+
+    // Add to history
+    fCursorHistory[fCursorHistoryIndex] = actualPos;
+    fCursorHistoryIndex = (fCursorHistoryIndex + 1) % kGameModeHistorySize;
+    if (fCursorHistoryCount < kGameModeHistorySize)
+        fCursorHistoryCount++;
+
+    // Need enough samples to detect pattern
+    if (fCursorHistoryCount < kGameModeHistorySize)
+        return;
+
+    // Calculate bounding box of recent cursor positions
+    float minX = fCursorHistory[0].x, maxX = fCursorHistory[0].x;
+    float minY = fCursorHistory[0].y, maxY = fCursorHistory[0].y;
+    for (int i = 1; i < fCursorHistoryCount; i++) {
+        if (fCursorHistory[i].x < minX) minX = fCursorHistory[i].x;
+        if (fCursorHistory[i].x > maxX) maxX = fCursorHistory[i].x;
+        if (fCursorHistory[i].y < minY) minY = fCursorHistory[i].y;
+        if (fCursorHistory[i].y > maxY) maxY = fCursorHistory[i].y;
+    }
+
+    float spreadX = maxX - minX;
+    float spreadY = maxY - minY;
+    float totalSpread = spreadX + spreadY;
+
+    // If cursor stays in a very small area despite movement, it's being warped (game mode)
+    // Threshold: 20 pixels total spread means game is warping cursor back
+    const float kGameModeThreshold = 20.0f;
+    // For normal mode, expect more spread: 50+ pixels
+    const float kNormalModeThreshold = 50.0f;
+
+    bool wasGameMode = fAutoGameMode;
+
+    if (totalSpread < kGameModeThreshold) {
+        // Very low spread = game mode (cursor being warped)
+        if (!fAutoGameMode) {
+            fAutoGameMode = true;
+            LOG("Auto game mode ENABLED (spread=%.1f)", totalSpread);
+        }
+    } else if (totalSpread > kNormalModeThreshold) {
+        // High spread = normal mode (cursor moving freely)
+        if (fAutoGameMode) {
+            fAutoGameMode = false;
+            LOG("Auto game mode DISABLED (spread=%.1f)", totalSpread);
+        }
+    }
+    // Between thresholds = keep current mode (hysteresis)
+}
+
 void InputInjector::InjectMouseMove(float x, float y, bool relative, uint32 modifiers)
 {
     if (!fActive)
         return;
 
     fCurrentModifiers = modifiers;
-    bool gameMode = Settings::GetGameMode();
 
+    // Sample for game mode detection every N movements
+    fMovementSampleCount++;
+    if (fMovementSampleCount >= 5) {
+        fMovementSampleCount = 0;
+        UpdateGameModeDetection();
+    }
+
+    bool gameMode = fAutoGameMode;
     BPoint positionToSend;
 
     // Debug: log every 200th event
     static int debugCount = 0;
     if (++debugCount >= 200) {
-        LOG("MouseMove: gameMode=%d rel=%d x=%.2f y=%.2f", gameMode, relative, x, y);
+        LOG("MouseMove: autoGameMode=%d rel=%d x=%.2f y=%.2f", gameMode, relative, x, y);
         debugCount = 0;
     }
 
@@ -535,7 +600,7 @@ void InputInjector::InjectMouseDown(uint32 buttons, float x, float y, uint32 mod
 
     // Determine click position based on mode
     BPoint clickPosition;
-    if (Settings::GetGameMode()) {
+    if (fAutoGameMode) {
         // Game mode: use screen center (SDL expects cursor at center)
         BScreen screen;
         BRect frame = screen.Frame();
@@ -571,7 +636,7 @@ void InputInjector::InjectMouseUp(uint32 buttons, float x, float y, uint32 modif
 
     // Determine click position based on mode
     BPoint clickPosition;
-    if (Settings::GetGameMode()) {
+    if (fAutoGameMode) {
         // Game mode: use screen center (SDL expects cursor at center)
         BScreen screen;
         BRect frame = screen.Frame();

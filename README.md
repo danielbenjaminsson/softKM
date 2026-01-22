@@ -21,13 +21,9 @@ Download the HPKG from [Releases](../../releases) and install via HaikuDepot or 
 
 ## Game Mode
 
-For SDL games (OpenArena, Quake ports, etc.), enable **Game Mode** in softKM Settings:
+softKM automatically detects when you're playing SDL games (OpenArena, Quake ports, etc.) and switches to game mode. This adjusts mouse input to work with SDL's relative mouse mode.
 
-1. Open softKM Settings on Haiku
-2. Check "Game mode (for SDL games)"
-3. Save
-
-This adjusts mouse input to work with SDL's relative mouse mode used by games. Minor cursor flickering in game menus is normal.
+**Note**: Some Quake-engine games require `freelook 1` in the console (press `~`) for vertical mouse look to work.
 
 ## License
 
