@@ -156,6 +156,10 @@ jobs:
 
           echo "Creating DMG: $DMG_NAME"
 
+          # Verify app signature before packaging
+          echo "Verifying app signature..."
+          codesign -vvv --deep --strict "$APP_PATH"
+
           # Create a temporary directory for the DMG contents
           mkdir -p dmg_contents
           cp -R "$APP_PATH" dmg_contents/
@@ -169,7 +173,12 @@ jobs:
 
           rm -rf dmg_contents
 
-          echo "DMG created: $DMG_NAME"
+          # Sign the DMG
+          echo "Signing DMG..."
+          codesign --force --sign "Developer ID Application: Microgeni hb (Z5DSCKN2W6)" "$DMG_NAME"
+          codesign -vvv "$DMG_NAME"
+
+          echo "DMG created and signed: $DMG_NAME"
           ls -la "$DMG_NAME"
 
           # Store DMG path for later upload
@@ -188,12 +197,32 @@ jobs:
 
           echo "=== Notarizing $DMG_NAME ==="
 
-          # Submit for notarization
-          xcrun notarytool submit "$DMG_NAME" \
+          # Submit for notarization and capture output
+          SUBMIT_OUTPUT=$(xcrun notarytool submit "$DMG_NAME" \
             --apple-id "$APPLE_ID" \
             --team-id "$APPLE_TEAM_ID" \
             --password "$APPLE_APP_PASSWORD" \
-            --wait
+            --wait 2>&1) || true
+
+          echo "$SUBMIT_OUTPUT"
+
+          # Extract submission ID
+          SUBMISSION_ID=$(echo "$SUBMIT_OUTPUT" | grep "id:" | head -1 | awk '{print $2}')
+          echo "Submission ID: $SUBMISSION_ID"
+
+          # Check if notarization succeeded
+          if echo "$SUBMIT_OUTPUT" | grep -q "status: Accepted"; then
+            echo "Notarization succeeded!"
+          else
+            echo "=== Notarization failed, fetching log ==="
+            if [ -n "$SUBMISSION_ID" ]; then
+              xcrun notarytool log "$SUBMISSION_ID" \
+                --apple-id "$APPLE_ID" \
+                --team-id "$APPLE_TEAM_ID" \
+                --password "$APPLE_APP_PASSWORD"
+            fi
+            exit 1
+          fi
 
           # Staple the notarization ticket
           echo "Stapling notarization ticket..."
