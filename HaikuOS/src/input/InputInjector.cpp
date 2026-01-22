@@ -77,7 +77,7 @@ static const struct KeyMapping {
     { 0x29, 0x55 },  // ;
     { 0x2A, 0x47 },  // backslash
     { 0x2B, 0x56 },  // ,
-    { 0x2C, 0x57 },  // /
+    { 0x2C, 0x2c },  // / (was 0x57, but SDL uses 0x57 for UP arrow)
     { 0x2D, 0x44 },  // N
     { 0x2E, 0x58 },  // M
     { 0x2F, 0x59 },  // .
@@ -118,7 +118,7 @@ static const struct KeyMapping {
     { 0x7B, 0x61 },  // Left Arrow
     { 0x7C, 0x63 },  // Right Arrow
     { 0x7D, 0x62 },  // Down Arrow (was 0x57, collided with /)
-    { 0x7E, 0x9e },  // Up Arrow (was 0x38, collided with Numpad 8)
+    { 0x7E, 0x57 },  // Up Arrow (SDL expects 0x57)
 
     // Navigation keys
     { 0x73, 0x20 },  // Home
