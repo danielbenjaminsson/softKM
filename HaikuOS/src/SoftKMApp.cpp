@@ -13,6 +13,8 @@
 #include <Deskbar.h>
 #include <Roster.h>
 #include <Alert.h>
+#include <AppFileInfo.h>
+#include <private/interface/AboutWindow.h>
 
 SoftKMApp* SoftKMApp::sInstance = nullptr;
 
@@ -98,6 +100,10 @@ void SoftKMApp::MessageReceived(BMessage* message)
                     fLogWindow->Hide();
                 }
             }
+            break;
+
+        case MSG_SHOW_ABOUT:
+            ShowAbout();
             break;
 
         case MSG_QUERY_LOG_VISIBLE:
@@ -219,4 +225,40 @@ void SoftKMApp::ShowLogWindow()
     } else {
         fLogWindow->Activate();
     }
+}
+
+void SoftKMApp::ShowAbout()
+{
+    // Get version info from app file
+    app_info appInfo;
+    GetAppInfo(&appInfo);
+    BFile file(&appInfo.ref, B_READ_ONLY);
+    BAppFileInfo appFileInfo(&file);
+
+    version_info versionInfo;
+    char versionString[256] = "Version unknown";
+    if (appFileInfo.GetVersionInfo(&versionInfo, B_APP_VERSION_KIND) == B_OK) {
+        snprintf(versionString, sizeof(versionString), "Version %lu.%lu.%lu (%lu)",
+            (unsigned long)versionInfo.major,
+            (unsigned long)versionInfo.middle,
+            (unsigned long)versionInfo.minor,
+            (unsigned long)versionInfo.internal);
+    }
+
+    const char* authors[] = {
+        "Daniel Benjaminsson",
+        nullptr
+    };
+
+    BAboutWindow* about = new BAboutWindow("softKM", "application/x-vnd.softKM");
+    about->AddDescription(
+        "Software Keyboard/Mouse Switch for Haiku\n\n"
+        "Share keyboard and mouse input between macOS and Haiku OS "
+        "computers over a network.\n\n"
+        "Move your mouse to the screen edge to seamlessly switch "
+        "control between computers.");
+    about->AddExtraInfo(versionString);
+    about->AddCopyright(2025, "Microgeni AB");
+    about->AddAuthors(authors);
+    about->Show();
 }

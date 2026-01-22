@@ -239,6 +239,15 @@ void DeskbarReplicant::MessageReceived(BMessage* message)
             break;
         }
 
+        case MSG_SHOW_ABOUT:
+        {
+            BMessenger messenger("application/x-vnd.softKM");
+            if (messenger.IsValid()) {
+                messenger.SendMessage(MSG_SHOW_ABOUT);
+            }
+            break;
+        }
+
         case MSG_QUIT_REQUESTED:
         {
             BMessenger messenger("application/x-vnd.softKM");
@@ -288,9 +297,14 @@ void DeskbarReplicant::ShowPopUpMenu(BPoint where)
     menu->AddItem(logItem);
 
     // Settings
-    BMenuItem* settingsItem = new BMenuItem("Settings...",
+    BMenuItem* settingsItem = new BMenuItem("Settings" B_UTF8_ELLIPSIS,
         new BMessage(MSG_SHOW_SETTINGS));
     menu->AddItem(settingsItem);
+
+    // About
+    BMenuItem* aboutItem = new BMenuItem("About softKM" B_UTF8_ELLIPSIS,
+        new BMessage(MSG_SHOW_ABOUT));
+    menu->AddItem(aboutItem);
 
     menu->AddSeparatorItem();
 

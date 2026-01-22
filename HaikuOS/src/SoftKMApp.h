@@ -16,6 +16,7 @@ enum {
     MSG_SHOW_LOG = 'slog',
     MSG_TOGGLE_LOG = 'tlog',
     MSG_QUERY_LOG_VISIBLE = 'qlog',
+    MSG_SHOW_ABOUT = 'sabt',
     MSG_CONNECTION_STATUS = 'csts',
     MSG_QUERY_CONNECTION_STATUS = 'qcst',
     MSG_CLIENT_CONNECTED = 'ccon',
@@ -44,6 +45,7 @@ private:
     void RemoveDeskbarReplicant();
     void ShowSettingsWindow();
     void ShowLogWindow();
+    void ShowAbout();
 
     NetworkServer* fNetworkServer;
     InputInjector* fInputInjector;
