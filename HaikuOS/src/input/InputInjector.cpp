@@ -526,16 +526,23 @@ void InputInjector::InjectMouseDown(uint32 buttons, float x, float y, uint32 mod
     fCurrentModifiers = modifiers;
     bigtime_t now = system_time();
 
-    // Let the addon handle click tracking - it has better timing info
-    LOG("MouseDown: buttons=0x%02X mods=0x%02X at (%.1f,%.1f)",
-        fCurrentButtons, modifiers, fMousePosition.x, fMousePosition.y);
+    // Determine click position based on mode
+    BPoint clickPosition;
+    if (Settings::GetGameMode()) {
+        // Game mode: use screen center (SDL expects cursor at center)
+        BScreen screen;
+        BRect frame = screen.Frame();
+        clickPosition.Set(frame.Width() / 2, frame.Height() / 2);
+    } else {
+        clickPosition = fMousePosition;
+    }
 
-    // Don't call set_mouse_position() here - it conflicts with event pipeline
-    // The addon sends a B_MOUSE_MOVED before each click to sync position
+    LOG("MouseDown: buttons=0x%02X mods=0x%02X at (%.1f,%.1f)",
+        fCurrentButtons, modifiers, clickPosition.x, clickPosition.y);
 
     BMessage msg(SOFTKM_INJECT_MOUSE_DOWN);
     msg.AddInt64("when", now);
-    msg.AddPoint("where", fMousePosition);
+    msg.AddPoint("where", clickPosition);
     msg.AddInt32("buttons", fCurrentButtons);
     msg.AddInt32("modifiers", modifiers);
     msg.AddInt32("clicks", clicks);  // Use macOS click count directly
@@ -554,12 +561,24 @@ void InputInjector::InjectMouseUp(uint32 buttons, float x, float y, uint32 modif
 
     fCurrentButtons &= ~buttons;
     fCurrentModifiers = modifiers;
+
+    // Determine click position based on mode
+    BPoint clickPosition;
+    if (Settings::GetGameMode()) {
+        // Game mode: use screen center (SDL expects cursor at center)
+        BScreen screen;
+        BRect frame = screen.Frame();
+        clickPosition.Set(frame.Width() / 2, frame.Height() / 2);
+    } else {
+        clickPosition = fMousePosition;
+    }
+
     LOG("MouseUp: buttons=0x%02X at (%.1f,%.1f)", fCurrentButtons,
-        fMousePosition.x, fMousePosition.y);
+        clickPosition.x, clickPosition.y);
 
     BMessage msg(SOFTKM_INJECT_MOUSE_UP);
     msg.AddInt64("when", system_time());
-    msg.AddPoint("where", fMousePosition);
+    msg.AddPoint("where", clickPosition);
     msg.AddInt32("buttons", fCurrentButtons);
     msg.AddInt32("modifiers", modifiers);
 
