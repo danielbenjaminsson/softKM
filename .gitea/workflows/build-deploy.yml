@@ -110,7 +110,16 @@ jobs:
           cd MacOS
           BUILD_NUMBER="${{ github.run_number }}"
           IS_RELEASE="${{ steps.changes.outputs.is_release }}"
-          echo "Building with build number: $BUILD_NUMBER, Release: $IS_RELEASE"
+          VERSION="${{ steps.changes.outputs.version }}"
+
+          # Use tag version for releases, default for dev builds
+          if [ "$IS_RELEASE" = "true" ] && [ -n "$VERSION" ]; then
+            echo "Building release version: $VERSION (build $BUILD_NUMBER)"
+            VERSION_FLAG="MARKETING_VERSION=$VERSION"
+          else
+            echo "Building dev version (build $BUILD_NUMBER)"
+            VERSION_FLAG=""
+          fi
 
           # Always use Developer ID signing
           xcodebuild -project softKM.xcodeproj \
@@ -118,6 +127,7 @@ jobs:
             -configuration Release \
             -derivedDataPath build \
             CURRENT_PROJECT_VERSION=$BUILD_NUMBER \
+            $VERSION_FLAG \
             CODE_SIGN_STYLE="Manual" \
             CODE_SIGN_IDENTITY="Developer ID Application: Microgeni hb (Z5DSCKN2W6)" \
             DEVELOPMENT_TEAM="Z5DSCKN2W6" \
@@ -334,8 +344,22 @@ jobs:
             git fetch origin --tags --force
             git checkout -f v${VERSION}
 
-            # Build the app
+            # Parse version components (e.g., 1.2.3 -> major=1, middle=2, minor=3)
+            MAJOR=\$(echo ${VERSION} | cut -d. -f1)
+            MIDDLE=\$(echo ${VERSION} | cut -d. -f2)
+            MINOR=\$(echo ${VERSION} | cut -d. -f3)
+            MINOR=\${MINOR:-0}  # Default to 0 if not specified
+
+            echo "Version: \$MAJOR.\$MIDDLE.\$MINOR (build ${BUILD_NUMBER})"
+
+            # Update SoftKM.rdef with version from tag
             cd HaikuOS
+            sed -i "s/major  = [0-9]*/major  = \$MAJOR/" resources/SoftKM.rdef
+            sed -i "s/middle = [0-9]*/middle = \$MIDDLE/" resources/SoftKM.rdef
+            sed -i "s/minor  = [0-9]*/minor  = \$MINOR/" resources/SoftKM.rdef
+            sed -i "s/internal = [0-9]*/internal = ${BUILD_NUMBER}/" resources/SoftKM.rdef
+
+            # Build the app
             make clean
             make
 
