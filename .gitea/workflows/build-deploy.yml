@@ -428,21 +428,35 @@ jobs:
 
           echo "=== Creating Release $TAG ==="
 
+          # Fetch full history and tags for release notes generation
+          git fetch --tags --unshallow 2>/dev/null || git fetch --tags
+
           # Generate release notes from commits since last tag
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
           if [ -n "$PREV_TAG" ]; then
             echo "Generating release notes from $PREV_TAG to $TAG"
             COMMITS=$(git log --pretty=format:"- %s" "$PREV_TAG"..HEAD --no-merges | grep -v "Co-Authored-By" | head -50)
           else
-            echo "No previous tag found, using all commits"
-            COMMITS=$(git log --pretty=format:"- %s" --no-merges | grep -v "Co-Authored-By" | head -50)
+            echo "No previous tag found, using recent commits"
+            COMMITS=$(git log --pretty=format:"- %s" -20 --no-merges | grep -v "Co-Authored-By")
           fi
 
-          # Build release body (use printf to avoid YAML parsing issues)
-          RELEASE_BODY=$(printf "## What's Changed\n%s\n\n## Downloads\n- **macOS**: softKM-%s-macOS.dmg (signed and notarized)\n- **Haiku**: softKM-%s-haiku-x86_64.hpkg" "$COMMITS" "$VERSION" "$VERSION")
+          # Build release body
+          RELEASE_BODY="## What's Changed
+$COMMITS
 
-          # Escape for JSON
-          RELEASE_BODY_JSON=$(echo "$RELEASE_BODY" | jq -Rs .)
+## Downloads
+- **macOS**: softKM-${VERSION}-macOS.dmg (signed and notarized)
+- **Haiku**: softKM-${VERSION}-haiku-x86_64.hpkg"
+
+          # Escape for JSON (fallback if jq not available)
+          if command -v jq &> /dev/null; then
+            RELEASE_BODY_JSON=$(printf '%s' "$RELEASE_BODY" | jq -Rs .)
+          else
+            # Manual JSON escape
+            RELEASE_BODY_JSON=$(printf '%s' "$RELEASE_BODY" | sed 's/\\/\\\\/g; s/"/\\"/g; s/$/\\n/' | tr -d '\n' | sed 's/^/"/; s/\\n$/"/')
+          fi
+          echo "Release body JSON: $RELEASE_BODY_JSON"
 
           # Check if release already exists and delete it
           EXISTING_RELEASE=$(curl -s -H "Authorization: token $RELEASE_TOKEN" \
