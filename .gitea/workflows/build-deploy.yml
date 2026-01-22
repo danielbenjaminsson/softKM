@@ -276,6 +276,9 @@ jobs:
               cp -r objects.x86_64-release objects.x86_64-release.backup 2>/dev/null || true
             fi
 
+            # Set build number in SoftKM.rdef
+            sed -i "s/internal = [0-9]*/internal = ${{ github.run_number }}/" resources/SoftKM.rdef
+
             echo "Building Haiku app..."
             make clean
             make

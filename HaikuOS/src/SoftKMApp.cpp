@@ -236,7 +236,7 @@ void SoftKMApp::ShowAbout()
     BAppFileInfo appFileInfo(&file);
 
     version_info versionInfo;
-    char versionString[256] = "Version unknown";
+    char versionString[256] = "";
     if (appFileInfo.GetVersionInfo(&versionInfo, B_APP_VERSION_KIND) == B_OK) {
         snprintf(versionString, sizeof(versionString), "Version %lu.%lu.%lu (%lu)",
             (unsigned long)versionInfo.major,
@@ -251,13 +251,13 @@ void SoftKMApp::ShowAbout()
     };
 
     BAboutWindow* about = new BAboutWindow("softKM", "application/x-vnd.softKM");
+    about->SetVersion(versionString);
     about->AddDescription(
         "Software Keyboard/Mouse Switch for Haiku\n\n"
         "Share keyboard and mouse input between macOS and Haiku OS "
         "computers over a network.\n\n"
         "Move your mouse to the screen edge to seamlessly switch "
         "control between computers.");
-    about->AddExtraInfo(versionString);
     about->AddCopyright(2025, "Microgeni AB");
     about->AddAuthors(authors);
     about->Show();
