@@ -428,12 +428,29 @@ void InputInjector::InjectMouseMove(float x, float y, bool relative, uint32 modi
         return;
 
     fCurrentModifiers = modifiers;
-    UpdateMousePosition(x, y, relative);
-    // Note: Removed per-move logging for performance (was causing lag in games)
+    bool gameMode = Settings::GetGameMode();
+
+    BPoint positionToSend;
+
+    if (gameMode && relative) {
+        // Game mode: SDL calculates delta as (event_pos - window_center)
+        // For fullscreen games, window center ≈ screen center
+        // Send: screen_center + delta, so SDL gets correct delta
+        BScreen screen;
+        BRect frame = screen.Frame();
+        float centerX = frame.Width() / 2;
+        float centerY = frame.Height() / 2;
+        positionToSend.Set(centerX + x, centerY + y);
+        // Don't accumulate position in game mode - each event is independent
+    } else {
+        // Normal mode: track absolute position
+        UpdateMousePosition(x, y, relative);
+        positionToSend = fMousePosition;
+    }
 
     // Send B_MOUSE_MOVED event through addon for applications
     BMessage msg(SOFTKM_INJECT_MOUSE_MOVE);
-    msg.AddPoint("where", fMousePosition);
+    msg.AddPoint("where", positionToSend);
     msg.AddInt32("buttons", fCurrentButtons);
     msg.AddInt32("modifiers", modifiers);
     SendToMouseAddon(&msg);
@@ -441,7 +458,7 @@ void InputInjector::InjectMouseMove(float x, float y, bool relative, uint32 modi
     // Update system cursor position directly
     // Skip in game mode - SDL games manage cursor position themselves
     // and calling set_mouse_position conflicts with relative mouse mode
-    if (fCurrentButtons == 0 && !Settings::GetGameMode()) {
+    if (fCurrentButtons == 0 && !gameMode) {
         set_mouse_position((int32)fMousePosition.x, (int32)fMousePosition.y);
     }
 
