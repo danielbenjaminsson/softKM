@@ -240,7 +240,7 @@ void SoftKMApp::ShowAbout()
     if (appFileInfo.GetVersionInfo(&versionInfo, B_APP_VERSION_KIND) == B_OK) {
         // Dev builds have default version 1.0.0, just show build number
         if (versionInfo.major == 1 && versionInfo.middle == 0 && versionInfo.minor == 0) {
-            snprintf(versionString, sizeof(versionString), "Build %lu",
+            snprintf(versionString, sizeof(versionString), "Build dev %lu",
                 (unsigned long)versionInfo.internal);
         } else {
             snprintf(versionString, sizeof(versionString), "Version %lu.%lu.%lu (%lu)",
