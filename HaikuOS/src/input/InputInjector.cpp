@@ -435,11 +435,12 @@ void InputInjector::InjectMouseMove(float x, float y, bool relative, uint32 modi
     if (gameMode && relative) {
         // Game mode: SDL games expect delta from window center
         // Send screen_center + delta, let SDL handle cursor
+        // Note: Y might need inversion depending on coordinate system differences
         BScreen screen;
         BRect frame = screen.Frame();
         float centerX = frame.Width() / 2;
         float centerY = frame.Height() / 2;
-        positionToSend.Set(centerX + x, centerY + y);
+        positionToSend.Set(centerX + x, centerY - y);  // Invert Y for games
     } else {
         // Normal mode: track absolute position
         UpdateMousePosition(x, y, relative);
