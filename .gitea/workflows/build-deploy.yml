@@ -473,7 +473,7 @@ jobs:
           echo "=== Creating Release $TAG ==="
 
           # Fetch full history and tags for release notes generation
-          git fetch --tags --unshallow 2>/dev/null || git fetch --tags
+          git fetch --tags --force --unshallow 2>/dev/null || git fetch --tags --force
 
           # Don't exit on error for this section
           set +e
