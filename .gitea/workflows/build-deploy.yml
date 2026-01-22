@@ -431,15 +431,21 @@ jobs:
           # Fetch full history and tags for release notes generation
           git fetch --tags --unshallow 2>/dev/null || git fetch --tags
 
+          # Don't exit on error for this section
+          set +e
+
           # Generate release notes from commits since last tag
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
           if [ -n "$PREV_TAG" ]; then
             echo "Generating release notes from $PREV_TAG to $TAG"
-            git log --pretty=format:"- %s" "$PREV_TAG"..HEAD --no-merges | grep -v "Co-Authored-By" | head -50 > /tmp/commits.txt
+            git log --pretty=format:"- %s" "$PREV_TAG"..HEAD --no-merges | grep -v "Co-Authored-By" | head -50 > /tmp/commits.txt || true
           else
             echo "No previous tag found, using recent commits"
-            git log --pretty=format:"- %s" -20 --no-merges | grep -v "Co-Authored-By" > /tmp/commits.txt
+            git log --pretty=format:"- %s" -20 --no-merges | grep -v "Co-Authored-By" > /tmp/commits.txt || true
           fi
+
+          # Ensure commits file exists
+          touch /tmp/commits.txt
 
           # Build release body in temp file
           echo "## What's Changed" > /tmp/release_body.txt
@@ -477,16 +483,21 @@ jobs:
           echo "JSON payload: $JSON_PAYLOAD"
 
           # Create release
-          RELEASE_RESPONSE=$(curl -s -X POST \
+          echo "Creating release..."
+          RELEASE_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST \
             -H "Authorization: token $RELEASE_TOKEN" \
             -H "Content-Type: application/json" \
             -d "$JSON_PAYLOAD" \
             "$API_URL/repos/$REPO/releases")
 
-          echo "Release response: $RELEASE_RESPONSE"
+          HTTP_CODE=$(echo "$RELEASE_RESPONSE" | grep "HTTP_CODE:" | cut -d: -f2)
+          RELEASE_BODY_RESP=$(echo "$RELEASE_RESPONSE" | grep -v "HTTP_CODE:")
+
+          echo "HTTP Code: $HTTP_CODE"
+          echo "Release response: $RELEASE_BODY_RESP"
 
           # Extract release ID
-          RELEASE_ID=$(echo "$RELEASE_RESPONSE" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
+          RELEASE_ID=$(echo "$RELEASE_BODY_RESP" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
 
           echo "Release ID: $RELEASE_ID"
 
