@@ -71,7 +71,8 @@
       "Bash(security find-identity:*)",
       "Bash(security export -k ~/Library/Keychains/login.keychain-db -t identities -f pkcs12 -o /tmp/DeveloperID.p12 -P \"softKM2025\")",
       "Bash(security list-keychains:*)",
-      "Bash(shasum:*)"
+      "Bash(shasum:*)",
+      "Bash(git log:*)"
     ]
   }
 }
