@@ -434,13 +434,28 @@ void InputInjector::InjectMouseMove(float x, float y, bool relative, uint32 modi
 
     if (gameMode && relative) {
         // Game mode: SDL games expect delta from window center
-        // Always send screen_center + delta, let SDL handle cursor
+        // Use hysteresis to reduce jitter in menus - accumulate small movements
+        static float accumX = 0, accumY = 0;
+        static const float kThreshold = 2.0f;  // Minimum movement to send
+
+        accumX += x;
+        accumY += y;
+
+        // Only send if accumulated movement exceeds threshold
+        float deltaToSend = sqrtf(accumX * accumX + accumY * accumY);
+        if (deltaToSend < kThreshold) {
+            return;  // Accumulate more before sending
+        }
+
         BScreen screen;
         BRect frame = screen.Frame();
         float centerX = frame.Width() / 2;
         float centerY = frame.Height() / 2;
-        positionToSend.Set(centerX + x, centerY + y);
-        // Don't update fMousePosition or system cursor - SDL manages everything
+        positionToSend.Set(centerX + accumX, centerY + accumY);
+
+        // Reset accumulator
+        accumX = 0;
+        accumY = 0;
     } else {
         // Normal mode: track absolute position
         UpdateMousePosition(x, y, relative);
