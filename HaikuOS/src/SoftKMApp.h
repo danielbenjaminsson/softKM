@@ -6,6 +6,7 @@
 
 class NetworkServer;
 class InputInjector;
+class ClipboardManager;
 class SettingsWindow;
 class LogWindow;
 
@@ -46,6 +47,7 @@ private:
 
     NetworkServer* fNetworkServer;
     InputInjector* fInputInjector;
+    ClipboardManager* fClipboardManager;
     SettingsWindow* fSettingsWindow;
     LogWindow* fLogWindow;
     bool fClientConnected;

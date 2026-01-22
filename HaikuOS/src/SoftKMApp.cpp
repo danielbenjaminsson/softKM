@@ -4,6 +4,7 @@
 #include "ui/LogWindow.h"
 #include "network/NetworkServer.h"
 #include "input/InputInjector.h"
+#include "clipboard/ClipboardManager.h"
 #include "settings/Settings.h"
 #include "Logger.h"
 
@@ -19,6 +20,7 @@ SoftKMApp::SoftKMApp()
     : BApplication("application/x-vnd.softKM"),
       fNetworkServer(nullptr),
       fInputInjector(nullptr),
+      fClipboardManager(nullptr),
       fSettingsWindow(nullptr),
       fLogWindow(nullptr),
       fClientConnected(false)
@@ -37,11 +39,17 @@ SoftKMApp::SoftKMApp()
     // Create input injector
     fInputInjector = new InputInjector();
 
+    // Create clipboard manager
+    fClipboardManager = new ClipboardManager();
+
     // Create network server
     fNetworkServer = new NetworkServer(Settings::GetPort(), fInputInjector);
 
     // Connect injector to server for edge switching
     fInputInjector->SetNetworkServer(fNetworkServer);
+
+    // Connect clipboard manager to server for clipboard sync
+    fNetworkServer->SetClipboardManager(fClipboardManager);
 }
 
 SoftKMApp::~SoftKMApp()
@@ -50,6 +58,7 @@ SoftKMApp::~SoftKMApp()
 
     delete fNetworkServer;
     delete fInputInjector;
+    delete fClipboardManager;
 
     Settings::Save();
     sInstance = nullptr;
