@@ -67,12 +67,38 @@ jobs:
 
       - name: Setup Keychain
         if: steps.changes.outputs.macos_changed != '0' || github.event_name == 'workflow_dispatch'
+        env:
+          CERTIFICATE_P12: ${{ secrets.CERTIFICATE_P12 }}
         run: |
-          # Use dedicated signing keychain
-          security unlock-keychain -p "signing" ~/Library/Keychains/signing.keychain-db
-          security list-keychains -s ~/Library/Keychains/signing.keychain-db ~/Library/Keychains/login.keychain-db
-          security default-keychain -s ~/Library/Keychains/signing.keychain-db
-          security set-key-partition-list -S apple-tool:,apple: -s -k "signing" ~/Library/Keychains/signing.keychain-db 2>/dev/null || true
+          # Create a temporary keychain for CI
+          KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="ci-signing-temp"
+
+          # Decode the certificate
+          echo "$CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+
+          # Create and configure keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Import certificate (password: softKM2025)
+          security import "$RUNNER_TEMP/certificate.p12" \
+            -P "softKM2025" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+
+          # Set keychain search list
+          security list-keychains -d user -s "$KEYCHAIN_PATH" ~/Library/Keychains/login.keychain-db
+          security default-keychain -s "$KEYCHAIN_PATH"
+
+          # Allow codesign to access the keychain
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Clean up certificate file
+          rm -f "$RUNNER_TEMP/certificate.p12"
 
           # List available signing identities
           echo "Available signing identities:"
