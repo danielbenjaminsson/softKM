@@ -593,6 +593,87 @@ jobs:
             exit 1
           fi
 
+      - name: Push to GitHub
+        if: steps.changes.outputs.is_release == 'true'
+        run: |
+          echo "=== Pushing to GitHub ==="
+          git push git@github.com:danielbenjaminsson/softKM.git HEAD:main --tags
+
+      - name: Upload Release to GitHub
+        if: steps.changes.outputs.is_release == 'true'
+        env:
+          GH_RELEASE_TOKEN: ${{ secrets.GH_RELEASE_TOKEN }}
+        run: |
+          VERSION="${{ steps.changes.outputs.version }}"
+          TAG="v${VERSION}"
+
+          echo "=== Creating GitHub Release $TAG ==="
+
+          # Check if release already exists and delete it
+          EXISTING_RELEASE=$(curl -s -H "Authorization: token $GH_RELEASE_TOKEN" \
+            "https://api.github.com/repos/danielbenjaminsson/softKM/releases/tags/$TAG")
+          EXISTING_ID=$(echo "$EXISTING_RELEASE" | jq -r '.id // empty')
+
+          if [ -n "$EXISTING_ID" ]; then
+            echo "Deleting existing GitHub release $EXISTING_ID..."
+            curl -s -X DELETE \
+              -H "Authorization: token $GH_RELEASE_TOKEN" \
+              "https://api.github.com/repos/danielbenjaminsson/softKM/releases/$EXISTING_ID"
+            sleep 2
+          fi
+
+          # Create release using the same release body
+          JSON_PAYLOAD=$(jq -n \
+            --arg tag "$TAG" \
+            --arg name "softKM $VERSION" \
+            --arg body "$(cat /tmp/release_body.txt)" \
+            '{tag_name: $tag, name: $name, body: $body, draft: false, prerelease: false}')
+
+          echo "Creating GitHub release..."
+          RELEASE_RESPONSE=$(curl -s -X POST \
+            -H "Authorization: token $GH_RELEASE_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$JSON_PAYLOAD" \
+            "https://api.github.com/repos/danielbenjaminsson/softKM/releases")
+
+          RELEASE_ID=$(echo "$RELEASE_RESPONSE" | jq -r '.id // empty')
+          UPLOAD_URL=$(echo "$RELEASE_RESPONSE" | jq -r '.upload_url // empty' | sed 's/{.*}//')
+
+          echo "GitHub Release ID: $RELEASE_ID"
+          echo "Upload URL: $UPLOAD_URL"
+
+          if [ -n "$RELEASE_ID" ] && [ -n "$UPLOAD_URL" ]; then
+            # Upload macOS DMG
+            DMG_FILE="softKM-${VERSION}-macOS.dmg"
+            if [ -f "$DMG_FILE" ]; then
+              echo "Uploading $DMG_FILE to GitHub..."
+              curl -s -X POST \
+                -H "Authorization: token $GH_RELEASE_TOKEN" \
+                -H "Content-Type: application/octet-stream" \
+                --data-binary @"$DMG_FILE" \
+                "${UPLOAD_URL}?name=$DMG_FILE"
+              echo "Uploaded $DMG_FILE"
+            fi
+
+            # Upload Haiku HPKG
+            HPKG_FILE="softKM-${VERSION}-haiku-x86_64.hpkg"
+            if [ -f "$HPKG_FILE" ]; then
+              echo "Uploading $HPKG_FILE to GitHub..."
+              curl -s -X POST \
+                -H "Authorization: token $GH_RELEASE_TOKEN" \
+                -H "Content-Type: application/octet-stream" \
+                --data-binary @"$HPKG_FILE" \
+                "${UPLOAD_URL}?name=$HPKG_FILE"
+              echo "Uploaded $HPKG_FILE"
+            fi
+
+            echo "=== GitHub Release published: $TAG ==="
+          else
+            echo "ERROR: Could not create GitHub release"
+            echo "Response: $RELEASE_RESPONSE"
+            exit 1
+          fi
+
       - name: Summary
         if: always()
         run: |
