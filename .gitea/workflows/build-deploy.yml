@@ -76,10 +76,12 @@ jobs:
           # Use Developer ID signing for releases, Apple Development for dev builds
           if [ "$IS_RELEASE" = "true" ]; then
             CODE_SIGN_IDENTITY="Developer ID Application: Microgeni hb (Z5DSCKN2W6)"
-            echo "Using Developer ID signing for release"
+            CODE_SIGN_STYLE="Manual"
+            echo "Using Developer ID signing for release (manual)"
           else
             CODE_SIGN_IDENTITY="Apple Development"
-            echo "Using Apple Development signing for dev build"
+            CODE_SIGN_STYLE="Automatic"
+            echo "Using Apple Development signing for dev build (automatic)"
           fi
 
           xcodebuild -project softKM.xcodeproj \
@@ -87,6 +89,7 @@ jobs:
             -configuration Release \
             -derivedDataPath build \
             CURRENT_PROJECT_VERSION=$BUILD_NUMBER \
+            CODE_SIGN_STYLE="$CODE_SIGN_STYLE" \
             CODE_SIGN_IDENTITY="$CODE_SIGN_IDENTITY" \
             clean build
 
