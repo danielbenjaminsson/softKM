@@ -286,7 +286,8 @@ jobs:
             sed -i "s/internal = [0-9]*/internal = ${{ github.run_number }}/" resources/SoftKM.rdef
 
             echo "Building Haiku app..."
-            make clean
+            # Remove objects directory completely to ensure clean build with fresh resources
+            rm -rf objects.*
             make
 
             BINARY=$(find objects.* -name "softKM" -type f 2>/dev/null | head -1)
