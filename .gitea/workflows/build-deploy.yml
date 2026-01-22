@@ -373,12 +373,19 @@ jobs:
             sed -i "s/internal = [0-9]*/internal = ${BUILD_NUMBER}/" resources/SoftKM.rdef
 
             # Build the app
-            make clean
+            rm -rf objects.*
             make
+
+            BINARY=\$(find objects.* -name "softKM" -type f 2>/dev/null | head -1)
+            if [ -z "\$BINARY" ]; then
+              echo "ERROR: Build failed - no binary found"
+              exit 1
+            fi
+            echo "Built: \$BINARY"
 
             # Build addons
             cd addon
-            make clean
+            rm -rf objects.*
             make
             cd ..
 
@@ -394,6 +401,12 @@ jobs:
 
             # Copy built files
             BINARY=\$(find objects.* -name "softKM" -type f 2>/dev/null | head -1)
+            if [ -z "\$BINARY" ]; then
+              echo "ERROR: Binary not found for packaging"
+              ls -la objects.* 2>/dev/null || echo "No objects directory"
+              exit 1
+            fi
+            echo "Copying binary: \$BINARY"
             cp "\$BINARY" package_temp/apps/
 
             # Copy addons
@@ -409,6 +422,10 @@ jobs:
             # Copy .PackageInfo
             cp .PackageInfo package_temp/
 
+            # Verify package contents before creating
+            echo "Package contents:"
+            ls -laR package_temp/
+
             # Create HPKG
             cd package_temp
             package create -b ../${HPKG_NAME}
@@ -416,6 +433,10 @@ jobs:
 
             echo "HPKG created: ${HPKG_NAME}"
             ls -la ${HPKG_NAME}
+
+            # Verify HPKG contents
+            echo "HPKG contents:"
+            package list ${HPKG_NAME}
 
             rm -rf package_temp
           ENDSSH
