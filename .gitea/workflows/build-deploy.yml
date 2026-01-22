@@ -404,24 +404,30 @@ jobs:
 
           echo "=== Creating Release $TAG ==="
 
-          # Create release
+          # Check if release already exists and delete it
+          EXISTING_RELEASE=$(curl -s -H "Authorization: token $RELEASE_TOKEN" \
+            "$API_URL/repos/$REPO/releases/tags/$TAG")
+          EXISTING_ID=$(echo "$EXISTING_RELEASE" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
+
+          if [ -n "$EXISTING_ID" ]; then
+            echo "Deleting existing release $EXISTING_ID..."
+            curl -s -X DELETE \
+              -H "Authorization: token $RELEASE_TOKEN" \
+              "$API_URL/repos/$REPO/releases/$EXISTING_ID"
+            sleep 2
+          fi
+
+          # Create release with target_commitish to ensure tag is recognized
           RELEASE_RESPONSE=$(curl -s -X POST \
             -H "Authorization: token $RELEASE_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"tag_name\": \"$TAG\", \"name\": \"$TAG\", \"body\": \"Release $VERSION\n\n## Downloads\n- macOS: softKM-${VERSION}-macOS.dmg\n- Haiku: softKM-${VERSION}-haiku-x86_64.hpkg\", \"draft\": false, \"prerelease\": false}" \
+            -d "{\"tag_name\": \"$TAG\", \"target_commitish\": \"${{ github.sha }}\", \"name\": \"softKM $VERSION\", \"body\": \"## Downloads\\n- **macOS**: softKM-${VERSION}-macOS.dmg (signed and notarized)\\n- **Haiku**: softKM-${VERSION}-haiku-x86_64.hpkg\", \"draft\": false, \"prerelease\": false}" \
             "$API_URL/repos/$REPO/releases")
 
           echo "Release response: $RELEASE_RESPONSE"
 
           # Extract release ID
           RELEASE_ID=$(echo "$RELEASE_RESPONSE" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
-
-          if [ -z "$RELEASE_ID" ]; then
-            echo "Failed to create release or get release ID"
-            # Try to get existing release
-            RELEASE_ID=$(curl -s -H "Authorization: token $RELEASE_TOKEN" \
-              "$API_URL/repos/$REPO/releases/tags/$TAG" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
-          fi
 
           echo "Release ID: $RELEASE_ID"
 
