@@ -42,6 +42,7 @@ SettingsWindow::SettingsWindow()
     fPortControl->SetModificationMessage(new BMessage('port'));
 
     fAutoStartCheck = new BCheckBox("Start automatically on login", nullptr);
+    fGameModeCheck = new BCheckBox("Game mode (for SDL games)", nullptr);
 
     fSaveButton = new BButton("Save", new BMessage(MSG_SAVE_SETTINGS));
     fCancelButton = new BButton("Cancel", new BMessage(MSG_CANCEL_SETTINGS));
@@ -64,6 +65,7 @@ SettingsWindow::SettingsWindow()
                 .Add(statusValue, 1, 1)
             .End()
             .Add(fAutoStartCheck)
+            .Add(fGameModeCheck)
             .AddGlue()
             .Add(new BSeparatorView(B_HORIZONTAL))
             .AddGroup(B_HORIZONTAL)
@@ -142,6 +144,7 @@ void SettingsWindow::LoadSettings()
     fPortControl->SetText(portStr);
 
     fAutoStartCheck->SetValue(Settings::GetAutoStart() ? B_CONTROL_ON : B_CONTROL_OFF);
+    fGameModeCheck->SetValue(Settings::GetGameMode() ? B_CONTROL_ON : B_CONTROL_OFF);
 }
 
 void SettingsWindow::SaveSettings()
@@ -153,6 +156,7 @@ void SettingsWindow::SaveSettings()
     Settings::SetPort(port);
 
     Settings::SetAutoStart(fAutoStartCheck->Value() == B_CONTROL_ON);
+    Settings::SetGameMode(fGameModeCheck->Value() == B_CONTROL_ON);
 
     Settings::Save();
 }

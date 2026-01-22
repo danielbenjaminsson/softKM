@@ -27,6 +27,7 @@ private:
     BMenuItem* fLogMenuItem;
     BTextControl* fPortControl;
     BCheckBox* fAutoStartCheck;
+    BCheckBox* fGameModeCheck;
     BButton* fSaveButton;
     BButton* fCancelButton;
 };

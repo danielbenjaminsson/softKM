@@ -2,6 +2,7 @@
 #include "../network/NetworkServer.h"
 #include "../network/Protocol.h"
 #include "../Logger.h"
+#include "../settings/Settings.h"
 #include "../ui/TeamMonitorWindow.h"
 
 #include <Application.h>
@@ -438,8 +439,9 @@ void InputInjector::InjectMouseMove(float x, float y, bool relative, uint32 modi
     SendToMouseAddon(&msg);
 
     // Update system cursor position directly
-    // (set_mouse_position isn't available in input_server addon context)
-    if (fCurrentButtons == 0) {
+    // Skip in game mode - SDL games manage cursor position themselves
+    // and calling set_mouse_position conflicts with relative mouse mode
+    if (fCurrentButtons == 0 && !Settings::GetGameMode()) {
         set_mouse_position((int32)fMousePosition.x, (int32)fMousePosition.y);
     }
 
