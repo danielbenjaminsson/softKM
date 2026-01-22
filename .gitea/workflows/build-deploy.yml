@@ -266,6 +266,11 @@ jobs:
             git reset --hard origin/${{ github.ref_name }}
             git clean -fd  # Remove untracked files to ensure clean state
 
+            # Force checkout resources to ensure icon is up to date
+            git checkout HEAD -- HaikuOS/resources/
+            echo "Icon file hash:"
+            sha1sum HaikuOS/resources/softKM_icon.hvif
+
             echo "Stopping existing softKM..."
             for pid in $(ps | grep softKM | grep -v grep | awk '{print $2}'); do
               kill $pid 2>/dev/null || true
