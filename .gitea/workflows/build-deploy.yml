@@ -428,7 +428,7 @@ jobs:
 
             # Create HPKG
             cd package_temp
-            package create -b ../${HPKG_NAME}
+            package create ../${HPKG_NAME}
             cd ..
 
             echo "HPKG created: ${HPKG_NAME}"
