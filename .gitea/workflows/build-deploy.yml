@@ -435,28 +435,23 @@ jobs:
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
           if [ -n "$PREV_TAG" ]; then
             echo "Generating release notes from $PREV_TAG to $TAG"
-            COMMITS=$(git log --pretty=format:"- %s" "$PREV_TAG"..HEAD --no-merges | grep -v "Co-Authored-By" | head -50)
+            git log --pretty=format:"- %s" "$PREV_TAG"..HEAD --no-merges | grep -v "Co-Authored-By" | head -50 > /tmp/commits.txt
           else
             echo "No previous tag found, using recent commits"
-            COMMITS=$(git log --pretty=format:"- %s" -20 --no-merges | grep -v "Co-Authored-By")
+            git log --pretty=format:"- %s" -20 --no-merges | grep -v "Co-Authored-By" > /tmp/commits.txt
           fi
 
-          # Build release body
-          RELEASE_BODY="## What's Changed
-$COMMITS
+          # Build release body in temp file
+          echo "## What's Changed" > /tmp/release_body.txt
+          cat /tmp/commits.txt >> /tmp/release_body.txt
+          echo "" >> /tmp/release_body.txt
+          echo "## Downloads" >> /tmp/release_body.txt
+          echo "- **macOS**: softKM-${VERSION}-macOS.dmg (signed and notarized)" >> /tmp/release_body.txt
+          echo "- **Haiku**: softKM-${VERSION}-haiku-x86_64.hpkg" >> /tmp/release_body.txt
 
-## Downloads
-- **macOS**: softKM-${VERSION}-macOS.dmg (signed and notarized)
-- **Haiku**: softKM-${VERSION}-haiku-x86_64.hpkg"
-
-          # Escape for JSON (fallback if jq not available)
-          if command -v jq &> /dev/null; then
-            RELEASE_BODY_JSON=$(printf '%s' "$RELEASE_BODY" | jq -Rs .)
-          else
-            # Manual JSON escape
-            RELEASE_BODY_JSON=$(printf '%s' "$RELEASE_BODY" | sed 's/\\/\\\\/g; s/"/\\"/g; s/$/\\n/' | tr -d '\n' | sed 's/^/"/; s/\\n$/"/')
-          fi
-          echo "Release body JSON: $RELEASE_BODY_JSON"
+          # Convert to JSON
+          RELEASE_BODY_JSON=$(cat /tmp/release_body.txt | jq -Rs .)
+          echo "Release body: $(cat /tmp/release_body.txt)"
 
           # Check if release already exists and delete it
           EXISTING_RELEASE=$(curl -s -H "Authorization: token $RELEASE_TOKEN" \
