@@ -430,26 +430,26 @@ void InputInjector::InjectMouseMove(float x, float y, bool relative, uint32 modi
     fCurrentModifiers = modifiers;
     bool gameMode = Settings::GetGameMode();
 
-    // Always track absolute position
-    UpdateMousePosition(x, y, relative);
-
     BPoint positionToSend;
 
-    // In game mode, detect if we're in SDL relative mouse mode by checking cursor visibility
-    // SDL hides cursor when in relative mode, shows it in menus
-    bool cursorHidden = be_app->IsCursorHidden();
-
-    if (gameMode && cursorHidden && relative) {
-        // SDL relative mode: cursor hidden, SDL warps to center and calculates delta
-        // Send: screen_center + delta, so SDL calculates correct delta
+    if (gameMode && relative) {
+        // Game mode: SDL games expect delta from window center
+        // Always send screen_center + delta, let SDL handle cursor
         BScreen screen;
         BRect frame = screen.Frame();
         float centerX = frame.Width() / 2;
         float centerY = frame.Height() / 2;
         positionToSend.Set(centerX + x, centerY + y);
+        // Don't update fMousePosition or system cursor - SDL manages everything
     } else {
-        // Normal mode or game menus: use absolute position
+        // Normal mode: track absolute position
+        UpdateMousePosition(x, y, relative);
         positionToSend = fMousePosition;
+
+        // Update system cursor position
+        if (fCurrentButtons == 0) {
+            set_mouse_position((int32)fMousePosition.x, (int32)fMousePosition.y);
+        }
     }
 
     // Send B_MOUSE_MOVED event through addon for applications
@@ -458,13 +458,6 @@ void InputInjector::InjectMouseMove(float x, float y, bool relative, uint32 modi
     msg.AddInt32("buttons", fCurrentButtons);
     msg.AddInt32("modifiers", modifiers);
     SendToMouseAddon(&msg);
-
-    // Update system cursor position
-    // In game mode with hidden cursor (SDL relative mode), skip - SDL manages cursor
-    // Otherwise, update cursor position for normal apps and game menus
-    if (fCurrentButtons == 0 && !(gameMode && cursorHidden)) {
-        set_mouse_position((int32)fMousePosition.x, (int32)fMousePosition.y);
-    }
 
     // Edge detection for switching back to macOS
     const float kEdgeThreshold = 5.0f;
