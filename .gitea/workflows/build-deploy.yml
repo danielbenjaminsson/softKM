@@ -81,6 +81,7 @@ jobs:
             CURRENT_PROJECT_VERSION=$BUILD_NUMBER \
             CODE_SIGN_STYLE="Manual" \
             CODE_SIGN_IDENTITY="Developer ID Application: Microgeni hb (Z5DSCKN2W6)" \
+            DEVELOPMENT_TEAM="Z5DSCKN2W6" \
             clean build
 
       - name: Install macOS App
