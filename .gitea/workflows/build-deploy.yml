@@ -466,11 +466,21 @@ jobs:
             sleep 2
           fi
 
-          # Create release with target_commitish to ensure tag is recognized
+          # Build JSON payload using jq to handle escaping properly
+          JSON_PAYLOAD=$(jq -n \
+            --arg tag "$TAG" \
+            --arg commit "${{ github.sha }}" \
+            --arg name "softKM $VERSION" \
+            --arg body "$(cat /tmp/release_body.txt)" \
+            '{tag_name: $tag, target_commitish: $commit, name: $name, body: $body, draft: false, prerelease: false}')
+
+          echo "JSON payload: $JSON_PAYLOAD"
+
+          # Create release
           RELEASE_RESPONSE=$(curl -s -X POST \
             -H "Authorization: token $RELEASE_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"tag_name\": \"$TAG\", \"target_commitish\": \"${{ github.sha }}\", \"name\": \"softKM $VERSION\", \"body\": $RELEASE_BODY_JSON, \"draft\": false, \"prerelease\": false}" \
+            -d "$JSON_PAYLOAD" \
             "$API_URL/repos/$REPO/releases")
 
           echo "Release response: $RELEASE_RESPONSE"
