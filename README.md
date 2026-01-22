@@ -19,18 +19,15 @@ Download the DMG from [Releases](../../releases), open it, and drag softKM to Ap
 ### Haiku
 Download the HPKG from [Releases](../../releases) and install via HaikuDepot or `pkgman install <file>`.
 
-## Known Limitations
+## Game Mode
 
-### Games / SDL Applications
+For SDL games (OpenArena, Quake ports, etc.), enable **Game Mode** in softKM Settings:
 
-softKM works best with regular Haiku applications. **Fullscreen games using SDL** (like OpenArena, Quake ports, etc.) may have input issues:
+1. Open softKM Settings on Haiku
+2. Check "Game mode (for SDL games)"
+3. Save
 
-- Mouse movement may be laggy or unresponsive
-- Some keys may not register correctly
-
-This is because SDL fullscreen games often use low-level input handling that bypasses the normal application message path that softKM uses for input injection.
-
-**Workaround:** Use a local keyboard/mouse connected directly to your Haiku computer when gaming.
+This adjusts mouse input to work with SDL's relative mouse mode used by games. Minor cursor flickering in game menus is normal.
 
 ## License
 
