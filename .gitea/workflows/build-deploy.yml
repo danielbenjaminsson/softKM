@@ -29,22 +29,26 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "client_changed=1" >> $GITHUB_OUTPUT
             echo "server_changed=1" >> $GITHUB_OUTPUT
-            echo "Manual dispatch — building both"
+            echo "macos_changed=1" >> $GITHUB_OUTPUT
+            echo "Manual dispatch — building all"
             exit 0
           fi
 
           CLIENT_CHANGED=$(git diff --name-only HEAD~1 -- HaikuClient/ 2>/dev/null | wc -l | tr -d ' ')
           SERVER_CHANGED=$(git diff --name-only HEAD~1 -- HaikuOS/ 2>/dev/null | wc -l | tr -d ' ')
+          MACOS_CHANGED=$(git diff --name-only HEAD~1 -- MacOS/ 2>/dev/null | wc -l | tr -d ' ')
           WORKFLOW_CHANGED=$(git diff --name-only HEAD~1 -- .gitea/workflows/ 2>/dev/null | wc -l | tr -d ' ')
 
           if [ "$WORKFLOW_CHANGED" -gt 0 ]; then
             CLIENT_CHANGED=1
             SERVER_CHANGED=1
+            MACOS_CHANGED=1
           fi
 
           echo "client_changed=$CLIENT_CHANGED" >> $GITHUB_OUTPUT
           echo "server_changed=$SERVER_CHANGED" >> $GITHUB_OUTPUT
-          echo "HaikuClient: $CLIENT_CHANGED, HaikuOS: $SERVER_CHANGED"
+          echo "macos_changed=$MACOS_CHANGED" >> $GITHUB_OUTPUT
+          echo "HaikuClient: $CLIENT_CHANGED, HaikuOS: $SERVER_CHANGED, MacOS: $MACOS_CHANGED"
 
       - name: Deploy to Haiku
         if: steps.changes.outputs.client_changed != '0' || steps.changes.outputs.server_changed != '0'
@@ -186,3 +190,72 @@ jobs:
             echo ""
             echo "=== Deployment complete ==="
           ENDSSH
+
+      # ====================================================================
+      # macOS sender app — build, sign, install, launch
+      # ====================================================================
+      - name: Setup signing keychain
+        if: steps.changes.outputs.macos_changed != '0'
+        env:
+          CERTIFICATE_P12: ${{ secrets.CERTIFICATE_P12 }}
+        run: |
+          KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="ci-signing-temp"
+
+          echo "$CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          security import "$RUNNER_TEMP/certificate.p12" \
+            -P "softKM2025" \
+            -A -t cert -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+
+          security list-keychains -d user -s "$KEYCHAIN_PATH" ~/Library/Keychains/login.keychain-db
+          security default-keychain -s "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          rm -f "$RUNNER_TEMP/certificate.p12"
+
+          echo "Available signing identities:"
+          security find-identity -v -p codesigning
+
+      - name: Build macOS app
+        if: steps.changes.outputs.macos_changed != '0'
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          cd MacOS
+          xcodebuild -project softKM.xcodeproj \
+            -scheme softKM \
+            -configuration Release \
+            -derivedDataPath build \
+            CURRENT_PROJECT_VERSION=$BUILD_NUMBER \
+            CODE_SIGN_STYLE="Manual" \
+            CODE_SIGN_IDENTITY="Developer ID Application: Microgeni hb (Z5DSCKN2W6)" \
+            DEVELOPMENT_TEAM="Z5DSCKN2W6" \
+            OTHER_CODE_SIGN_FLAGS="--timestamp" \
+            CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO \
+            clean build
+
+      - name: Install and launch macOS app
+        if: steps.changes.outputs.macos_changed != '0'
+        run: |
+          APP_PATH="MacOS/build/Build/Products/Release/softKM.app"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "ERROR: build output not found at $APP_PATH"
+            exit 1
+          fi
+
+          pkill -x softKM || true
+          sleep 1
+
+          rm -rf /Applications/softKM.app
+          ditto "$APP_PATH" /Applications/softKM.app
+          codesign -v /Applications/softKM.app && echo "Code signature valid" \
+                                                || echo "WARNING: signature invalid"
+
+          open /Applications/softKM.app
+          echo "macOS softKM installed and launched"
