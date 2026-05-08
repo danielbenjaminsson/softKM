@@ -5,12 +5,16 @@ on:
     branches:
       - main
       - dev
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 env:
   HAIKU_HOST: taurus.microgeni.synology.me
   HAIKU_USER: user
   HAIKU_PROJECT_PATH: /Data/Code/Projects/haiku-softKM
+  GITEA_REPO: Microgeni/haiku-softKM
+  GITEA_API_URL: https://gitea.microgeni.synology.me/api/v1
 
 jobs:
   deploy:
@@ -25,12 +29,23 @@ jobs:
       - name: Detect changed components
         id: changes
         run: |
-          # On manual dispatch or first run, build everything
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          # Tag push -> release build (always builds everything)
+          IS_RELEASE="false"
+          VERSION=""
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            IS_RELEASE="true"
+            VERSION="${{ github.ref_name }}"
+            VERSION="${VERSION#v}"
+            echo "Release build: version $VERSION"
+          fi
+          echo "is_release=$IS_RELEASE" >> $GITHUB_OUTPUT
+          echo "version=$VERSION"       >> $GITHUB_OUTPUT
+
+          if [ "$IS_RELEASE" = "true" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "client_changed=1" >> $GITHUB_OUTPUT
             echo "server_changed=1" >> $GITHUB_OUTPUT
-            echo "macos_changed=1" >> $GITHUB_OUTPUT
-            echo "Manual dispatch — building all"
+            echo "macos_changed=1"  >> $GITHUB_OUTPUT
+            echo "Building all (release or manual dispatch)"
             exit 0
           fi
 
@@ -47,11 +62,11 @@ jobs:
 
           echo "client_changed=$CLIENT_CHANGED" >> $GITHUB_OUTPUT
           echo "server_changed=$SERVER_CHANGED" >> $GITHUB_OUTPUT
-          echo "macos_changed=$MACOS_CHANGED" >> $GITHUB_OUTPUT
+          echo "macos_changed=$MACOS_CHANGED"   >> $GITHUB_OUTPUT
           echo "HaikuClient: $CLIENT_CHANGED, HaikuOS: $SERVER_CHANGED, MacOS: $MACOS_CHANGED"
 
       - name: Deploy to Haiku
-        if: steps.changes.outputs.client_changed != '0' || steps.changes.outputs.server_changed != '0'
+        if: (steps.changes.outputs.client_changed != '0' || steps.changes.outputs.server_changed != '0') && steps.changes.outputs.is_release != 'true'
         env:
           BUILD_CLIENT: ${{ steps.changes.outputs.client_changed }}
           BUILD_SERVER: ${{ steps.changes.outputs.server_changed }}
@@ -226,13 +241,29 @@ jobs:
         if: steps.changes.outputs.macos_changed != '0'
         env:
           BUILD_NUMBER: ${{ github.run_number }}
+          IS_RELEASE: ${{ steps.changes.outputs.is_release }}
+          VERSION: ${{ steps.changes.outputs.version }}
         run: |
           cd MacOS
+
+          if [ "$IS_RELEASE" = "true" ] && [ -n "$VERSION" ]; then
+            echo "Building release version: $VERSION (build $BUILD_NUMBER)"
+            VERSION_FLAG="MARKETING_VERSION=$VERSION"
+
+            # Reset default host for public release builds
+            sed -i '' 's/taurus.microgeni.synology.me/enter computer hostname/' \
+              softKM/Settings/SettingsManager.swift || true
+          else
+            echo "Building dev version (build $BUILD_NUMBER)"
+            VERSION_FLAG=""
+          fi
+
           xcodebuild -project softKM.xcodeproj \
             -scheme softKM \
             -configuration Release \
             -derivedDataPath build \
             CURRENT_PROJECT_VERSION=$BUILD_NUMBER \
+            $VERSION_FLAG \
             CODE_SIGN_STYLE="Manual" \
             CODE_SIGN_IDENTITY="Developer ID Application: Microgeni hb (Z5DSCKN2W6)" \
             DEVELOPMENT_TEAM="Z5DSCKN2W6" \
@@ -241,7 +272,7 @@ jobs:
             clean build
 
       - name: Install and launch macOS app
-        if: steps.changes.outputs.macos_changed != '0'
+        if: steps.changes.outputs.macos_changed != '0' && steps.changes.outputs.is_release != 'true'
         run: |
           APP_PATH="MacOS/build/Build/Products/Release/softKM.app"
           if [ ! -d "$APP_PATH" ]; then
@@ -259,3 +290,286 @@ jobs:
 
           open /Applications/softKM.app
           echo "macOS softKM installed and launched"
+
+      # ====================================================================
+      # Release-only steps (triggered by tag push refs/tags/v*)
+      # ====================================================================
+      - name: Create macOS DMG
+        if: steps.changes.outputs.is_release == 'true'
+        id: macos_dmg
+        run: |
+          VERSION="${{ steps.changes.outputs.version }}"
+          APP_PATH="MacOS/build/Build/Products/Release/softKM.app"
+          DMG_NAME="softKM-${VERSION}-macOS.dmg"
+
+          echo "=== Creating DMG: $DMG_NAME ==="
+
+          # Verify app signature before packaging
+          codesign -vvv --deep --strict "$APP_PATH"
+
+          # Stage DMG contents (app + Applications symlink)
+          mkdir -p dmg_contents
+          cp -R "$APP_PATH" dmg_contents/
+          ln -s /Applications dmg_contents/Applications
+
+          hdiutil create -volname "softKM $VERSION" \
+            -srcfolder dmg_contents \
+            -ov -format UDZO \
+            "$DMG_NAME"
+
+          rm -rf dmg_contents
+
+          # Sign the DMG itself
+          codesign --force --sign "Developer ID Application: Microgeni hb (Z5DSCKN2W6)" "$DMG_NAME"
+          codesign -vvv "$DMG_NAME"
+
+          echo "DMG created and signed: $DMG_NAME"
+          ls -la "$DMG_NAME"
+
+          DMG_SHA256=$(shasum -a 256 "$DMG_NAME" | cut -d' ' -f1)
+          echo "dmg_sha256=$DMG_SHA256" >> $GITHUB_OUTPUT
+          echo "dmg_path=$DMG_NAME"     >> $GITHUB_OUTPUT
+          echo "DMG SHA256: $DMG_SHA256"
+
+      - name: Notarize macOS DMG
+        if: steps.changes.outputs.is_release == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          VERSION="${{ steps.changes.outputs.version }}"
+          DMG_NAME="softKM-${VERSION}-macOS.dmg"
+
+          echo "=== Notarizing $DMG_NAME ==="
+
+          SUBMIT_OUTPUT=$(xcrun notarytool submit "$DMG_NAME" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --wait 2>&1) || true
+
+          echo "$SUBMIT_OUTPUT"
+
+          SUBMISSION_ID=$(echo "$SUBMIT_OUTPUT" | grep "id:" | head -1 | awk '{print $2}')
+          echo "Submission ID: $SUBMISSION_ID"
+
+          if echo "$SUBMIT_OUTPUT" | grep -q "status: Accepted"; then
+            echo "Notarization succeeded"
+          else
+            echo "=== Notarization failed, fetching log ==="
+            if [ -n "$SUBMISSION_ID" ]; then
+              xcrun notarytool log "$SUBMISSION_ID" \
+                --apple-id "$APPLE_ID" \
+                --team-id "$APPLE_TEAM_ID" \
+                --password "$APPLE_APP_PASSWORD"
+            fi
+            exit 1
+          fi
+
+          xcrun stapler staple "$DMG_NAME"
+          echo "Notarization ticket stapled"
+
+      - name: Build Haiku HPKG (receiver)
+        if: steps.changes.outputs.is_release == 'true'
+        id: haiku_hpkg
+        env:
+          BRANCH: ${{ github.ref_name }}
+          BUILD_NUMBER: ${{ github.run_number }}
+          VERSION: ${{ steps.changes.outputs.version }}
+        run: |
+          HPKG_NAME="softKM-${VERSION}-haiku-x86_64.hpkg"
+          echo "=== Building HPKG: $HPKG_NAME ==="
+
+          ssh -o StrictHostKeyChecking=no $HAIKU_USER@$HAIKU_HOST \
+              VERSION="$VERSION" \
+              BUILD_NUMBER="$BUILD_NUMBER" \
+              HPKG_NAME="$HPKG_NAME" \
+              bash <<'ENDSSH'
+            set -e
+            PROJECT=/Data/Code/Projects/haiku-softKM
+            cd "$PROJECT"
+
+            git fetch origin --tags --force
+            git checkout -f "v${VERSION}"
+
+            MAJOR=$(echo "$VERSION" | cut -d. -f1)
+            MIDDLE=$(echo "$VERSION" | cut -d. -f2)
+            MINOR=$(echo "$VERSION" | cut -d. -f3)
+            MINOR=${MINOR:-0}
+            echo "Version: $MAJOR.$MIDDLE.$MINOR (build $BUILD_NUMBER)"
+
+            cd HaikuOS
+            sed -i "s/major  = [0-9]*/major  = $MAJOR/"     resources/SoftKM.rdef
+            sed -i "s/middle = [0-9]*/middle = $MIDDLE/"    resources/SoftKM.rdef
+            sed -i "s/minor  = [0-9]*/minor  = $MINOR/"     resources/SoftKM.rdef
+            sed -i "s/internal = [0-9]*/internal = $BUILD_NUMBER/" resources/SoftKM.rdef
+
+            rm -rf objects.*
+            make
+            BINARY=$(find objects.* -name "softKM" -type f 2>/dev/null | head -1)
+            if [ -z "$BINARY" ]; then
+              echo "ERROR: HaikuOS build failed"
+              exit 1
+            fi
+            echo "Built: $BINARY"
+
+            cd addon
+            rm -rf objects.*
+            make
+            cd ..
+
+            sed -i "s/^version.*/version\t\t\t${VERSION}-${BUILD_NUMBER}/"   .PackageInfo
+            sed -i "s/softKM = .*/softKM = ${VERSION}-${BUILD_NUMBER}/"      .PackageInfo
+            sed -i "s/app:softKM = .*/app:softKM = ${VERSION}-${BUILD_NUMBER}/" .PackageInfo
+
+            rm -rf package_temp
+            mkdir -p package_temp/apps
+            mkdir -p package_temp/add-ons/input_server/devices
+
+            cp "$BINARY" package_temp/apps/
+
+            KBD_ADDON=$(find addon/objects.* -name "SoftKMKeyboard" -type f 2>/dev/null | head -1)
+            MOUSE_ADDON=$(find addon/objects.* -name "SoftKMMouse"   -type f 2>/dev/null | head -1)
+            [ -n "$KBD_ADDON"   ] && cp "$KBD_ADDON"   package_temp/add-ons/input_server/devices/
+            [ -n "$MOUSE_ADDON" ] && cp "$MOUSE_ADDON" package_temp/add-ons/input_server/devices/
+
+            cp .PackageInfo package_temp/
+
+            echo "Package contents:"
+            ls -laR package_temp/
+
+            cd package_temp
+            package create "../$HPKG_NAME"
+            cd ..
+
+            echo "HPKG created: $HPKG_NAME"
+            package list "$HPKG_NAME"
+
+            rm -rf package_temp
+          ENDSSH
+
+          # Pull HPKG back to runner
+          HPKG_NAME="softKM-${VERSION}-haiku-x86_64.hpkg"
+          scp -o StrictHostKeyChecking=no \
+            "$HAIKU_USER@$HAIKU_HOST:$HAIKU_PROJECT_PATH/HaikuOS/$HPKG_NAME" .
+
+          ls -la "$HPKG_NAME"
+          HPKG_SHA256=$(shasum -a 256 "$HPKG_NAME" | cut -d' ' -f1)
+          echo "hpkg_sha256=$HPKG_SHA256" >> $GITHUB_OUTPUT
+          echo "hpkg_path=$HPKG_NAME"     >> $GITHUB_OUTPUT
+          echo "HPKG SHA256: $HPKG_SHA256"
+
+      - name: Publish Gitea release
+        if: steps.changes.outputs.is_release == 'true'
+        env:
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          DMG_SHA256: ${{ steps.macos_dmg.outputs.dmg_sha256 }}
+          HPKG_SHA256: ${{ steps.haiku_hpkg.outputs.hpkg_sha256 }}
+        run: |
+          VERSION="${{ steps.changes.outputs.version }}"
+          TAG="v${VERSION}"
+          DMG_FILE="softKM-${VERSION}-macOS.dmg"
+          HPKG_FILE="softKM-${VERSION}-haiku-x86_64.hpkg"
+
+          echo "=== Publishing Gitea release $TAG ==="
+
+          # Generate release notes from commits since the previous tag
+          git fetch --tags --unshallow 2>/dev/null || git fetch --tags
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            git log --pretty=format:"- %s" "$PREV_TAG"..HEAD --no-merges \
+              | grep -v "Co-Authored-By" | head -50 > /tmp/commits.txt || true
+          else
+            git log --pretty=format:"- %s" -20 --no-merges \
+              | grep -v "Co-Authored-By" > /tmp/commits.txt || true
+          fi
+          touch /tmp/commits.txt
+
+          {
+            echo "## What's Changed"
+            cat /tmp/commits.txt
+            echo ""
+            echo "## Downloads"
+            echo "- **macOS sender**: $DMG_FILE (signed and notarised)"
+            echo "- **Haiku receiver**: $HPKG_FILE"
+            echo ""
+            echo "## Checksums (SHA256)"
+            echo '```'
+            echo "${DMG_SHA256}  $DMG_FILE"
+            echo "${HPKG_SHA256}  $HPKG_FILE"
+            echo '```'
+          } > /tmp/release_body.txt
+
+          # Delete any existing release for this tag
+          EXISTING=$(curl -s -H "Authorization: token $RELEASE_TOKEN" \
+            "$GITEA_API_URL/repos/$GITEA_REPO/releases/tags/$TAG")
+          EXISTING_ID=$(echo "$EXISTING" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
+          if [ -n "$EXISTING_ID" ]; then
+            echo "Deleting existing release $EXISTING_ID..."
+            curl -s -X DELETE -H "Authorization: token $RELEASE_TOKEN" \
+              "$GITEA_API_URL/repos/$GITEA_REPO/releases/$EXISTING_ID"
+            sleep 2
+          fi
+
+          JSON_PAYLOAD=$(jq -n \
+            --arg tag "$TAG" \
+            --arg commit "${{ github.sha }}" \
+            --arg name "softKM $VERSION" \
+            --arg body "$(cat /tmp/release_body.txt)" \
+            '{tag_name: $tag, target_commitish: $commit, name: $name, body: $body, draft: false, prerelease: false}')
+
+          RELEASE_RESPONSE=$(curl -s -X POST \
+            -H "Authorization: token $RELEASE_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$JSON_PAYLOAD" \
+            "$GITEA_API_URL/repos/$GITEA_REPO/releases")
+
+          RELEASE_ID=$(echo "$RELEASE_RESPONSE" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
+          if [ -z "$RELEASE_ID" ]; then
+            echo "ERROR: failed to create release"
+            echo "$RELEASE_RESPONSE"
+            exit 1
+          fi
+          echo "Release ID: $RELEASE_ID"
+
+          upload_asset() {
+            local file="$1" mime="$2"
+            [ ! -f "$file" ] && { echo "Skipping missing asset: $file"; return; }
+            echo "Uploading $file..."
+            curl -s -X POST \
+              -H "Authorization: token $RELEASE_TOKEN" \
+              -H "Content-Type: $mime" \
+              --data-binary @"$file" \
+              "$GITEA_API_URL/repos/$GITEA_REPO/releases/$RELEASE_ID/assets?name=$file"
+            echo ""
+          }
+
+          upload_asset "$DMG_FILE"  "application/octet-stream"
+          upload_asset "$HPKG_FILE" "application/octet-stream"
+
+          # SHA256SUMS
+          {
+            [ -f "$DMG_FILE"  ] && echo "${DMG_SHA256}  $DMG_FILE"
+            [ -f "$HPKG_FILE" ] && echo "${HPKG_SHA256}  $HPKG_FILE"
+          } > SHA256SUMS
+          upload_asset SHA256SUMS "text/plain"
+
+          echo "=== Gitea release $TAG published ==="
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "=== Build Summary ==="
+          echo "Ref:          ${{ github.ref_name }}"
+          echo "Build:        ${{ github.run_number }}"
+          IS_RELEASE="${{ steps.changes.outputs.is_release }}"
+          if [ "$IS_RELEASE" = "true" ]; then
+            echo "Type:         RELEASE v${{ steps.changes.outputs.version }}"
+          else
+            echo "Type:         Development build"
+          fi
+          echo "HaikuClient:  ${{ steps.changes.outputs.client_changed != '0' && 'built' || 'skipped' }}"
+          echo "HaikuOS:      ${{ steps.changes.outputs.server_changed != '0' && 'built' || 'skipped' }}"
+          echo "MacOS:        ${{ steps.changes.outputs.macos_changed  != '0' && 'built' || 'skipped' }}"
+          echo "Status:       ${{ job.status }}"
