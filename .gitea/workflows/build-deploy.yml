@@ -13,6 +13,8 @@ env:
   HAIKU_HOST: taurus.microgeni.synology.me
   HAIKU_USER: user
   HAIKU_PROJECT_PATH: /Data/Code/Projects/haiku-softKM
+  ASUS_HOST: asus.microgeni.synology.me
+  ASUS_USER: user
   GITEA_REPO: Microgeni/haiku-softKM
   GITEA_API_URL: https://gitea.microgeni.synology.me/api/v1
 
@@ -242,6 +244,106 @@ jobs:
 
             echo ""
             echo "=== Deployment complete ==="
+          ENDSSH
+
+      # ====================================================================
+      # asus — HaikuOS receiver deploy
+      # ====================================================================
+      # asus runs the receiver-side softKM (HaikuOS) and listens on port
+      # 31337 for input from the sender-side softKMClient running on
+      # taurus. Build/install steps mirror the taurus block but only
+      # touch HaikuOS/, not HaikuClient/.
+      - name: Deploy receiver to asus
+        if: steps.changes.outputs.server_changed != '0' && steps.changes.outputs.is_release != 'true'
+        env:
+          BRANCH: ${{ github.ref_name }}
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          ssh -o StrictHostKeyChecking=no $ASUS_USER@$ASUS_HOST \
+              BRANCH="$BRANCH" \
+              BUILD_NUMBER="$BUILD_NUMBER" \
+              bash <<'ENDSSH'
+            set -e
+            echo "=== softKM receiver deploy on asus: BRANCH=$BRANCH ==="
+
+            PROJECT=/Data/Code/Projects/haiku-softKM
+            if [ ! -d "$PROJECT" ]; then
+              echo "Project not found at $PROJECT — cloning"
+              mkdir -p /Data/Code/Projects
+              cd /Data/Code/Projects
+              git clone ssh://git@gitea.microgeni.synology.me:2222/Microgeni/haiku-softKM.git haiku-softKM
+            fi
+            cd "$PROJECT"
+
+            echo "Pulling latest from $BRANCH..."
+            git fetch origin
+            git checkout -f "$BRANCH" || git checkout -b "$BRANCH" "origin/$BRANCH"
+            git reset --hard "origin/$BRANCH"
+            git clean -fd
+
+            # Stop any running softKM (receiver). Use pidof / roster for
+            # reliable matching even when ps truncates absolute paths.
+            echo "Stopping any running softKM..."
+            SERVER_PIDS="$(pidof softKM 2>/dev/null) \
+                          $(roster 2>/dev/null \
+                              | grep -E 'application/x-vnd\.softKM($|[^C])' \
+                              | awk '{print $1}') \
+                          $(ps | grep -E '/softKM($|[^C])' \
+                               | grep -v grep | awk '{print $2}')"
+            SERVER_PIDS=$(echo "$SERVER_PIDS" | tr ' ' '\n' | sort -u | grep -v '^$')
+            for pid in $SERVER_PIDS; do
+              echo "  kill $pid"
+              kill "$pid" 2>/dev/null || true
+            done
+            sleep 1
+            for pid in $SERVER_PIDS; do
+              if kill -0 "$pid" 2>/dev/null; then
+                echo "  kill -9 $pid (still alive)"
+                kill -9 "$pid" 2>/dev/null || true
+              fi
+            done
+            sleep 1
+
+            cd "$PROJECT/HaikuOS"
+            if [ -f resources/SoftKM.rdef ]; then
+              sed -i "s/internal = [0-9]*/internal = $BUILD_NUMBER/" resources/SoftKM.rdef || true
+            fi
+
+            rm -rf objects.*
+            make
+
+            SERVER_BIN=$(find objects.* -name "softKM" -type f 2>/dev/null | head -1)
+            if [ -z "$SERVER_BIN" ]; then
+              echo "ERROR: HaikuOS build failed on asus — no binary"
+              exit 1
+            fi
+            echo "Built: $SERVER_BIN"
+
+            echo "Building HaikuOS input_server addons..."
+            cd addon
+            make clean
+            make
+
+            KBD_ADDON=$(find objects.* -name "SoftKMKeyboard" -type f 2>/dev/null | head -1)
+            MOUSE_ADDON=$(find objects.* -name "SoftKMMouse"   -type f 2>/dev/null | head -1)
+
+            mkdir -p ~/config/non-packaged/add-ons/input_server/devices
+            [ -n "$KBD_ADDON"   ] && cp "$KBD_ADDON"   ~/config/non-packaged/add-ons/input_server/devices/
+            [ -n "$MOUSE_ADDON" ] && cp "$MOUSE_ADDON" ~/config/non-packaged/add-ons/input_server/devices/
+            echo "Device addons installed on asus"
+            cd ..
+
+            echo "Launching softKM..."
+            nohup "$PROJECT/HaikuOS/$SERVER_BIN" > /dev/null 2>&1 &
+            sleep 2
+            if pidof softKM >/dev/null 2>&1; then
+              echo "softKM is running on asus (pid $(pidof softKM))"
+            else
+              echo "WARNING: softKM did not start on asus"
+            fi
+
+            echo ""
+            echo "=== asus deployment complete ==="
           ENDSSH
 
       # ====================================================================
