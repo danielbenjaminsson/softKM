@@ -103,8 +103,27 @@ jobs:
               echo "=== Building HaikuClient ==="
 
               echo "Stopping any running softKMClient..."
-              for pid in $(ps | grep softKMClient | grep -v grep | awk '{print $2}'); do
-                kill $pid 2>/dev/null || true
+              # ps truncates long paths so 'grep softKMClient' may miss
+              # an app launched by absolute path. Use pidof and roster
+              # (which queries the registrar by signature) for a reliable
+              # match, and fall back to a broad ps grep just in case.
+              CLIENT_PIDS="$(pidof softKMClient 2>/dev/null) \
+                            $(roster 2>/dev/null | grep softKMClient \
+                                                 | awk '{print $1}') \
+                            $(ps | grep -E 'softKMClient|softkm_client' \
+                                 | grep -v grep | awk '{print $2}')"
+              CLIENT_PIDS=$(echo "$CLIENT_PIDS" | tr ' ' '\n' | sort -u | grep -v '^$')
+              for pid in $CLIENT_PIDS; do
+                echo "  kill $pid"
+                kill "$pid" 2>/dev/null || true
+              done
+              sleep 1
+              # SIGKILL anything still alive
+              for pid in $CLIENT_PIDS; do
+                if kill -0 "$pid" 2>/dev/null; then
+                  echo "  kill -9 $pid (still alive)"
+                  kill -9 "$pid" 2>/dev/null || true
+                fi
               done
               sleep 1
 
@@ -144,8 +163,8 @@ jobs:
               echo "Launching softKMClient..."
               nohup "$PROJECT/HaikuClient/$CLIENT_BIN" > /dev/null 2>&1 &
               sleep 2
-              if ps | grep -v grep | grep -q softKMClient; then
-                echo "softKMClient is running"
+              if pidof softKMClient >/dev/null 2>&1; then
+                echo "softKMClient is running (pid $(pidof softKMClient))"
               else
                 echo "WARNING: softKMClient did not start"
               fi
@@ -157,8 +176,27 @@ jobs:
               echo "=== Building HaikuOS receiver ==="
 
               echo "Stopping any running softKM..."
-              for pid in $(ps | grep -E 'softKM($|[^C])' | grep -v grep | awk '{print $2}'); do
-                kill $pid 2>/dev/null || true
+              # Need to match 'softKM' but NOT 'softKMClient' — the receiver
+              # app's binary is named just 'softKM'. Use exact-match where
+              # possible (pidof / roster signature) and a careful grep
+              # fallback that excludes softKMClient.
+              SERVER_PIDS="$(pidof softKM 2>/dev/null) \
+                            $(roster 2>/dev/null \
+                                | grep -E 'application/x-vnd\.softKM($|[^C])' \
+                                | awk '{print $1}') \
+                            $(ps | grep -E '/softKM($|[^C])' \
+                                 | grep -v grep | awk '{print $2}')"
+              SERVER_PIDS=$(echo "$SERVER_PIDS" | tr ' ' '\n' | sort -u | grep -v '^$')
+              for pid in $SERVER_PIDS; do
+                echo "  kill $pid"
+                kill "$pid" 2>/dev/null || true
+              done
+              sleep 1
+              for pid in $SERVER_PIDS; do
+                if kill -0 "$pid" 2>/dev/null; then
+                  echo "  kill -9 $pid (still alive)"
+                  kill -9 "$pid" 2>/dev/null || true
+                fi
               done
               sleep 1
 
@@ -195,8 +233,8 @@ jobs:
               echo "Launching softKM..."
               nohup "$PROJECT/HaikuOS/$SERVER_BIN" > /dev/null 2>&1 &
               sleep 2
-              if ps | grep -v grep | grep -E 'softKM($|[^C])' >/dev/null; then
-                echo "softKM is running"
+              if pidof softKM >/dev/null 2>&1; then
+                echo "softKM is running (pid $(pidof softKM))"
               else
                 echo "WARNING: softKM did not start"
               fi
