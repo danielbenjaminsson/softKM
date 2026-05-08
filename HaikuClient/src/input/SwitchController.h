@@ -50,7 +50,9 @@ public:
     void     Stop();
 
 private:
-    void ProcessMouseMove(BPoint where, int32 buttons, int32 modifiers);
+    void ProcessMouseMove(BPoint where, int32 buttons, int32 modifiers,
+                          bool hasFilterDelta = false,
+                          float filterDx = 0.f, float filterDy = 0.f);
     void ProcessMouseDown(BPoint where, int32 buttons, int32 modifiers, int32 clicks);
     void ProcessMouseUp(BPoint where, int32 buttons, int32 modifiers);
     void ProcessMouseWheel(float dx, float dy, int32 modifiers);

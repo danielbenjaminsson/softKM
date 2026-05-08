@@ -178,10 +178,13 @@ void SwitchController::HandleFilterEvent(uint32 what, const char* buf, ssize_t s
         {
             BPoint where;
             int32 buttons = 0, mods = 0;
+            float fdx = 0.f, fdy = 0.f;
+            bool hasDelta = (msg.FindFloat("dx", &fdx) == B_OK
+                          && msg.FindFloat("dy", &fdy) == B_OK);
             msg.FindPoint("where", &where);
             msg.FindInt32("buttons", &buttons);
             msg.FindInt32("modifiers", &mods);
-            ProcessMouseMove(where, buttons, mods);
+            ProcessMouseMove(where, buttons, mods, hasDelta, fdx, fdy);
             break;
         }
         case SOFTKM_EVT_MOUSE_DOWN:
@@ -243,7 +246,9 @@ void SwitchController::HandleFilterEvent(uint32 what, const char* buf, ssize_t s
 // Per-event processing
 // ------------------------------------------------------------------
 void SwitchController::ProcessMouseMove(BPoint where, int32 buttons,
-                                        int32 modifiers)
+                                        int32 modifiers,
+                                        bool hasFilterDelta,
+                                        float filterDx, float filterDy)
 {
     fCurrentButtons  = buttons;
     fCurrentModifiers = modifiers;
@@ -267,32 +272,45 @@ void SwitchController::ProcessMouseMove(BPoint where, int32 buttons,
         return;
     }
 
-    // In capturing mode — compute delta from last known position,
-    // batch it for the flush thread.
-
-    // The first event after activation may carry a stale pre-warp
-    // position from the input_server (the filter warps the cursor to
-    // the edge, but a B_MOUSE_MOVED that was already in flight will
-    // still report the old position). Drop it AND realign fLastSentPos
-    // to the locked position so the next real delta starts from there.
-    if (fSkipFirstMove) {
-        fSkipFirstMove = false;
-        LOG("ProcessMouseMove: skipping first stale event (where=%.0f,%.0f) — "
-            "realigning fLastSentPos to lock=(%.0f,%.0f)",
-            where.x, where.y, fLockedCursorPos.x, fLockedCursorPos.y);
-        fLastSentPos = fLockedCursorPos;
-        return;
+    // ---- Capturing mode ----
+    //
+    // Compute the delta this event represents. If the filter pre-computed
+    // it (newer add-on builds), trust that value — it is computed before
+    // the warp distorts the apparent cursor position. Otherwise fall
+    // back to delta-from-last-position, which is what older filter
+    // builds expect.
+    float dx, dy;
+    if (hasFilterDelta) {
+        dx = filterDx;
+        dy = filterDy;
+        // Don't update fLastSentPos: the filter resets the reference
+        // point each event by warping the cursor back to fLockedPos.
+    } else {
+        // The first event after activation may carry a stale pre-warp
+        // position from the input_server (the filter warps the cursor
+        // to the edge, but a B_MOUSE_MOVED that was already in flight
+        // will still report the old position). Drop it AND realign
+        // fLastSentPos to the locked position so the next real delta
+        // starts from there.
+        if (fSkipFirstMove) {
+            fSkipFirstMove = false;
+            LOG("ProcessMouseMove: skipping first stale event (where=%.0f,%.0f) — "
+                "realigning fLastSentPos to lock=(%.0f,%.0f)",
+                where.x, where.y, fLockedCursorPos.x, fLockedCursorPos.y);
+            fLastSentPos = fLockedCursorPos;
+            return;
+        }
+        dx = where.x - fLastSentPos.x;
+        dy = where.y - fLastSentPos.y;
+        fLastSentPos = where;
     }
-
-    float dx = where.x - fLastSentPos.x;
-    float dy = where.y - fLastSentPos.y;
-    fLastSentPos = where;
 
     // Diagnostic: log the first few deltas after activation so we can see
     // exactly what magnitudes are arriving from the filter.
     if (fDeltaLogCount < 10) {
-        LOG("ProcessMouseMove[%d]: where=(%.0f,%.0f) dx=%.1f dy=%.1f buttons=0x%x mods=0x%x",
-            fDeltaLogCount, where.x, where.y, dx, dy, buttons, modifiers);
+        LOG("ProcessMouseMove[%d]: where=(%.0f,%.0f) dx=%.1f dy=%.1f filterDelta=%d buttons=0x%x mods=0x%x",
+            fDeltaLogCount, where.x, where.y, dx, dy,
+            (int)hasFilterDelta, buttons, modifiers);
         fDeltaLogCount++;
     }
 
@@ -305,7 +323,15 @@ void SwitchController::ProcessMouseMove(BPoint where, int32 buttons,
 
     // Edge detection for returning to this Haiku
     // (mirrors InputInjector edge detection on the right Haiku)
-    if (IsAtEdge(where, fReturnEdge)) {
+    //
+    // When the filter pre-computes deltas, 'where' is whatever the OS
+    // reported as the cursor position before the warp. That may be
+    // briefly outside the screen-clamped range, but for return-edge
+    // detection we want the post-warp position, which is fLockedPos.
+    // Use whichever the caller gave us, but fall back to fLockedPos
+    // if 'where' looks unreliable.
+    BPoint edgeCheck = hasFilterDelta ? fLockedCursorPos : where;
+    if (IsAtEdge(edgeCheck, fReturnEdge)) {
         if (!fAtSwitchEdge) {
             fAtSwitchEdge   = true;
             fEdgeDwellStart = system_time();

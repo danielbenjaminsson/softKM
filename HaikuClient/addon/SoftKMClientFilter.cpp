@@ -292,9 +292,27 @@ filter_result SoftKMClientFilter::Filter(BMessage* message, BList* outList)
             message->FindInt32("buttons", &buttons);
             message->FindInt32("modifiers", &modifiers);
 
-            if (fEventPort >= 0) {
+            // Compute the user's movement *relative to the locked
+            // position*. Because we warp the cursor back to fLockedPos
+            // on every real motion event, any reported 'where' that
+            // differs from fLockedPos represents the user's most recent
+            // physical motion. After we warp back, the next event
+            // starts again from fLockedPos, so deltas never need to
+            // accumulate over multiple events.
+            float dx = where.x - fLockedPos.x;
+            float dy = where.y - fLockedPos.y;
+
+            // Drop pure warp-echo events (where == fLockedPos) so the
+            // controller doesn't see fake (0,0) deltas that masquerade
+            // as real motion in the per-event log.
+            const float kWarpEpsilon = 0.5f;
+            bool isWarpEcho = (fabsf(dx) < kWarpEpsilon && fabsf(dy) < kWarpEpsilon);
+
+            if (!isWarpEcho && fEventPort >= 0) {
                 BMessage evt(SOFTKM_EVT_MOUSE_MOVE);
                 evt.AddPoint("where", where);
+                evt.AddFloat("dx", dx);
+                evt.AddFloat("dy", dy);
                 evt.AddInt32("buttons", buttons);
                 evt.AddInt32("modifiers", modifiers);
 
@@ -306,11 +324,15 @@ filter_result SoftKMClientFilter::Filter(BMessage* message, BList* outList)
                 delete[] buf2;
             }
 
-            // Warp cursor back to locked position so it never leaves the edge
+            // Warp cursor back to locked position so it never leaves
+            // the edge. The B_MOUSE_MOVED that input_server posts in
+            // response to this warp will arrive here with where ==
+            // fLockedPos and be identified as a warp echo above.
             set_mouse_position((int32)fLockedPos.x, (int32)fLockedPos.y);
 
-            // Replace the event with one at the locked position so
-            // the system doesn't see the cursor moving.
+            // Replace the original event with one pinned at the lock
+            // position so downstream handlers (like the desktop) don't
+            // see the cursor moving.
             BMessage* replacement = new BMessage(B_MOUSE_MOVED);
             replacement->AddInt64("when", system_time());
             replacement->AddPoint("where", fLockedPos);
