@@ -603,25 +603,56 @@ int32 SwitchController::FlushThreadFunc(void* data)
 
 void SwitchController::FlushLoop()
 {
+    // Throttled diagnostics: log a summary every ~1s so we can see
+    // whether the flush thread is actually flushing real deltas to
+    // the right Haiku, without flooding the log with one entry per
+    // mouse event.
+    bigtime_t  lastSummary  = system_time();
+    int32      flushCount   = 0;
+    int32      emptyCount   = 0;
+    float      sumAbsDx     = 0;
+    float      sumAbsDy     = 0;
+
     while (fRunning) {
         snooze(16667);  // ~60 Hz
 
-        if (fMode != kCapturing || !fClient) continue;
-
-        acquire_sem(fBatchLock);
-        if (!fHasPending) {
-            release_sem(fBatchLock);
+        if (fMode != kCapturing || !fClient) {
+            // Reset counters when we leave capture mode so the next
+            // session starts with a clean slate.
+            flushCount = emptyCount = 0;
+            sumAbsDx = sumAbsDy = 0;
+            lastSummary = system_time();
             continue;
         }
-        float dx     = fPendingDX;
-        float dy     = fPendingDY;
-        uint32 mods  = fPendingMods;
-        fPendingDX   = 0;
-        fPendingDY   = 0;
-        fHasPending  = false;
+
+        acquire_sem(fBatchLock);
+        bool   hasPending = fHasPending;
+        float  dx         = fPendingDX;
+        float  dy         = fPendingDY;
+        uint32 mods       = fPendingMods;
+        fPendingDX  = 0;
+        fPendingDY  = 0;
+        fHasPending = false;
         release_sem(fBatchLock);
 
-        if (dx != 0 || dy != 0)
+        if (!hasPending) {
+            emptyCount++;
+        } else if (dx != 0 || dy != 0) {
             fClient->SendMouseMove(dx, dy, true, mods);
+            flushCount++;
+            sumAbsDx += (dx < 0 ? -dx : dx);
+            sumAbsDy += (dy < 0 ? -dy : dy);
+        }
+
+        // 1Hz summary
+        bigtime_t now = system_time();
+        if (now - lastSummary >= 1000000) {
+            LOG("FlushLoop: 1s summary — sent=%ld empty=%ld absDx=%.1f absDy=%.1f connected=%d",
+                flushCount, emptyCount, sumAbsDx, sumAbsDy,
+                fClient ? (int)fClient->IsConnected() : -1);
+            flushCount = emptyCount = 0;
+            sumAbsDx = sumAbsDy = 0;
+            lastSummary = now;
+        }
     }
 }
