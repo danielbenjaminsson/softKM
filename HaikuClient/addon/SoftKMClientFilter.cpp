@@ -88,6 +88,7 @@ private:
     BPoint   fLockedPos;
 
     port_id  FindEventPort();
+    void     SendEvent(BMessage* evt);
 };
 
 // ---------------------------------------------------------------------------
@@ -184,21 +185,51 @@ void SoftKMClientFilter::CmdLoop()
 }
 
 // ---------------------------------------------------------------------------
-// Filter — called by input_server for every event
+// Helper: send a flattened BMessage to the event port. Re-resolves the
+// port lazily and on every write failure, so a softKMClient restart
+// (which creates a fresh port with the same name) is picked up
+// transparently without needing an input_server reload.
 // ---------------------------------------------------------------------------
-filter_result SoftKMClientFilter::Filter(BMessage* message, BList* outList)
+void SoftKMClientFilter::SendEvent(BMessage* evt)
 {
-    // Always try to find the event port if we don't have it yet
     if (fEventPort < 0) {
         fEventPort = FindEventPort();
         if (fEventPort >= 0)
             DebugLog("Found event port: %d", fEventPort);
     }
+    if (fEventPort < 0) return;
+
+    ssize_t flat = evt->FlattenedSize();
+    char* buf = new char[flat];
+    bool ok = (evt->Flatten(buf, flat) == B_OK);
+
+    if (ok) {
+        status_t r = write_port_etc(fEventPort, evt->what, buf, flat,
+                                    B_TIMEOUT, 50000);
+        if (r != B_OK) {
+            // Port invalid (peer died) or full. Drop the event but
+            // invalidate the cached port id so the next event will
+            // re-resolve. The new softKMClient will have created a
+            // fresh port with the same name.
+            DebugLog("write_port failed (%s) on what=0x%x — dropping cached port",
+                strerror(r), (unsigned)evt->what);
+            fEventPort = -1;
+        }
+    }
+    delete[] buf;
+}
+
+// ---------------------------------------------------------------------------
+// Filter — called by input_server for every event
+// ---------------------------------------------------------------------------
+filter_result SoftKMClientFilter::Filter(BMessage* message, BList* outList)
+{
+    // Lazy/refresh resolution of the event port happens inside SendEvent.
 
     if (!fActive) {
         // Even in monitoring mode, forward mouse position to the app
         // so it can detect edge dwell and trigger capture.
-        if (message->what == B_MOUSE_MOVED && fEventPort >= 0) {
+        if (message->what == B_MOUSE_MOVED) {
             BPoint where;
             int32 buttons = 0, modifiers = 0;
             message->FindPoint("where", &where);
@@ -209,13 +240,7 @@ filter_result SoftKMClientFilter::Filter(BMessage* message, BList* outList)
             evt.AddPoint("where", where);
             evt.AddInt32("buttons", buttons);
             evt.AddInt32("modifiers", modifiers);
-
-            ssize_t flat = evt.FlattenedSize();
-            char* buf2 = new char[flat];
-            if (evt.Flatten(buf2, flat) == B_OK)
-                write_port_etc(fEventPort, evt.what, buf2, flat,
-                               B_TIMEOUT, 0);  // non-blocking — drop if full
-            delete[] buf2;
+            SendEvent(&evt);
         }
         return B_DISPATCH_MESSAGE;  // Always pass through in monitoring mode
     }
@@ -234,20 +259,12 @@ filter_result SoftKMClientFilter::Filter(BMessage* message, BList* outList)
             const char* bytes = "";
             message->FindString("bytes", &bytes);
 
-            if (fEventPort >= 0) {
-                BMessage evt(SOFTKM_EVT_KEY_DOWN);
-                evt.AddInt32("key", key);
-                evt.AddInt32("modifiers", modifiers);
-                evt.AddInt32("raw_char", rawChar);
-                evt.AddString("bytes", bytes ? bytes : "");
-
-                ssize_t flat = evt.FlattenedSize();
-                char* buf2 = new char[flat];
-                if (evt.Flatten(buf2, flat) == B_OK)
-                    write_port_etc(fEventPort, evt.what, buf2, flat,
-                                   B_TIMEOUT, 50000);
-                delete[] buf2;
-            }
+            BMessage evt(SOFTKM_EVT_KEY_DOWN);
+            evt.AddInt32("key", key);
+            evt.AddInt32("modifiers", modifiers);
+            evt.AddInt32("raw_char", rawChar);
+            evt.AddString("bytes", bytes ? bytes : "");
+            SendEvent(&evt);
             consumed = true;
             break;
         }
@@ -259,18 +276,10 @@ filter_result SoftKMClientFilter::Filter(BMessage* message, BList* outList)
             message->FindInt32("key", &key);
             message->FindInt32("modifiers", &modifiers);
 
-            if (fEventPort >= 0) {
-                BMessage evt(SOFTKM_EVT_KEY_UP);
-                evt.AddInt32("key", key);
-                evt.AddInt32("modifiers", modifiers);
-
-                ssize_t flat = evt.FlattenedSize();
-                char* buf2 = new char[flat];
-                if (evt.Flatten(buf2, flat) == B_OK)
-                    write_port_etc(fEventPort, evt.what, buf2, flat,
-                                   B_TIMEOUT, 50000);
-                delete[] buf2;
-            }
+            BMessage evt(SOFTKM_EVT_KEY_UP);
+            evt.AddInt32("key", key);
+            evt.AddInt32("modifiers", modifiers);
+            SendEvent(&evt);
             consumed = true;
             break;
         }
@@ -308,20 +317,14 @@ filter_result SoftKMClientFilter::Filter(BMessage* message, BList* outList)
             const float kWarpEpsilon = 0.5f;
             bool isWarpEcho = (fabsf(dx) < kWarpEpsilon && fabsf(dy) < kWarpEpsilon);
 
-            if (!isWarpEcho && fEventPort >= 0) {
+            if (!isWarpEcho) {
                 BMessage evt(SOFTKM_EVT_MOUSE_MOVE);
                 evt.AddPoint("where", where);
                 evt.AddFloat("dx", dx);
                 evt.AddFloat("dy", dy);
                 evt.AddInt32("buttons", buttons);
                 evt.AddInt32("modifiers", modifiers);
-
-                ssize_t flat = evt.FlattenedSize();
-                char* buf2 = new char[flat];
-                if (evt.Flatten(buf2, flat) == B_OK)
-                    write_port_etc(fEventPort, evt.what, buf2, flat,
-                                   B_TIMEOUT, 50000);
-                delete[] buf2;
+                SendEvent(&evt);
             }
 
             // Warp cursor back to locked position so it never leaves
@@ -352,20 +355,12 @@ filter_result SoftKMClientFilter::Filter(BMessage* message, BList* outList)
             message->FindInt32("modifiers", &modifiers);
             message->FindInt32("clicks", &clicks);
 
-            if (fEventPort >= 0) {
-                BMessage evt(SOFTKM_EVT_MOUSE_DOWN);
-                evt.AddPoint("where", where);
-                evt.AddInt32("buttons", buttons);
-                evt.AddInt32("modifiers", modifiers);
-                evt.AddInt32("clicks", clicks);
-
-                ssize_t flat = evt.FlattenedSize();
-                char* buf2 = new char[flat];
-                if (evt.Flatten(buf2, flat) == B_OK)
-                    write_port_etc(fEventPort, evt.what, buf2, flat,
-                                   B_TIMEOUT, 50000);
-                delete[] buf2;
-            }
+            BMessage evt(SOFTKM_EVT_MOUSE_DOWN);
+            evt.AddPoint("where", where);
+            evt.AddInt32("buttons", buttons);
+            evt.AddInt32("modifiers", modifiers);
+            evt.AddInt32("clicks", clicks);
+            SendEvent(&evt);
             consumed = true;
             break;
         }
@@ -378,19 +373,11 @@ filter_result SoftKMClientFilter::Filter(BMessage* message, BList* outList)
             message->FindInt32("buttons", &buttons);
             message->FindInt32("modifiers", &modifiers);
 
-            if (fEventPort >= 0) {
-                BMessage evt(SOFTKM_EVT_MOUSE_UP);
-                evt.AddPoint("where", where);
-                evt.AddInt32("buttons", buttons);
-                evt.AddInt32("modifiers", modifiers);
-
-                ssize_t flat = evt.FlattenedSize();
-                char* buf2 = new char[flat];
-                if (evt.Flatten(buf2, flat) == B_OK)
-                    write_port_etc(fEventPort, evt.what, buf2, flat,
-                                   B_TIMEOUT, 50000);
-                delete[] buf2;
-            }
+            BMessage evt(SOFTKM_EVT_MOUSE_UP);
+            evt.AddPoint("where", where);
+            evt.AddInt32("buttons", buttons);
+            evt.AddInt32("modifiers", modifiers);
+            SendEvent(&evt);
             consumed = true;
             break;
         }
@@ -403,19 +390,11 @@ filter_result SoftKMClientFilter::Filter(BMessage* message, BList* outList)
             message->FindFloat("be:wheel_delta_y", &dy);
             message->FindInt32("modifiers", &modifiers);
 
-            if (fEventPort >= 0) {
-                BMessage evt(SOFTKM_EVT_MOUSE_WHEEL);
-                evt.AddFloat("delta_x", dx);
-                evt.AddFloat("delta_y", dy);
-                evt.AddInt32("modifiers", modifiers);
-
-                ssize_t flat = evt.FlattenedSize();
-                char* buf2 = new char[flat];
-                if (evt.Flatten(buf2, flat) == B_OK)
-                    write_port_etc(fEventPort, evt.what, buf2, flat,
-                                   B_TIMEOUT, 50000);
-                delete[] buf2;
-            }
+            BMessage evt(SOFTKM_EVT_MOUSE_WHEEL);
+            evt.AddFloat("delta_x", dx);
+            evt.AddFloat("delta_y", dy);
+            evt.AddInt32("modifiers", modifiers);
+            SendEvent(&evt);
             consumed = true;
             break;
         }

@@ -206,6 +206,20 @@ bool NetworkClient::Send(const uint8* data, size_t length)
     if (sent < 0) {
         LOG("NetworkClient: send() failed (len=%zu): %s",
             length, strerror(errno));
+
+        // Tear the connection down so IsConnected() reflects reality
+        // and ScheduleReconnect kicks in. ReceiveLoop's blocking recv()
+        // can hold a stale fd open for a long time even after the peer
+        // has gone, but a send failure is an immediate, reliable signal
+        // that the connection is dead.
+        int sock = fSocket;
+        fSocket = -1;
+        if (sock >= 0) {
+            shutdown(sock, SHUT_RDWR);  // unblocks recv() in ReceiveLoop
+            close(sock);
+        }
+        if (fConnectionCb) fConnectionCb(false, fConnectionCbCookie);
+        ScheduleReconnect();
         return false;
     }
     if ((size_t)sent != length) {
