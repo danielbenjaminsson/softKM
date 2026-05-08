@@ -104,6 +104,8 @@ private:
     BPoint   fLastSentPos;  // last position we sent so we can compute delta
     bool     fSkipFirstMove; // skip first move after activation — pre-warp pos
                              // would generate a huge bogus delta
+    int32    fDeltaLogCount; // how many post-activation deltas we've logged
+                             // (capped to keep the log readable)
 
     NetworkClient*    fClient;
     ClipboardManager* fClipboard;

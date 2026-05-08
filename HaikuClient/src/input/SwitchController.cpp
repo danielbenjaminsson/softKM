@@ -57,6 +57,7 @@ SwitchController::SwitchController()
       fHasPending(false),
       fLastSentPos(0, 0),
       fSkipFirstMove(false),
+      fDeltaLogCount(0),
       fClient(nullptr),
       fClipboard(nullptr),
       fEventPort(-1),
@@ -268,20 +269,31 @@ void SwitchController::ProcessMouseMove(BPoint where, int32 buttons,
 
     // In capturing mode — compute delta from last known position,
     // batch it for the flush thread.
-    float dx = where.x - fLastSentPos.x;
-    float dy = where.y - fLastSentPos.y;
-    fLastSentPos = where;
 
     // The first event after activation may carry a stale pre-warp
     // position from the input_server (the filter warps the cursor to
     // the edge, but a B_MOUSE_MOVED that was already in flight will
-    // still report the old position). Drop it so we don't emit a huge
-    // bogus delta.
+    // still report the old position). Drop it AND realign fLastSentPos
+    // to the locked position so the next real delta starts from there.
     if (fSkipFirstMove) {
         fSkipFirstMove = false;
-        LOG("ProcessMouseMove: skipping first stale event (where=%.0f,%.0f)",
-            where.x, where.y);
+        LOG("ProcessMouseMove: skipping first stale event (where=%.0f,%.0f) — "
+            "realigning fLastSentPos to lock=(%.0f,%.0f)",
+            where.x, where.y, fLockedCursorPos.x, fLockedCursorPos.y);
+        fLastSentPos = fLockedCursorPos;
         return;
+    }
+
+    float dx = where.x - fLastSentPos.x;
+    float dy = where.y - fLastSentPos.y;
+    fLastSentPos = where;
+
+    // Diagnostic: log the first few deltas after activation so we can see
+    // exactly what magnitudes are arriving from the filter.
+    if (fDeltaLogCount < 10) {
+        LOG("ProcessMouseMove[%d]: where=(%.0f,%.0f) dx=%.1f dy=%.1f buttons=0x%x mods=0x%x",
+            fDeltaLogCount, where.x, where.y, dx, dy, buttons, modifiers);
+        fDeltaLogCount++;
     }
 
     acquire_sem(fBatchLock);
@@ -413,6 +425,7 @@ void SwitchController::ActivateCapture()
     // since it may carry a stale pre-warp position from the input_server.
     fLastSentPos = fLastMousePos;
     fSkipFirstMove = true;
+    fDeltaLogCount = 0;
 
     LockCursor(lockPos);
     SendActivateToFilter(lockPos);
