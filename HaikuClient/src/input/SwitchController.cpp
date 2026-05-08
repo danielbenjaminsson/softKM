@@ -56,6 +56,7 @@ SwitchController::SwitchController()
       fPendingMods(0),
       fHasPending(false),
       fLastSentPos(0, 0),
+      fSkipFirstMove(false),
       fClient(nullptr),
       fClipboard(nullptr),
       fEventPort(-1),
@@ -271,6 +272,18 @@ void SwitchController::ProcessMouseMove(BPoint where, int32 buttons,
     float dy = where.y - fLastSentPos.y;
     fLastSentPos = where;
 
+    // The first event after activation may carry a stale pre-warp
+    // position from the input_server (the filter warps the cursor to
+    // the edge, but a B_MOUSE_MOVED that was already in flight will
+    // still report the old position). Drop it so we don't emit a huge
+    // bogus delta.
+    if (fSkipFirstMove) {
+        fSkipFirstMove = false;
+        LOG("ProcessMouseMove: skipping first stale event (where=%.0f,%.0f)",
+            where.x, where.y);
+        return;
+    }
+
     acquire_sem(fBatchLock);
     fPendingDX   += dx;
     fPendingDY   += dy;
@@ -391,7 +404,15 @@ void SwitchController::ActivateCapture()
     // Lock cursor at the switch edge
     BPoint lockPos = EdgeLockPosition(fSwitchEdge);
     fLockedCursorPos = lockPos;
-    fLastSentPos = lockPos;
+    // IMPORTANT: initialise fLastSentPos to the *current* cursor position,
+    // NOT to the edge lock position. Otherwise the first delta computed in
+    // ProcessMouseMove would be (currentPos - edgePos), which is enormous
+    // (hundreds or thousands of pixels) and would slam the right-Haiku
+    // cursor into its return edge, immediately triggering the dwell timer
+    // and switching control back. Also skip the very first move event
+    // since it may carry a stale pre-warp position from the input_server.
+    fLastSentPos = fLastMousePos;
+    fSkipFirstMove = true;
 
     LockCursor(lockPos);
     SendActivateToFilter(lockPos);

@@ -102,6 +102,8 @@ private:
     bool     fHasPending;
     sem_id   fBatchLock;
     BPoint   fLastSentPos;  // last position we sent so we can compute delta
+    bool     fSkipFirstMove; // skip first move after activation — pre-warp pos
+                             // would generate a huge bogus delta
 
     NetworkClient*    fClient;
     ClipboardManager* fClipboard;
