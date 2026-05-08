@@ -2,10 +2,17 @@
 #include "Logger.h"
 
 #include <image.h>
+#include <signal.h>
 #include <cstring>
 
 int main(int argc, char** argv)
 {
+    // Ignore SIGPIPE — when the peer closes the TCP connection while we
+    // are mid-send, the kernel would otherwise deliver SIGPIPE, killing
+    // the process silently. We handle send() errors by checking the
+    // return value instead.
+    signal(SIGPIPE, SIG_IGN);
+
     // Resolve our own binary path so the log file lands next to it.
     image_info info;
     int32 cookie = 0;

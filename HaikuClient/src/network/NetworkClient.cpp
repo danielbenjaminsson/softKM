@@ -140,8 +140,11 @@ status_t NetworkClient::Connect(const char* host, uint16 port)
     freeaddrinfo(res);
     LOG("NetworkClient: connected to %s:%u", host, port);
 
-    // Notify app
-    BMessenger(be_app).SendMessage(MSG_PEER_CONNECTED);
+    // Notify app via the registered callback; the callback in
+    // SoftKMClientApp will post MSG_PEER_CONNECTED to be_app. We
+    // intentionally do NOT send MSG_PEER_CONNECTED directly here as
+    // well — that would deliver the message twice and trigger two
+    // SendSettingsSync calls.
     if (fConnectionCb) fConnectionCb(true, fConnectionCbCookie);
 
     // Send our screen size to the right Haiku
@@ -192,12 +195,21 @@ void NetworkClient::Disconnect()
 // ------------------------------------------------------------------
 bool NetworkClient::Send(const uint8* data, size_t length)
 {
-    if (fSocket < 0) return false;
-
-    ssize_t sent = send(fSocket, data, length, 0);
-    if (sent < 0) {
-        LOG("NetworkClient: send() failed: %s", strerror(errno));
+    if (fSocket < 0) {
+        LOG("NetworkClient: Send() called with fSocket=-1 (len=%zu)", length);
         return false;
+    }
+
+    // MSG_NOSIGNAL prevents SIGPIPE if the peer has closed — without it,
+    // a broken pipe during send() would kill our process silently.
+    ssize_t sent = send(fSocket, data, length, MSG_NOSIGNAL);
+    if (sent < 0) {
+        LOG("NetworkClient: send() failed (len=%zu): %s",
+            length, strerror(errno));
+        return false;
+    }
+    if ((size_t)sent != length) {
+        LOG("NetworkClient: short send (sent=%zd of %zu)", sent, length);
     }
     return true;
 }
@@ -379,11 +391,15 @@ void NetworkClient::ReceiveLoop()
 {
     uint8 buf[4096];
     size_t accumulated = 0;
+    ssize_t lastN = 0;
+    int     lastErrno = 0;
 
     while (fRunning && fSocket >= 0) {
         ssize_t n = recv(fSocket, buf + accumulated,
                          sizeof(buf) - accumulated, 0);
         if (n <= 0) {
+            lastN = n;
+            lastErrno = errno;
             if (n < 0 && errno == EINTR) continue;
             break;
         }
@@ -407,7 +423,9 @@ void NetworkClient::ReceiveLoop()
         }
     }
 
-    LOG("NetworkClient: receive loop ended");
+    LOG("NetworkClient: receive loop ended (recv=%zd errno=%d %s, accumulated=%zu, fRunning=%d, fSocket=%d)",
+        lastN, lastErrno, lastErrno ? strerror(lastErrno) : "ok",
+        accumulated, (int)fRunning, fSocket);
 
     if (fRunning) {
         // Unexpected disconnect
@@ -416,7 +434,8 @@ void NetworkClient::ReceiveLoop()
             close(sock);
             fSocket = -1;
         }
-        BMessenger(be_app).SendMessage(MSG_PEER_DISCONNECTED);
+        // Callback delivers MSG_PEER_DISCONNECTED via app messenger;
+        // don't double-post it.
         if (fConnectionCb) fConnectionCb(false, fConnectionCbCookie);
         ScheduleReconnect();
     }
