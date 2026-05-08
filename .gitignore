@@ -100,3 +100,10 @@ fastlane/test_output
 *.out
 *.app
 
+
+# Haiku build artifacts
+HaikuOS/objects.*/
+HaikuOS/addon/objects.*/
+HaikuClient/objects.*/
+HaikuClient/addon/objects.*/
+*.hpkg

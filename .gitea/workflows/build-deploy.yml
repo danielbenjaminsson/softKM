@@ -606,8 +606,6 @@ jobs:
             exit 1
           fi
 
-<<<<<<< HEAD
-=======
       - name: Push to GitHub
         if: steps.changes.outputs.is_release == 'true'
         run: |
@@ -700,7 +698,6 @@ jobs:
             exit 1
           fi
 
->>>>>>> d7d2eea (ci: upload SHA256SUMS as release asset alongside DMG and HPKG (Gitea + GitHub))
       - name: Summary
         if: always()
         run: |
