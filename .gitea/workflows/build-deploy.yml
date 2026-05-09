@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - dev
+      - feature/unified-app
     tags:
       - 'v*'
   workflow_dispatch:
@@ -31,7 +32,6 @@ jobs:
       - name: Detect changed components
         id: changes
         run: |
-          # Tag push -> release build (always builds everything)
           IS_RELEASE="false"
           VERSION=""
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
@@ -44,45 +44,49 @@ jobs:
           echo "version=$VERSION"       >> $GITHUB_OUTPUT
 
           if [ "$IS_RELEASE" = "true" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "client_changed=1" >> $GITHUB_OUTPUT
-            echo "server_changed=1" >> $GITHUB_OUTPUT
-            echo "macos_changed=1"  >> $GITHUB_OUTPUT
+            echo "haiku_changed=1" >> $GITHUB_OUTPUT
+            echo "macos_changed=1" >> $GITHUB_OUTPUT
             echo "Building all (release or manual dispatch)"
             exit 0
           fi
 
-          CLIENT_CHANGED=$(git diff --name-only HEAD~1 -- HaikuClient/ 2>/dev/null | wc -l | tr -d ' ')
-          SERVER_CHANGED=$(git diff --name-only HEAD~1 -- HaikuOS/ 2>/dev/null | wc -l | tr -d ' ')
+          # The unified app lives entirely under HaikuOS/. (HaikuClient/
+          # is the legacy tree, kept around until we delete it in the
+          # next branch step; changes there don't trigger anything.)
+          HAIKU_CHANGED=$(git diff --name-only HEAD~1 -- HaikuOS/ 2>/dev/null | wc -l | tr -d ' ')
           MACOS_CHANGED=$(git diff --name-only HEAD~1 -- MacOS/ 2>/dev/null | wc -l | tr -d ' ')
           WORKFLOW_CHANGED=$(git diff --name-only HEAD~1 -- .gitea/workflows/ 2>/dev/null | wc -l | tr -d ' ')
 
           if [ "$WORKFLOW_CHANGED" -gt 0 ]; then
-            CLIENT_CHANGED=1
-            SERVER_CHANGED=1
+            HAIKU_CHANGED=1
             MACOS_CHANGED=1
           fi
 
-          echo "client_changed=$CLIENT_CHANGED" >> $GITHUB_OUTPUT
-          echo "server_changed=$SERVER_CHANGED" >> $GITHUB_OUTPUT
-          echo "macos_changed=$MACOS_CHANGED"   >> $GITHUB_OUTPUT
-          echo "HaikuClient: $CLIENT_CHANGED, HaikuOS: $SERVER_CHANGED, MacOS: $MACOS_CHANGED"
+          echo "haiku_changed=$HAIKU_CHANGED" >> $GITHUB_OUTPUT
+          echo "macos_changed=$MACOS_CHANGED" >> $GITHUB_OUTPUT
+          echo "Haiku: $HAIKU_CHANGED, MacOS: $MACOS_CHANGED"
 
-      - name: Deploy to Haiku
-        if: (steps.changes.outputs.client_changed != '0' || steps.changes.outputs.server_changed != '0') && steps.changes.outputs.is_release != 'true'
+      # ====================================================================
+      # taurus — softKM (unified Haiku binary, deployed in CLIENT mode)
+      # ====================================================================
+      # taurus replaces the legacy macOS sender app. The unified softKM
+      # binary runs in MODE_CLIENT here: captures local input via the
+      # SoftKMClientFilter input_server filter add-on, forwards to the
+      # configured server (asus). No server-side device add-ons are
+      # installed in client mode.
+      - name: Deploy unified softKM (client mode) to taurus
+        if: steps.changes.outputs.haiku_changed != '0' && steps.changes.outputs.is_release != 'true'
         env:
-          BUILD_CLIENT: ${{ steps.changes.outputs.client_changed }}
-          BUILD_SERVER: ${{ steps.changes.outputs.server_changed }}
           BRANCH: ${{ github.ref_name }}
           BUILD_NUMBER: ${{ github.run_number }}
         run: |
           ssh -o StrictHostKeyChecking=no $HAIKU_USER@$HAIKU_HOST \
-              BUILD_CLIENT="$BUILD_CLIENT" \
-              BUILD_SERVER="$BUILD_SERVER" \
               BRANCH="$BRANCH" \
               BUILD_NUMBER="$BUILD_NUMBER" \
+              ASUS_HOST="$ASUS_HOST" \
               bash <<'ENDSSH'
             set -e
-            echo "=== softKM deploy: BRANCH=$BRANCH client=$BUILD_CLIENT server=$BUILD_SERVER ==="
+            echo "=== softKM client deploy on taurus: BRANCH=$BRANCH ==="
 
             PROJECT=/Data/Code/Projects/haiku-softKM
             if [ ! -d "$PROJECT" ]; then
@@ -99,168 +103,129 @@ jobs:
             git reset --hard "origin/$BRANCH"
             git clean -fd
 
-            # ---------- HaikuClient (sender) ----------
-            if [ "$BUILD_CLIENT" != "0" ]; then
-              echo ""
-              echo "=== Building HaikuClient ==="
-
-              echo "Stopping any running softKMClient..."
-              # ps truncates long paths so 'grep softKMClient' may miss
-              # an app launched by absolute path. Use pidof and roster
-              # (which queries the registrar by signature) for a reliable
-              # match, and fall back to a broad ps grep just in case.
-              #
-              # Each tool here may exit non-zero on "no match" (pidof, grep),
-              # which under set -e would abort the whole script BEFORE we
-              # ever assign CLIENT_PIDS. Append `|| true` to every command
-              # substitution so an empty result is benign, and protect the
-              # final dedup pipeline the same way.
-              CLIENT_PIDS="$(pidof softKMClient 2>/dev/null || true) \
-                            $(roster 2>/dev/null | grep softKMClient \
-                                                 | awk '{print $1}' || true) \
-                            $(ps | grep -E 'softKMClient|softkm_client' \
-                                 | grep -v grep | awk '{print $2}' || true)"
-              CLIENT_PIDS=$(echo "$CLIENT_PIDS" | tr ' ' '\n' | sort -u | grep -v '^$' || true)
-              for pid in $CLIENT_PIDS; do
-                echo "  kill $pid"
-                kill "$pid" 2>/dev/null || true
-              done
-              sleep 1
-              # SIGKILL anything still alive
-              for pid in $CLIENT_PIDS; do
-                if kill -0 "$pid" 2>/dev/null; then
-                  echo "  kill -9 $pid (still alive)"
-                  kill -9 "$pid" 2>/dev/null || true
-                fi
-              done
-              sleep 1
-
-              cd "$PROJECT/HaikuClient"
-
-              # Bump build number if rdef has internal field
-              if [ -f resources/SoftKMClient.rdef ]; then
-                sed -i "s/internal = [0-9]*/internal = $BUILD_NUMBER/" resources/SoftKMClient.rdef || true
+            # ---- Stop any running softKM and the legacy softKMClient.
+            #
+            # During the migration we may have either name running. Use
+            # pidof + roster + ps fallbacks; tolerate empty results
+            # (every command substitution gets `|| true` so 'set -e'
+            # doesn't abort on no-matches).
+            echo "Stopping any running softKM / softKMClient..."
+            APP_PIDS="$(pidof softKM 2>/dev/null || true) \
+                      $(pidof softKMClient 2>/dev/null || true) \
+                      $(roster 2>/dev/null \
+                          | grep -E 'application/x-vnd\.softKM(Client)?$' \
+                          | awk '{print $1}' || true) \
+                      $(ps | grep -E '/softKM(Client)?( |$)' \
+                           | grep -v grep | awk '{print $2}' || true)"
+            APP_PIDS=$(echo "$APP_PIDS" | tr ' ' '\n' | sort -u | grep -v '^$' || true)
+            for pid in $APP_PIDS; do
+              echo "  kill $pid"
+              kill "$pid" 2>/dev/null || true
+            done
+            sleep 1
+            for pid in $APP_PIDS; do
+              if kill -0 "$pid" 2>/dev/null; then
+                echo "  kill -9 $pid"
+                kill -9 "$pid" 2>/dev/null || true
               fi
+            done
+            sleep 1
 
-              rm -rf objects.*
-              make
-
-              CLIENT_BIN=$(find objects.* -name "softKMClient" -type f 2>/dev/null | head -1)
-              if [ -z "$CLIENT_BIN" ]; then
-                echo "ERROR: HaikuClient build failed — no binary"
-                exit 1
-              fi
-              echo "Built: $CLIENT_BIN"
-
-              echo "Building HaikuClient input_server filter..."
-              cd addon
-              make clean
-              make
-
-              FILTER_ADDON=$(find objects.* -name "SoftKMClientFilter" -type f 2>/dev/null | head -1)
-              if [ -n "$FILTER_ADDON" ]; then
-                mkdir -p ~/config/non-packaged/add-ons/input_server/filters
-                cp "$FILTER_ADDON" ~/config/non-packaged/add-ons/input_server/filters/
-                echo "Filter installed: $FILTER_ADDON"
-                echo "NOTE: input_server must be restarted to load the updated filter"
-              else
-                echo "WARNING: filter add-on build produced no output"
-              fi
-              cd ..
-
-              echo "Launching softKMClient..."
-              nohup "$PROJECT/HaikuClient/$CLIENT_BIN" > /dev/null 2>&1 &
-              sleep 2
-              if pidof softKMClient >/dev/null 2>&1; then
-                echo "softKMClient is running (pid $(pidof softKMClient))"
-              else
-                echo "WARNING: softKMClient did not start"
-              fi
+            # ---- Build the unified softKM binary ----
+            cd "$PROJECT/HaikuOS"
+            if [ -f resources/SoftKM.rdef ]; then
+              sed -i "s/internal = [0-9]*/internal = $BUILD_NUMBER/" \
+                resources/SoftKM.rdef || true
             fi
 
-            # ---------- HaikuOS (receiver) ----------
-            if [ "$BUILD_SERVER" != "0" ]; then
-              echo ""
-              echo "=== Building HaikuOS receiver ==="
+            rm -rf objects.*
+            make
+            BINARY=$(find objects.* -name "softKM" -type f 2>/dev/null | head -1)
+            if [ -z "$BINARY" ]; then
+              echo "ERROR: HaikuOS build failed on taurus — no binary"
+              exit 1
+            fi
+            echo "Built: $BINARY"
 
-              echo "Stopping any running softKM..."
-              # Need to match 'softKM' but NOT 'softKMClient' — the receiver
-              # app's binary is named just 'softKM'. Use exact-match where
-              # possible (pidof / roster signature) and a careful grep
-              # fallback that excludes softKMClient.
-              SERVER_PIDS="$(pidof softKM 2>/dev/null || true) \
-                            $(roster 2>/dev/null \
-                                | grep -E 'application/x-vnd\.softKM($|[^C])' \
-                                | awk '{print $1}' || true) \
-                            $(ps | grep -E '/softKM($|[^C])' \
-                                 | grep -v grep | awk '{print $2}' || true)"
-              SERVER_PIDS=$(echo "$SERVER_PIDS" | tr ' ' '\n' | sort -u | grep -v '^$' || true)
-              for pid in $SERVER_PIDS; do
-                echo "  kill $pid"
-                kill "$pid" 2>/dev/null || true
-              done
-              sleep 1
-              for pid in $SERVER_PIDS; do
-                if kill -0 "$pid" 2>/dev/null; then
-                  echo "  kill -9 $pid (still alive)"
-                  kill -9 "$pid" 2>/dev/null || true
-                fi
-              done
-              sleep 1
+            # ---- Build all input_server add-ons; install only the
+            #      filter (client mode doesn't use the device add-ons).
+            cd addon
+            make clean
+            make
+            FILTER=$(find objects.* -name "SoftKMClientFilter" -type f 2>/dev/null | head -1)
+            if [ -z "$FILTER" ]; then
+              echo "ERROR: SoftKMClientFilter build failed"
+              exit 1
+            fi
 
-              cd "$PROJECT/HaikuOS"
+            mkdir -p ~/config/non-packaged/add-ons/input_server/filters
+            cp "$FILTER" ~/config/non-packaged/add-ons/input_server/filters/
+            echo "Filter installed: $FILTER"
 
-              if [ -f resources/SoftKM.rdef ]; then
-                sed -i "s/internal = [0-9]*/internal = $BUILD_NUMBER/" resources/SoftKM.rdef || true
-              fi
+            # Remove server-side device add-ons if they were installed
+            # by an earlier deploy that put taurus into server mode.
+            # (Harmless if they weren't there.)
+            rm -f ~/config/non-packaged/add-ons/input_server/devices/SoftKMKeyboard
+            rm -f ~/config/non-packaged/add-ons/input_server/devices/SoftKMMouse
 
-              rm -rf objects.*
-              make
+            cd ..
 
-              SERVER_BIN=$(find objects.* -name "softKM" -type f 2>/dev/null | head -1)
-              if [ -z "$SERVER_BIN" ]; then
-                echo "ERROR: HaikuOS build failed — no binary"
-                exit 1
-              fi
-              echo "Built: $SERVER_BIN"
+            # ---- Configure as MODE_CLIENT, pointing at asus ----
+            #
+            # Run softKM in --configure mode (no GUI) to write a fresh
+            # settings file. This is idempotent: if the user later
+            # changes settings via the GUI, those win on the next
+            # launch. We only force-overwrite mode/host on deploy so
+            # taurus comes up in the right role even if a previous
+            # test run left it pointed elsewhere.
+            "$PROJECT/HaikuOS/$BINARY" --configure \
+              --mode=client \
+              --host="$ASUS_HOST" \
+              --port=31337 \
+              --switch-edge=0 \
+              --return-edge=1 \
+              --dwell=0.3
 
-              echo "Building HaikuOS input_server addons..."
-              cd addon
-              make clean
-              make
-
-              KBD_ADDON=$(find objects.* -name "SoftKMKeyboard" -type f 2>/dev/null | head -1)
-              MOUSE_ADDON=$(find objects.* -name "SoftKMMouse" -type f 2>/dev/null | head -1)
-
-              mkdir -p ~/config/non-packaged/add-ons/input_server/devices
-              [ -n "$KBD_ADDON" ]   && cp "$KBD_ADDON"   ~/config/non-packaged/add-ons/input_server/devices/
-              [ -n "$MOUSE_ADDON" ] && cp "$MOUSE_ADDON" ~/config/non-packaged/add-ons/input_server/devices/
-              echo "Device addons installed"
-              cd ..
-
-              echo "Launching softKM..."
-              nohup "$PROJECT/HaikuOS/$SERVER_BIN" > /dev/null 2>&1 &
+            # ---- Reload input_server so the new filter binary is
+            #      actually in memory (the filter file on disk doesn't
+            #      replace the live in-memory copy without a reload).
+            INPUT_PID=$(pidof input_server 2>/dev/null || true)
+            if [ -n "$INPUT_PID" ]; then
+              echo "Reloading input_server (pid $INPUT_PID)..."
+              kill -SIGHUP "$INPUT_PID" || true
               sleep 2
-              if pidof softKM >/dev/null 2>&1; then
-                echo "softKM is running (pid $(pidof softKM))"
-              else
-                echo "WARNING: softKM did not start"
-              fi
+            fi
+
+            # ---- Launch ----
+            echo "Launching softKM..."
+            nohup "$PROJECT/HaikuOS/$BINARY" > /dev/null 2>&1 &
+            disown
+            sleep 2
+            if pidof softKM >/dev/null 2>&1; then
+              echo "softKM is running on taurus (pid $(pidof softKM))"
+            else
+              echo "WARNING: softKM did not start"
             fi
 
             echo ""
-            echo "=== Deployment complete ==="
+            echo "=== taurus deployment complete (client mode) ==="
           ENDSSH
 
       # ====================================================================
-      # asus — HaikuOS receiver deploy
+      # asus — softKM (unified Haiku binary, deployed in SERVER mode)
       # ====================================================================
-      # asus runs the receiver-side softKM (HaikuOS) and listens on port
-      # 31337 for input from the sender-side softKMClient running on
-      # taurus. Build/install steps mirror the taurus block but only
-      # touch HaikuOS/, not HaikuClient/.
-      - name: Deploy receiver to asus
-        if: steps.changes.outputs.server_changed != '0' && steps.changes.outputs.is_release != 'true'
+      # Disabled while the unified-app branch is still under test.
+      # asus keeps running its existing softKM until we explicitly
+      # opt back in by removing the branch guard below.
+      #
+      # The body is functionally complete and ready to enable; just
+      # remove the `&& github.ref_name != 'feature/unified-app'` clause
+      # when you want to deploy the unified app to asus too.
+      - name: Deploy unified softKM (server mode) to asus
+        if: |
+          steps.changes.outputs.haiku_changed != '0'
+          && steps.changes.outputs.is_release != 'true'
+          && github.ref_name != 'feature/unified-app'
         env:
           BRANCH: ${{ github.ref_name }}
           BUILD_NUMBER: ${{ github.run_number }}
@@ -270,86 +235,90 @@ jobs:
               BUILD_NUMBER="$BUILD_NUMBER" \
               bash <<'ENDSSH'
             set -e
-            echo "=== softKM receiver deploy on asus: BRANCH=$BRANCH ==="
+            echo "=== softKM server deploy on asus: BRANCH=$BRANCH ==="
 
             PROJECT=/Data/Code/Projects/haiku-softKM
             if [ ! -d "$PROJECT" ]; then
-              echo "Project not found at $PROJECT — cloning"
               mkdir -p /Data/Code/Projects
               cd /Data/Code/Projects
               git clone ssh://git@gitea.microgeni.synology.me:2222/Microgeni/haiku-softKM.git haiku-softKM
             fi
             cd "$PROJECT"
 
-            echo "Pulling latest from $BRANCH..."
             git fetch origin
             git checkout -f "$BRANCH" || git checkout -b "$BRANCH" "origin/$BRANCH"
             git reset --hard "origin/$BRANCH"
             git clean -fd
 
-            # Stop any running softKM (receiver). Use pidof / roster for
-            # reliable matching even when ps truncates absolute paths.
             echo "Stopping any running softKM..."
-            SERVER_PIDS="$(pidof softKM 2>/dev/null || true) \
-                          $(roster 2>/dev/null \
-                              | grep -E 'application/x-vnd\.softKM($|[^C])' \
-                              | awk '{print $1}' || true) \
-                          $(ps | grep -E '/softKM($|[^C])' \
-                               | grep -v grep | awk '{print $2}' || true)"
-            SERVER_PIDS=$(echo "$SERVER_PIDS" | tr ' ' '\n' | sort -u | grep -v '^$' || true)
-            for pid in $SERVER_PIDS; do
-              echo "  kill $pid"
+            APP_PIDS="$(pidof softKM 2>/dev/null || true) \
+                      $(roster 2>/dev/null \
+                          | grep -E 'application/x-vnd\.softKM$' \
+                          | awk '{print $1}' || true) \
+                      $(ps | grep -E '/softKM( |$)' \
+                           | grep -v grep | awk '{print $2}' || true)"
+            APP_PIDS=$(echo "$APP_PIDS" | tr ' ' '\n' | sort -u | grep -v '^$' || true)
+            for pid in $APP_PIDS; do
               kill "$pid" 2>/dev/null || true
             done
             sleep 1
-            for pid in $SERVER_PIDS; do
-              if kill -0 "$pid" 2>/dev/null; then
-                echo "  kill -9 $pid (still alive)"
-                kill -9 "$pid" 2>/dev/null || true
-              fi
+            for pid in $APP_PIDS; do
+              kill -9 "$pid" 2>/dev/null || true
             done
             sleep 1
 
             cd "$PROJECT/HaikuOS"
             if [ -f resources/SoftKM.rdef ]; then
-              sed -i "s/internal = [0-9]*/internal = $BUILD_NUMBER/" resources/SoftKM.rdef || true
+              sed -i "s/internal = [0-9]*/internal = $BUILD_NUMBER/" \
+                resources/SoftKM.rdef || true
             fi
 
             rm -rf objects.*
             make
-
-            SERVER_BIN=$(find objects.* -name "softKM" -type f 2>/dev/null | head -1)
-            if [ -z "$SERVER_BIN" ]; then
+            BINARY=$(find objects.* -name "softKM" -type f 2>/dev/null | head -1)
+            if [ -z "$BINARY" ]; then
               echo "ERROR: HaikuOS build failed on asus — no binary"
               exit 1
             fi
-            echo "Built: $SERVER_BIN"
+            echo "Built: $BINARY"
 
-            echo "Building HaikuOS input_server addons..."
             cd addon
             make clean
             make
-
-            KBD_ADDON=$(find objects.* -name "SoftKMKeyboard" -type f 2>/dev/null | head -1)
-            MOUSE_ADDON=$(find objects.* -name "SoftKMMouse"   -type f 2>/dev/null | head -1)
+            KBD=$(find objects.* -name "SoftKMKeyboard" -type f 2>/dev/null | head -1)
+            MOUSE=$(find objects.* -name "SoftKMMouse"   -type f 2>/dev/null | head -1)
 
             mkdir -p ~/config/non-packaged/add-ons/input_server/devices
-            [ -n "$KBD_ADDON"   ] && cp "$KBD_ADDON"   ~/config/non-packaged/add-ons/input_server/devices/
-            [ -n "$MOUSE_ADDON" ] && cp "$MOUSE_ADDON" ~/config/non-packaged/add-ons/input_server/devices/
-            echo "Device addons installed on asus"
+            [ -n "$KBD"   ] && cp "$KBD"   ~/config/non-packaged/add-ons/input_server/devices/
+            [ -n "$MOUSE" ] && cp "$MOUSE" ~/config/non-packaged/add-ons/input_server/devices/
+
+            # Remove the client-mode filter if a previous deploy left it.
+            rm -f ~/config/non-packaged/add-ons/input_server/filters/SoftKMClientFilter
+
             cd ..
 
+            "$PROJECT/HaikuOS/$BINARY" --configure \
+              --mode=server \
+              --port=31337
+
+            INPUT_PID=$(pidof input_server 2>/dev/null || true)
+            if [ -n "$INPUT_PID" ]; then
+              kill -SIGHUP "$INPUT_PID" || true
+              sleep 2
+            fi
+
             echo "Launching softKM..."
-            nohup "$PROJECT/HaikuOS/$SERVER_BIN" > /dev/null 2>&1 &
+            nohup "$PROJECT/HaikuOS/$BINARY" > /dev/null 2>&1 &
+            disown
             sleep 2
             if pidof softKM >/dev/null 2>&1; then
               echo "softKM is running on asus (pid $(pidof softKM))"
             else
-              echo "WARNING: softKM did not start on asus"
+              echo "WARNING: softKM did not start"
             fi
 
             echo ""
-            echo "=== asus deployment complete ==="
+            echo "=== asus deployment complete (server mode) ==="
           ENDSSH
 
       # ====================================================================
@@ -450,10 +419,8 @@ jobs:
 
           echo "=== Creating DMG: $DMG_NAME ==="
 
-          # Verify app signature before packaging
           codesign -vvv --deep --strict "$APP_PATH"
 
-          # Stage DMG contents (app + Applications symlink)
           mkdir -p dmg_contents
           cp -R "$APP_PATH" dmg_contents/
           ln -s /Applications dmg_contents/Applications
@@ -465,7 +432,6 @@ jobs:
 
           rm -rf dmg_contents
 
-          # Sign the DMG itself
           codesign --force --sign "Developer ID Application: Microgeni hb (Z5DSCKN2W6)" "$DMG_NAME"
           codesign -vvv "$DMG_NAME"
 
@@ -516,7 +482,7 @@ jobs:
           xcrun stapler staple "$DMG_NAME"
           echo "Notarization ticket stapled"
 
-      - name: Build Haiku HPKG (receiver)
+      - name: Build Haiku HPKG
         if: steps.changes.outputs.is_release == 'true'
         id: haiku_hpkg
         env:
@@ -572,13 +538,20 @@ jobs:
             rm -rf package_temp
             mkdir -p package_temp/apps
             mkdir -p package_temp/add-ons/input_server/devices
+            mkdir -p package_temp/add-ons/input_server/filters
 
             cp "$BINARY" package_temp/apps/
 
-            KBD_ADDON=$(find addon/objects.* -name "SoftKMKeyboard" -type f 2>/dev/null | head -1)
-            MOUSE_ADDON=$(find addon/objects.* -name "SoftKMMouse"   -type f 2>/dev/null | head -1)
-            [ -n "$KBD_ADDON"   ] && cp "$KBD_ADDON"   package_temp/add-ons/input_server/devices/
-            [ -n "$MOUSE_ADDON" ] && cp "$MOUSE_ADDON" package_temp/add-ons/input_server/devices/
+            # Ship ALL three add-ons in the package — the user picks
+            # mode in Settings, and at first launch softKM moves the
+            # appropriate add-ons into ~/config to activate them.
+            # (For now both sets are present in the system tree.)
+            KBD=$(find addon/objects.* -name "SoftKMKeyboard"     -type f 2>/dev/null | head -1)
+            MOUSE=$(find addon/objects.* -name "SoftKMMouse"       -type f 2>/dev/null | head -1)
+            FILTER=$(find addon/objects.* -name "SoftKMClientFilter" -type f 2>/dev/null | head -1)
+            [ -n "$KBD"    ] && cp "$KBD"    package_temp/add-ons/input_server/devices/
+            [ -n "$MOUSE"  ] && cp "$MOUSE"  package_temp/add-ons/input_server/devices/
+            [ -n "$FILTER" ] && cp "$FILTER" package_temp/add-ons/input_server/filters/
 
             cp .PackageInfo package_temp/
 
@@ -620,7 +593,6 @@ jobs:
 
           echo "=== Publishing Gitea release $TAG ==="
 
-          # Generate release notes from commits since the previous tag
           git fetch --tags --unshallow 2>/dev/null || git fetch --tags
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
           if [ -n "$PREV_TAG" ]; then
@@ -638,7 +610,7 @@ jobs:
             echo ""
             echo "## Downloads"
             echo "- **macOS sender**: $DMG_FILE (signed and notarised)"
-            echo "- **Haiku receiver**: $HPKG_FILE"
+            echo "- **Haiku (sender or receiver)**: $HPKG_FILE"
             echo ""
             echo "## Checksums (SHA256)"
             echo '```'
@@ -647,7 +619,6 @@ jobs:
             echo '```'
           } > /tmp/release_body.txt
 
-          # Delete any existing release for this tag
           EXISTING=$(curl -s -H "Authorization: token $RELEASE_TOKEN" \
             "$GITEA_API_URL/repos/$GITEA_REPO/releases/tags/$TAG")
           EXISTING_ID=$(echo "$EXISTING" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
@@ -694,7 +665,6 @@ jobs:
           upload_asset "$DMG_FILE"  "application/octet-stream"
           upload_asset "$HPKG_FILE" "application/octet-stream"
 
-          # SHA256SUMS
           {
             [ -f "$DMG_FILE"  ] && echo "${DMG_SHA256}  $DMG_FILE"
             [ -f "$HPKG_FILE" ] && echo "${HPKG_SHA256}  $HPKG_FILE"
@@ -715,7 +685,6 @@ jobs:
           else
             echo "Type:         Development build"
           fi
-          echo "HaikuClient:  ${{ steps.changes.outputs.client_changed != '0' && 'built' || 'skipped' }}"
-          echo "HaikuOS:      ${{ steps.changes.outputs.server_changed != '0' && 'built' || 'skipped' }}"
-          echo "MacOS:        ${{ steps.changes.outputs.macos_changed  != '0' && 'built' || 'skipped' }}"
+          echo "Haiku:        ${{ steps.changes.outputs.haiku_changed != '0' && 'built' || 'skipped' }}"
+          echo "MacOS:        ${{ steps.changes.outputs.macos_changed != '0' && 'built' || 'skipped' }}"
           echo "Status:       ${{ job.status }}"
