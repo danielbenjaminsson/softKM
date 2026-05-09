@@ -197,8 +197,21 @@ jobs:
             fi
 
             # ---- Launch ----
+            #
+            # Install the freshly-built binary to a stable on-disk
+            # path and update the MIME database so be_roster->FindApp
+            # for 'application/x-vnd.softKM' returns the new binary.
+            # Without this, the Deskbar replicant gets loaded from a
+            # stale on-disk binary while the new app runs in parallel,
+            # and any drift in message constants between the two
+            # silently breaks status queries from the tray.
+            INSTALL_PATH=/boot/home/softKM
+            cp -f "$PROJECT/HaikuOS/$BINARY" "$INSTALL_PATH"
+            mimeset -F "$INSTALL_PATH" || true
+            echo "Installed $INSTALL_PATH (size $(stat -c%s "$INSTALL_PATH") bytes)"
+
             echo "Launching softKM..."
-            nohup "$PROJECT/HaikuOS/$BINARY" > /dev/null 2>&1 &
+            nohup "$INSTALL_PATH" > /dev/null 2>&1 &
             disown
             sleep 2
             if pidof softKM >/dev/null 2>&1; then
@@ -307,8 +320,23 @@ jobs:
               sleep 2
             fi
 
+            # Install the freshly-built binary to a stable on-disk
+            # path. The Deskbar replicant is loaded by Deskbar from
+            # whichever file is registered in the MIME database for
+            # signature 'application/x-vnd.softKM'. If we leave a
+            # stale binary there, Deskbar will load OLD replicant code
+            # alongside our NEW running app — which means message
+            # constants drift and status queries silently get dropped
+            # in the default case. Always overwrite the install path
+            # and re-run mimeset so be_roster->FindApp returns the
+            # fresh binary.
+            INSTALL_PATH=/boot/home/softKM
+            cp -f "$PROJECT/HaikuOS/$BINARY" "$INSTALL_PATH"
+            mimeset -F "$INSTALL_PATH" || true
+            echo "Installed $INSTALL_PATH (size $(stat -c%s "$INSTALL_PATH") bytes)"
+
             echo "Launching softKM..."
-            nohup "$PROJECT/HaikuOS/$BINARY" > /dev/null 2>&1 &
+            nohup "$INSTALL_PATH" > /dev/null 2>&1 &
             disown
             sleep 2
             if pidof softKM >/dev/null 2>&1; then
