@@ -15,7 +15,6 @@
 
 #include <cstring>
 #include <cstdio>
-#include <cmath>
 
 // Message codes for communication with input_server add-on
 enum {
@@ -35,7 +34,7 @@ static const struct KeyMapping {
 } kKeyMap[] = {
     // Letters
     { 0x00, 0x3c },  // A
-    { 0x01, 0x50 },  // S
+    { 0x01, 0x3d },  // S (SDL expects 0x3d)
     { 0x02, 0x3e },  // D
     { 0x03, 0x3d },  // F
     { 0x04, 0x4d },  // H
@@ -46,7 +45,7 @@ static const struct KeyMapping {
     { 0x09, 0x4e },  // V
     { 0x0B, 0x40 },  // B
     { 0x0C, 0x29 },  // Q
-    { 0x0D, 0x2a },  // W
+    { 0x0D, 0x28 },  // W (SDL expects 0x28)
     { 0x0E, 0x2b },  // E
     { 0x0F, 0x2c },  // R
     { 0x10, 0x2e },  // Y
@@ -76,7 +75,7 @@ static const struct KeyMapping {
     { 0x29, 0x55 },  // ;
     { 0x2A, 0x47 },  // backslash
     { 0x2B, 0x56 },  // ,
-    { 0x2C, 0x57 },  // /
+    { 0x2C, 0x2c },  // / (was 0x57, but SDL uses 0x57 for UP arrow)
     { 0x2D, 0x44 },  // N
     { 0x2E, 0x58 },  // M
     { 0x2F, 0x59 },  // .
@@ -117,7 +116,7 @@ static const struct KeyMapping {
     { 0x7B, 0x61 },  // Left Arrow
     { 0x7C, 0x63 },  // Right Arrow
     { 0x7D, 0x62 },  // Down Arrow (was 0x57, collided with /)
-    { 0x7E, 0x9e },  // Up Arrow (was 0x38, collided with Numpad 8)
+    { 0x7E, 0x57 },  // Up Arrow (SDL expects 0x57)
 
     // Navigation keys
     { 0x73, 0x20 },  // Home
@@ -164,7 +163,11 @@ InputInjector::InputInjector()
       fLastClickTime(0),
       fLastClickPosition(0, 0),
       fClickCount(0),
-      fLastClickButtons(0)
+      fLastClickButtons(0),
+      fCursorHistoryIndex(0),
+      fCursorHistoryCount(0),
+      fAutoGameMode(false),
+      fMovementSampleCount(0)
 {
     // Initialize mouse position to center of screen
     BScreen screen;
@@ -387,14 +390,7 @@ void InputInjector::InjectKeyDown(uint32 keyCode, uint32 modifiers,
 
     uint32 haikuKey = TranslateKeyCode(keyCode);
     fCurrentModifiers = modifiers;
-
-    // Log bytes for debugging
-    char bytesHex[64] = {0};
-    for (int i = 0; i < numBytes && i < 10; i++) {
-        snprintf(bytesHex + i*3, 4, "%02X ", (uint8)bytes[i]);
-    }
-    LOG("KeyDown: mac=0x%02X haiku=0x%02X mods=0x%02X numBytes=%d bytes=[%s]",
-        keyCode, haikuKey, modifiers, numBytes, bytesHex);
+    // Note: Removed per-key logging for performance
 
     BMessage msg(SOFTKM_INJECT_KEY_DOWN);
     msg.AddInt32("key", haikuKey);
@@ -409,11 +405,9 @@ void InputInjector::InjectKeyDown(uint32 keyCode, uint32 modifiers,
         memcpy(str, bytes, len);
         str[len] = '\0';
         msg.AddString("bytes", str);
-        LOG("  -> Sending raw_char=0x%02X bytes=[0x%02X]", (uint8)bytes[0], (uint8)str[0]);
     } else {
         msg.AddInt32("raw_char", 0);
         msg.AddString("bytes", "");
-        LOG("  -> No bytes to send");
     }
 
     // Send through keyboard add-on
@@ -440,30 +434,111 @@ void InputInjector::InjectKeyUp(uint32 keyCode, uint32 modifiers)
     }
 }
 
+void InputInjector::UpdateGameModeDetection()
+{
+    // Sample actual cursor position
+    BPoint actualPos;
+    uint32 buttons;
+    if (get_mouse(&actualPos, &buttons) != B_OK)
+        return;
+
+    // Add to history
+    fCursorHistory[fCursorHistoryIndex] = actualPos;
+    fCursorHistoryIndex = (fCursorHistoryIndex + 1) % kGameModeHistorySize;
+    if (fCursorHistoryCount < kGameModeHistorySize)
+        fCursorHistoryCount++;
+
+    // Need enough samples to detect pattern
+    if (fCursorHistoryCount < kGameModeHistorySize)
+        return;
+
+    // Calculate bounding box of recent cursor positions
+    float minX = fCursorHistory[0].x, maxX = fCursorHistory[0].x;
+    float minY = fCursorHistory[0].y, maxY = fCursorHistory[0].y;
+    for (int i = 1; i < fCursorHistoryCount; i++) {
+        if (fCursorHistory[i].x < minX) minX = fCursorHistory[i].x;
+        if (fCursorHistory[i].x > maxX) maxX = fCursorHistory[i].x;
+        if (fCursorHistory[i].y < minY) minY = fCursorHistory[i].y;
+        if (fCursorHistory[i].y > maxY) maxY = fCursorHistory[i].y;
+    }
+
+    float spreadX = maxX - minX;
+    float spreadY = maxY - minY;
+    float totalSpread = spreadX + spreadY;
+
+    // If cursor stays in a very small area despite movement, it's being warped (game mode)
+    // Threshold: 20 pixels total spread means game is warping cursor back
+    const float kGameModeThreshold = 20.0f;
+    // For normal mode, expect more spread: 50+ pixels
+    const float kNormalModeThreshold = 50.0f;
+
+    bool wasGameMode = fAutoGameMode;
+
+    if (totalSpread < kGameModeThreshold) {
+        // Very low spread = game mode (cursor being warped)
+        if (!fAutoGameMode) {
+            fAutoGameMode = true;
+            LOG("Auto game mode ENABLED (spread=%.1f)", totalSpread);
+        }
+    } else if (totalSpread > kNormalModeThreshold) {
+        // High spread = normal mode (cursor moving freely)
+        if (fAutoGameMode) {
+            fAutoGameMode = false;
+            LOG("Auto game mode DISABLED (spread=%.1f)", totalSpread);
+        }
+    }
+    // Between thresholds = keep current mode (hysteresis)
+}
+
 void InputInjector::InjectMouseMove(float x, float y, bool relative, uint32 modifiers)
 {
     if (!fActive)
         return;
 
     fCurrentModifiers = modifiers;
-    UpdateMousePosition(x, y, relative);
-    LOG("MouseMove: rel=%d pos=(%.1f,%.1f) mods=0x%08X",
-        relative, fMousePosition.x, fMousePosition.y, modifiers);
 
-    // Send through mouse addon so B_MOUSE_MOVED includes modifiers
-    // (needed for Stack and Tile window grouping with Option key)
+    // Sample for game mode detection every N movements
+    fMovementSampleCount++;
+    if (fMovementSampleCount >= 5) {
+        fMovementSampleCount = 0;
+        UpdateGameModeDetection();
+    }
+
+    bool gameMode = fAutoGameMode;
+    BPoint positionToSend;
+
+    // Debug: log every 200th event
+    static int debugCount = 0;
+    if (++debugCount >= 200) {
+        LOG("MouseMove: autoGameMode=%d rel=%d x=%.2f y=%.2f", gameMode, relative, x, y);
+        debugCount = 0;
+    }
+
+    if (gameMode && relative) {
+        // Game mode: SDL games expect delta from window center
+        // Send screen_center + delta, let SDL handle cursor
+        BScreen screen;
+        BRect frame = screen.Frame();
+        float centerX = frame.Width() / 2;
+        float centerY = frame.Height() / 2;
+        positionToSend.Set(centerX + x, centerY + y);
+    } else {
+        // Normal mode: track absolute position
+        UpdateMousePosition(x, y, relative);
+        positionToSend = fMousePosition;
+
+        // Update system cursor position
+        if (fCurrentButtons == 0) {
+            set_mouse_position((int32)fMousePosition.x, (int32)fMousePosition.y);
+        }
+    }
+
+    // Send B_MOUSE_MOVED event through addon for applications
     BMessage msg(SOFTKM_INJECT_MOUSE_MOVE);
-    msg.AddPoint("where", fMousePosition);
+    msg.AddPoint("where", positionToSend);
     msg.AddInt32("buttons", fCurrentButtons);
     msg.AddInt32("modifiers", modifiers);
     SendToMouseAddon(&msg);
-
-    // Only update cursor position directly when NOT dragging
-    // During drag operations (buttons pressed), let the addon handle positioning
-    // through the B_MOUSE_MOVED event to preserve drag state
-    if (fCurrentButtons == 0) {
-        set_mouse_position((int32)fMousePosition.x, (int32)fMousePosition.y);
-    }
 
     // Edge detection for switching back to macOS
     const float kEdgeThreshold = 5.0f;
@@ -533,16 +608,23 @@ void InputInjector::InjectMouseDown(uint32 buttons, float x, float y, uint32 mod
     fCurrentModifiers = modifiers;
     bigtime_t now = system_time();
 
-    // Let the addon handle click tracking - it has better timing info
-    LOG("MouseDown: buttons=0x%02X mods=0x%02X at (%.1f,%.1f)",
-        fCurrentButtons, modifiers, fMousePosition.x, fMousePosition.y);
+    // Determine click position based on mode
+    BPoint clickPosition;
+    if (fAutoGameMode) {
+        // Game mode: use screen center (SDL expects cursor at center)
+        BScreen screen;
+        BRect frame = screen.Frame();
+        clickPosition.Set(frame.Width() / 2, frame.Height() / 2);
+    } else {
+        clickPosition = fMousePosition;
+    }
 
-    // Don't call set_mouse_position() here - it conflicts with event pipeline
-    // The addon sends a B_MOUSE_MOVED before each click to sync position
+    LOG("MouseDown: buttons=0x%02X mods=0x%02X at (%.1f,%.1f)",
+        fCurrentButtons, modifiers, clickPosition.x, clickPosition.y);
 
     BMessage msg(SOFTKM_INJECT_MOUSE_DOWN);
     msg.AddInt64("when", now);
-    msg.AddPoint("where", fMousePosition);
+    msg.AddPoint("where", clickPosition);
     msg.AddInt32("buttons", fCurrentButtons);
     msg.AddInt32("modifiers", modifiers);
     msg.AddInt32("clicks", clicks);  // Use macOS click count directly
@@ -561,12 +643,24 @@ void InputInjector::InjectMouseUp(uint32 buttons, float x, float y, uint32 modif
 
     fCurrentButtons &= ~buttons;
     fCurrentModifiers = modifiers;
+
+    // Determine click position based on mode
+    BPoint clickPosition;
+    if (fAutoGameMode) {
+        // Game mode: use screen center (SDL expects cursor at center)
+        BScreen screen;
+        BRect frame = screen.Frame();
+        clickPosition.Set(frame.Width() / 2, frame.Height() / 2);
+    } else {
+        clickPosition = fMousePosition;
+    }
+
     LOG("MouseUp: buttons=0x%02X at (%.1f,%.1f)", fCurrentButtons,
-        fMousePosition.x, fMousePosition.y);
+        clickPosition.x, clickPosition.y);
 
     BMessage msg(SOFTKM_INJECT_MOUSE_UP);
     msg.AddInt64("when", system_time());
-    msg.AddPoint("where", fMousePosition);
+    msg.AddPoint("where", clickPosition);
     msg.AddInt32("buttons", fCurrentButtons);
     msg.AddInt32("modifiers", modifiers);
 

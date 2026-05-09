@@ -19,6 +19,14 @@ public:
         fLogWindowMessenger = messenger;
     }
 
+    void SetEnabled(bool enabled) {
+        fEnabled = enabled;
+    }
+
+    bool IsEnabled() const {
+        return fEnabled;
+    }
+
     void OpenNextToBinary(const char* binaryPath) {
         // Extract directory from binary path
         char logPath[1024];
@@ -55,6 +63,10 @@ public:
     }
 
     void Log(const char* format, ...) {
+        // Skip if logging is disabled
+        if (!fEnabled)
+            return;
+
         // Get timestamp
         time_t now = time(nullptr);
         struct tm* tm_info = localtime(&now);
@@ -91,7 +103,7 @@ public:
     }
 
 private:
-    Logger() : fFile(nullptr) {}
+    Logger() : fFile(nullptr), fEnabled(false) {}
     ~Logger() { Close(); }
 
     Logger(const Logger&) = delete;
@@ -99,6 +111,7 @@ private:
 
     FILE* fFile;
     BMessenger fLogWindowMessenger;
+    bool fEnabled;
 };
 
 #define LOG(fmt, ...) Logger::Instance().Log(fmt, ##__VA_ARGS__)

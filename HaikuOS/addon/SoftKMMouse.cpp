@@ -16,7 +16,9 @@
 #include <stdarg.h>
 #include <math.h>
 
-// Debug logging to file
+// Debug logging - disabled for performance
+// Enable by setting SOFTKM_DEBUG=1
+#ifdef SOFTKM_DEBUG
 static void DebugLog(const char* fmt, ...) {
     FILE* f = fopen("/boot/home/softKM_mouse.log", "a");
     if (f) {
@@ -31,6 +33,9 @@ static void DebugLog(const char* fmt, ...) {
         fclose(f);
     }
 }
+#else
+#define DebugLog(...) ((void)0)
+#endif
 
 // Message codes for communication with main app
 enum {
@@ -232,6 +237,9 @@ void SoftKMMouse::_ProcessMessage(BMessage* msg)
         {
             BPoint where;
             if (msg->FindPoint("where", &where) == B_OK) {
+                // Send B_MOUSE_MOVED event to applications
+                // Note: cursor positioning is handled by the main app via set_mouse_position()
+                // because that function isn't available in the input_server addon context
                 event = new BMessage(B_MOUSE_MOVED);
                 event->AddInt64("when", system_time());
                 event->AddPoint("where", where);

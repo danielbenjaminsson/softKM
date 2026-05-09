@@ -8,6 +8,9 @@
 class BMessage;
 class NetworkServer;
 
+// Number of samples for game mode detection
+static const int kGameModeHistorySize = 10;
+
 class InputInjector {
 public:
     InputInjector();
@@ -67,6 +70,14 @@ private:
     BPoint fLastClickPosition;
     int32 fClickCount;
     uint32 fLastClickButtons;
+
+    // Auto game mode detection
+    void UpdateGameModeDetection();
+    BPoint fCursorHistory[kGameModeHistorySize];
+    int fCursorHistoryIndex;
+    int fCursorHistoryCount;
+    bool fAutoGameMode;
+    int fMovementSampleCount;
 };
 
 #endif // INPUT_INJECTOR_H

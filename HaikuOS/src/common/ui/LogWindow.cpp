@@ -1,4 +1,5 @@
 #include "LogWindow.h"
+#include "../Logger.h"
 
 #include <Application.h>
 #include <Autolock.h>
@@ -249,7 +250,17 @@ bool LogWindow::QuitRequested()
         settings.Flatten(&file);
     }
 
+    // Disable logging when window is hidden
+    Logger::Instance().SetEnabled(false);
+
     // Just hide, don't quit
     Hide();
     return false;
+}
+
+void LogWindow::Show()
+{
+    // Enable logging when window is shown
+    Logger::Instance().SetEnabled(true);
+    BWindow::Show();
 }

@@ -15,7 +15,9 @@
 #include <time.h>
 #include <stdarg.h>
 
-// Debug logging to file
+// Debug logging - disabled for performance
+// Enable by setting SOFTKM_DEBUG=1
+#ifdef SOFTKM_DEBUG
 static void DebugLog(const char* fmt, ...) {
     FILE* f = fopen("/boot/home/softKM_keyboard.log", "a");
     if (f) {
@@ -30,6 +32,9 @@ static void DebugLog(const char* fmt, ...) {
         fclose(f);
     }
 }
+#else
+#define DebugLog(...) ((void)0)
+#endif
 
 // Message codes for communication with main app
 enum {
@@ -253,8 +258,6 @@ void SoftKMKeyboard::_ProcessMessage(BMessage* msg)
             // Update key state
             _SetKeyState(key, true);
 
-            fprintf(stderr, "SoftKMKeyboard: KEY_DOWN key=0x%02x mods=0x%02x raw=0x%02x repeat=%d\n",
-                key, modifiers, rawChar, isRepeat);
             DebugLog("KEY_DOWN key=0x%02x mods=0x%02x raw=0x%02x repeat=%d", key, modifiers, rawChar, isRepeat);
 
             event = new BMessage(B_KEY_DOWN);
@@ -431,11 +434,9 @@ void SoftKMKeyboard::_ProcessMessage(BMessage* msg)
                         specialBytes = byteBuffer;
                         rawChar = letter;
                         DebugLog("Synthesized Ctrl+%c -> control char 0x%02x", letter, specialByte);
-                        fprintf(stderr, "SoftKMKeyboard: Synthesized Ctrl+%c -> 0x%02x\n", letter, specialByte);
                     }
                 } else if (specialByte != 0) {
                     DebugLog("Set specialBytes to 0x%02x, rawChar=0x%02x", (uint8)specialByte, rawChar);
-                    fprintf(stderr, "SoftKMKeyboard: Ctrl+letter -> control char 0x%02x\n", specialByte);
                 }
             }
 
@@ -454,12 +455,11 @@ void SoftKMKeyboard::_ProcessMessage(BMessage* msg)
                 if (msg->FindString("bytes", &bytes) == B_OK && bytes[0] != '\0') {
                     event->AddString("bytes", bytes);
                     event->AddInt8("byte", bytes[0]);
-                    fprintf(stderr, "SoftKMKeyboard: using msg bytes='%s' byte=0x%02x\n",
-                        bytes, (uint8)bytes[0]);
+                    DebugLog("using msg bytes='%s' byte=0x%02x", bytes, (uint8)bytes[0]);
                 } else {
                     event->AddString("bytes", "");
                     event->AddInt8("byte", 0);
-                    fprintf(stderr, "SoftKMKeyboard: no bytes in msg, key=0x%02x\n", key);
+                    DebugLog("no bytes in msg, key=0x%02x", key);
                 }
             }
 
@@ -477,8 +477,6 @@ void SoftKMKeyboard::_ProcessMessage(BMessage* msg)
             _SetKeyState(key, false);
 
             DebugLog("KEY_UP key=0x%02x mods=0x%02x", key, modifiers);
-            fprintf(stderr, "SoftKMKeyboard: KEY_UP key=0x%02x mods=0x%02x\n",
-                key, modifiers);
 
             event = new BMessage(B_KEY_UP);
             event->AddInt64("when", system_time());
