@@ -1,8 +1,7 @@
 #include "NetworkClient.h"
 #include "Protocol.h"
-#include "../clipboard/ClipboardManager.h"
-#include "../Logger.h"
-#include "../SoftKMClientApp.h"  // for MSG_PEER_CONNECTED / MSG_PEER_DISCONNECTED
+#include "ClipboardManager.h"
+#include "Logger.h"
 
 #include <Messenger.h>
 #include <Application.h>
@@ -19,8 +18,11 @@
 #include <cerrno>
 #include <cstdlib>
 
-// Message codes posted to be_app are defined in SoftKMClientApp.h
-// (MSG_PEER_CONNECTED, MSG_PEER_DISCONNECTED)
+// Message codes posted to be_app via the connection callback
+// (MSG_PEER_CONNECTED, MSG_PEER_DISCONNECTED) are defined in
+// SoftKMApp.h. This file doesn't reference them by name, only
+// through the callback function pointer set via
+// SetConnectionCallback().
 
 // ------------------------------------------------------------------
 // Construction / destruction

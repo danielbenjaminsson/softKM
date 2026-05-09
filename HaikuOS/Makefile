@@ -16,7 +16,9 @@ SRCS = \
 	src/server/network/NetworkServer.cpp \
 	src/server/input/InputInjector.cpp \
 	src/server/ui/TeamMonitorWindow.cpp \
-	src/server/ui/TeamListItem.cpp
+	src/server/ui/TeamListItem.cpp \
+	src/client/network/NetworkClient.cpp \
+	src/client/input/SwitchController.cpp
 
 RDEFS = resources/SoftKM.rdef
 
@@ -40,7 +42,10 @@ LOCAL_INCLUDE_PATHS = \
 	src/server \
 	src/server/network \
 	src/server/input \
-	src/server/ui
+	src/server/ui \
+	src/client \
+	src/client/network \
+	src/client/input
 
 OPTIMIZE := FULL
 

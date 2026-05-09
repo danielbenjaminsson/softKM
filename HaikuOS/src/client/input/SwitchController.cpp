@@ -1,8 +1,8 @@
 #include "SwitchController.h"
-#include "../network/NetworkClient.h"
-#include "../network/Protocol.h"
-#include "../clipboard/ClipboardManager.h"
-#include "../Logger.h"
+#include "NetworkClient.h"
+#include "Protocol.h"
+#include "ClipboardManager.h"
+#include "Logger.h"
 
 #include <Application.h>
 #include <Messenger.h>
