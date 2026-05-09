@@ -15,10 +15,10 @@ class LogWindow;            // both
 // Application messages.
 //
 // 'sset', 'slog', etc. are inherited from the original HaikuOS server
-// app. Client-mode-specific messages were originally in
-// HaikuClient/src/SoftKMClientApp.h with different four-char codes
-// ('nCon', 'nDis', 'cACT', 'cDEA', 'StoL'); we merge them in here so
-// one BApplication can handle either role.
+// app. Client-mode-specific messages were originally in a separate
+// SoftKMClientApp with different four-char codes ('nCon', 'nDis',
+// 'cACT', 'cDEA', 'StoL'); we merge them in here so one BApplication
+// can handle either role.
 enum {
     // Common (sent by Deskbar / Settings / Log windows)
     MSG_SHOW_SETTINGS           = 'sset',
