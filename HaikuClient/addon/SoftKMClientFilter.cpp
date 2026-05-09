@@ -361,26 +361,7 @@ filter_result SoftKMClientFilter::Filter(BMessage* message, BList* outList)
             const float kEpsilon = 0.5f;
             bool isZero = (fabsf(dx) < kEpsilon && fabsf(dy) < kEpsilon);
 
-            // Sanity check: a real mouse rarely moves more than ~50px
-            // in a single 16ms event, and we warp back to fLockedPos
-            // after every event so the next event's delta should also
-            // be small. If we see a huge delta, the warp isn't taking
-            // effect — the OS cursor is camped at the screen edge and
-            // every event reports the constant offset from the lock
-            // (e.g. dx=100 when the cursor is stuck at 5119 with
-            // lock=5019). Forwarding those would inflate the receiver's
-            // virtual cursor by 100px per event, sending ~6000 px/sec
-            // of phantom motion. Drop them.
-            //
-            // 50px is well above any plausible per-frame physical motion
-            // (a 1000 dpi mouse at 60 ips would move ~17px per 16ms)
-            // but well below the ~100px stuck-at-edge offset we see
-            // when the warp fails.
-            const float kMaxPlausibleDelta = 50.0f;
-            bool isStuck = (fabsf(dx) > kMaxPlausibleDelta
-                         || fabsf(dy) > kMaxPlausibleDelta);
-
-            if (!isZero && !isStuck) {
+            if (!isZero) {
                 BMessage evt(SOFTKM_EVT_MOUSE_MOVE);
                 evt.AddPoint("where", where);
                 evt.AddFloat("dx", dx);
