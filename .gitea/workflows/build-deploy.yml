@@ -645,6 +645,34 @@ jobs:
 
           echo "=== Publishing Gitea release $TAG ==="
 
+          # Fail fast with a useful message if RELEASE_TOKEN is
+          # missing, expired, or lacks 'write:repository' scope.
+          # Without this guard, the curl calls below silently get
+          # back the generic 404 swagger response and the user has
+          # to spelunk through CI logs to figure out it was an auth
+          # problem and not a workflow bug.
+          if [ -z "$RELEASE_TOKEN" ]; then
+            echo "ERROR: RELEASE_TOKEN secret is empty or unset."
+            echo "  Set it in: Repo → Settings → Actions → Secrets → RELEASE_TOKEN"
+            echo "  Generate at: User → Settings → Applications → Access Tokens"
+            echo "  Required scope: write:repository"
+            exit 1
+          fi
+          PROBE_HTTP=$(curl -s -o /tmp/probe.json -w "%{http_code}" \
+            -H "Authorization: token $RELEASE_TOKEN" \
+            "$GITEA_API_URL/repos/$GITEA_REPO")
+          if [ "$PROBE_HTTP" != "200" ]; then
+            echo "ERROR: RELEASE_TOKEN cannot read $GITEA_REPO (HTTP $PROBE_HTTP)"
+            echo "  - Verify token still exists and hasn't expired"
+            echo "  - Verify scope includes 'write:repository'"
+            echo "  - Verify GITEA_REPO ($GITEA_REPO) matches the repo path exactly (case-sensitive)"
+            echo "  - Response body:"
+            head -c 500 /tmp/probe.json
+            echo ""
+            exit 1
+          fi
+          echo "Token verified OK for $GITEA_REPO"
+
           # Fetch full history and tags for release notes generation
           git fetch --tags --force --unshallow 2>/dev/null || git fetch --tags --force
 
@@ -746,6 +774,27 @@ jobs:
         run: |
           VERSION="${{ steps.changes.outputs.version }}"
           TAG="v${VERSION}"
+
+          # Fail fast if the GitHub token is missing/expired so we
+          # don't get the same opaque 404 we got from Gitea.
+          if [ -z "$GH_RELEASE_TOKEN" ]; then
+            echo "ERROR: GH_RELEASE_TOKEN secret is empty or unset."
+            echo "  Set it in: Repo → Settings → Actions → Secrets → GH_RELEASE_TOKEN"
+            echo "  Generate at: https://github.com/settings/tokens"
+            echo "  Required scope: repo (full control of private repos)"
+            exit 1
+          fi
+          GH_PROBE=$(curl -s -o /tmp/gh_probe.json -w "%{http_code}" \
+            -H "Authorization: token $GH_RELEASE_TOKEN" \
+            "https://api.github.com/repos/danielbenjaminsson/softKM")
+          if [ "$GH_PROBE" != "200" ]; then
+            echo "ERROR: GH_RELEASE_TOKEN cannot read danielbenjaminsson/softKM (HTTP $GH_PROBE)"
+            echo "  Response body:"
+            head -c 500 /tmp/gh_probe.json
+            echo ""
+            exit 1
+          fi
+          echo "GitHub token verified OK"
 
           echo "=== Creating GitHub Release $TAG ==="
 
