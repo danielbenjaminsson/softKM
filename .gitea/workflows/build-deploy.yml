@@ -109,12 +109,18 @@ jobs:
               # an app launched by absolute path. Use pidof and roster
               # (which queries the registrar by signature) for a reliable
               # match, and fall back to a broad ps grep just in case.
-              CLIENT_PIDS="$(pidof softKMClient 2>/dev/null) \
+              #
+              # Each tool here may exit non-zero on "no match" (pidof, grep),
+              # which under set -e would abort the whole script BEFORE we
+              # ever assign CLIENT_PIDS. Append `|| true` to every command
+              # substitution so an empty result is benign, and protect the
+              # final dedup pipeline the same way.
+              CLIENT_PIDS="$(pidof softKMClient 2>/dev/null || true) \
                             $(roster 2>/dev/null | grep softKMClient \
-                                                 | awk '{print $1}') \
+                                                 | awk '{print $1}' || true) \
                             $(ps | grep -E 'softKMClient|softkm_client' \
-                                 | grep -v grep | awk '{print $2}')"
-              CLIENT_PIDS=$(echo "$CLIENT_PIDS" | tr ' ' '\n' | sort -u | grep -v '^$')
+                                 | grep -v grep | awk '{print $2}' || true)"
+              CLIENT_PIDS=$(echo "$CLIENT_PIDS" | tr ' ' '\n' | sort -u | grep -v '^$' || true)
               for pid in $CLIENT_PIDS; do
                 echo "  kill $pid"
                 kill "$pid" 2>/dev/null || true
@@ -182,13 +188,13 @@ jobs:
               # app's binary is named just 'softKM'. Use exact-match where
               # possible (pidof / roster signature) and a careful grep
               # fallback that excludes softKMClient.
-              SERVER_PIDS="$(pidof softKM 2>/dev/null) \
+              SERVER_PIDS="$(pidof softKM 2>/dev/null || true) \
                             $(roster 2>/dev/null \
                                 | grep -E 'application/x-vnd\.softKM($|[^C])' \
-                                | awk '{print $1}') \
+                                | awk '{print $1}' || true) \
                             $(ps | grep -E '/softKM($|[^C])' \
-                                 | grep -v grep | awk '{print $2}')"
-              SERVER_PIDS=$(echo "$SERVER_PIDS" | tr ' ' '\n' | sort -u | grep -v '^$')
+                                 | grep -v grep | awk '{print $2}' || true)"
+              SERVER_PIDS=$(echo "$SERVER_PIDS" | tr ' ' '\n' | sort -u | grep -v '^$' || true)
               for pid in $SERVER_PIDS; do
                 echo "  kill $pid"
                 kill "$pid" 2>/dev/null || true
@@ -284,13 +290,13 @@ jobs:
             # Stop any running softKM (receiver). Use pidof / roster for
             # reliable matching even when ps truncates absolute paths.
             echo "Stopping any running softKM..."
-            SERVER_PIDS="$(pidof softKM 2>/dev/null) \
+            SERVER_PIDS="$(pidof softKM 2>/dev/null || true) \
                           $(roster 2>/dev/null \
                               | grep -E 'application/x-vnd\.softKM($|[^C])' \
-                              | awk '{print $1}') \
+                              | awk '{print $1}' || true) \
                           $(ps | grep -E '/softKM($|[^C])' \
-                               | grep -v grep | awk '{print $2}')"
-            SERVER_PIDS=$(echo "$SERVER_PIDS" | tr ' ' '\n' | sort -u | grep -v '^$')
+                               | grep -v grep | awk '{print $2}' || true)"
+            SERVER_PIDS=$(echo "$SERVER_PIDS" | tr ' ' '\n' | sort -u | grep -v '^$' || true)
             for pid in $SERVER_PIDS; do
               echo "  kill $pid"
               kill "$pid" 2>/dev/null || true
