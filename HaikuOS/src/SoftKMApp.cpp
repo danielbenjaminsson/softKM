@@ -247,6 +247,12 @@ void SoftKMApp::MessageReceived(BMessage* message)
         }
 
         case MSG_QUERY_STATUS:
+        // Accept the legacy 4-cc 'qcst' too, so an older Deskbar
+        // replicant that's still cached in the Deskbar process from
+        // a previous deploy keeps getting answered. Without this,
+        // a stale replicant stays stuck on "Disconnected" forever
+        // because its query hits the default case and is dropped.
+        case 'qcst':
         {
             BMessage reply(B_REPLY);
             reply.AddBool("connected", fConnected);
