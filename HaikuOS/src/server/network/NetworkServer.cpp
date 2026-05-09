@@ -185,7 +185,9 @@ void NetworkServer::AcceptConnections()
 
         // Notify app of connection
         BMessenger messenger(be_app);
-        messenger.SendMessage(MSG_CLIENT_CONNECTED);
+        status_t sendStatus = messenger.SendMessage(MSG_CLIENT_CONNECTED);
+        LOG("Posted MSG_CLIENT_CONNECTED to be_app: %s",
+            strerror(sendStatus));
 
         // Send our screen info to macOS
         SendScreenInfo();
