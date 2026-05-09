@@ -202,20 +202,6 @@ void SoftKMApp::SetConnected(bool connected)
 // =====================================================================
 void SoftKMApp::MessageReceived(BMessage* message)
 {
-    // Trace any non-input message so we can see queries arriving from
-    // the Deskbar replicant. Skip MSG_INPUT_EVENT which fires per
-    // mouse-move and would flood the log.
-    if (message->what != MSG_INPUT_EVENT) {
-        char fourcc[5] = {
-            (char)((message->what >> 24) & 0xff),
-            (char)((message->what >> 16) & 0xff),
-            (char)((message->what >>  8) & 0xff),
-            (char)((message->what      ) & 0xff),
-            0
-        };
-        LOG("MessageReceived: what='%s' (0x%08x)", fourcc, message->what);
-    }
-
     switch (message->what) {
         // ---------------- Common UI commands ----------------
         case MSG_SHOW_SETTINGS:
@@ -258,14 +244,6 @@ void SoftKMApp::MessageReceived(BMessage* message)
             reply.AddBool("connected", fConnected);
             reply.AddBool("capturing", IsCapturing());
             message->SendReply(&reply);
-            // Log only when the reported value changes, so we can see
-            // in the log whether fConnected is tracking reality.
-            static int lastLogged = -1;
-            int now = fConnected ? 1 : 0;
-            if (now != lastLogged) {
-                LOG("MSG_QUERY_STATUS: replying connected=%d", now);
-                lastLogged = now;
-            }
             break;
         }
 
