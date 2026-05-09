@@ -107,6 +107,12 @@ private:
     // change leaves a paper trail in the filter log).
     bool     fLoggedMouseFields;
 
+    // Last seen key-state bitmap from B_MODIFIERS_CHANGED. We diff
+    // each new states blob against this to determine the exact raw
+    // keycode that toggled — more reliable than guessing from the
+    // modifier mask, which can be ambiguous on weird keymaps.
+    uint8    fLastKeyStates[16];
+
     port_id  FindEventPort();
     void     SendEvent(BMessage* evt);
 };
@@ -123,6 +129,7 @@ SoftKMClientFilter::SoftKMClientFilter()
       fLastButtons(0),
       fLoggedMouseFields(false)
 {
+    memset(fLastKeyStates, 0, sizeof(fLastKeyStates));
 }
 
 SoftKMClientFilter::~SoftKMClientFilter()
@@ -197,6 +204,7 @@ void SoftKMClientFilter::CmdLoop()
             fLockedPos   = locked;
             fLastButtons = 0;     // assume no buttons held at activation
             fLoggedMouseFields = false;  // re-arm one-shot diagnostic
+            memset(fLastKeyStates, 0, sizeof(fLastKeyStates));
             fEventPort = FindEventPort();
             fActive = true;
             DebugLog("ACTIVATED — event port=%d locked=(%.0f,%.0f)",
@@ -314,59 +322,66 @@ filter_result SoftKMClientFilter::Filter(BMessage* message, BList* outList)
             // etc.) only via B_MODIFIERS_CHANGED — *not* as B_KEY_DOWN /
             // B_KEY_UP — so without forwarding these the receiver never
             // learns that a modifier is held. That breaks any
-            // modifier-only press (e.g. Ctrl alone to a CAD app), and
-            // also means that combos like Ctrl+Alt+T arrive on the
-            // receiver as a bare 'T' because the receiver's input_server
-            // never saw the matching modifier-down events.
+            // modifier-only press (e.g. Ctrl alone) and also means that
+            // combos like Ctrl+Alt+T arrive on the receiver as a bare
+            // 'T' because the receiver's input_server never saw the
+            // matching modifier-down events.
             //
-            // We translate each toggled bit into a synthetic
-            // SOFTKM_EVT_KEY_DOWN or _KEY_UP carrying the corresponding
-            // Haiku keycode, so the receiver can inject a real
-            // KEY_DOWN/UP for that physical modifier key.
-            int32 newMods = 0, oldMods = 0;
+            // We previously inferred which physical modifier key
+            // changed by XORing `modifiers` with `be:old_modifiers`
+            // and looking up the toggled bit in a hand-coded mask ->
+            // keycode table. That broke spectacularly on this taurus
+            // keymap because pressing physical Ctrl ALSO toggled the
+            // B_LEFT_SHIFT_KEY bit (so the filter sent both Ctrl and
+            // Shift down events), and the masks for various keymaps
+            // disagree on which bit corresponds to which physical key.
+            //
+            // The robust fix is to use the 16-byte `states` blob
+            // (Haiku's key_map-style 128-bit keyboard state bitmap)
+            // that B_MODIFIERS_CHANGED carries: diff it against the
+            // last known state to find exactly which keycode bit
+            // toggled — that IS the raw keycode of the physical key
+            // that the user pressed or released, with no keymap
+            // guesswork required.
+            int32 newMods = 0;
             message->FindInt32("modifiers", &newMods);
-            message->FindInt32("be:old_modifiers", &oldMods);
-            int32 changed = newMods ^ oldMods;
 
-            // Modifier bit -> Haiku raw keycode mapping. Pairs of
-            // (modifier_mask, keycode); see InterfaceDefs.h for the
-            // mask values. Using the left-specific masks rather than
-            // the generic ones (B_SHIFT_KEY, B_CONTROL_KEY, …) gives
-            // us per-side resolution so left/right Ctrl etc. inject
-            // as the correct physical key on the receiver.
-            static const struct { int32 mask; int32 keycode; } kModMap[] = {
-                { 0x1000,  0x4b },  // B_LEFT_SHIFT_KEY
-                { 0x2000,  0x56 },  // B_RIGHT_SHIFT_KEY
-                { 0x10000, 0x5c },  // B_LEFT_CONTROL_KEY
-                { 0x20000, 0x60 },  // B_RIGHT_CONTROL_KEY
-                { 0x40000, 0x5d },  // B_LEFT_OPTION_KEY  (Alt)
-                { 0x80000, 0x5f },  // B_RIGHT_OPTION_KEY (Alt Gr)
-                { 0x4000,  0x66 },  // B_LEFT_COMMAND_KEY (Win/Cmd)
-                { 0x8000,  0x67 },  // B_RIGHT_COMMAND_KEY
-                { 0x08,    0x3b },  // B_CAPS_LOCK
-                { 0x20,    0x22 },  // B_NUM_LOCK
-                { 0x10,    0x0f },  // B_SCROLL_LOCK
-            };
-
-            for (size_t i = 0; i < sizeof(kModMap) / sizeof(kModMap[0]); i++) {
-                if ((changed & kModMap[i].mask) == 0)
-                    continue;
-                bool pressed = (newMods & kModMap[i].mask) != 0;
-
-                BMessage evt(pressed ? SOFTKM_EVT_KEY_DOWN
-                                     : SOFTKM_EVT_KEY_UP);
-                evt.AddInt32("key", kModMap[i].keycode);
-                evt.AddInt32("modifiers", newMods);
-                if (pressed) {
-                    // Pressing a modifier produces no character, but
-                    // SwitchController unconditionally reads raw_char /
-                    // bytes for KEY_DOWN — populate them explicitly so
-                    // we don't end up with stale stack values.
-                    evt.AddInt32("raw_char", 0);
-                    evt.AddString("bytes", "");
-                }
-                SendEvent(&evt);
+            ssize_t statesLen = 0;
+            const void* statesData = nullptr;
+            if (message->FindData("states", B_RAW_TYPE,
+                    &statesData, &statesLen) != B_OK
+                || statesLen < (ssize_t)sizeof(fLastKeyStates)) {
+                // No states blob (older hrev?) — fall back to no-op.
+                // The receiver will at least see the modifier mask
+                // come along with subsequent B_KEY_DOWN events.
+                consumed = true;
+                break;
             }
+
+            const uint8* newStates = (const uint8*)statesData;
+            for (size_t byte = 0; byte < sizeof(fLastKeyStates); byte++) {
+                uint8 diff = newStates[byte] ^ fLastKeyStates[byte];
+                if (diff == 0) continue;
+                for (int bit = 0; bit < 8; bit++) {
+                    if ((diff & (1 << bit)) == 0) continue;
+                    // Haiku's key_map states use big-endian bit order
+                    // within each byte: bit 7 of byte 0 is keycode 0,
+                    // bit 6 of byte 0 is keycode 1, etc.
+                    int32 keycode = (int32)byte * 8 + (7 - bit);
+                    bool pressed = (newStates[byte] & (1 << bit)) != 0;
+
+                    BMessage evt(pressed ? SOFTKM_EVT_KEY_DOWN
+                                         : SOFTKM_EVT_KEY_UP);
+                    evt.AddInt32("key", keycode);
+                    evt.AddInt32("modifiers", newMods);
+                    if (pressed) {
+                        evt.AddInt32("raw_char", 0);
+                        evt.AddString("bytes", "");
+                    }
+                    SendEvent(&evt);
+                }
+            }
+            memcpy(fLastKeyStates, newStates, sizeof(fLastKeyStates));
             consumed = true;
             break;
         }

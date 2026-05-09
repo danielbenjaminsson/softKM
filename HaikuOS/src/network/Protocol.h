@@ -117,8 +117,10 @@ enum SwitchEdge {
 // Haiku generic:  B_SHIFT_KEY=0x01, B_COMMAND_KEY=0x02, B_CONTROL_KEY=0x04,
 //                 B_CAPS_LOCK=0x08, B_SCROLL_LOCK=0x10, B_NUM_LOCK=0x20,
 //                 B_OPTION_KEY=0x40, B_MENU_KEY=0x80
-// Haiku left-specific: B_LEFT_SHIFT_KEY=0x1000, B_LEFT_COMMAND_KEY=0x4000,
-//                      B_LEFT_CONTROL_KEY=0x10000, B_LEFT_OPTION_KEY=0x40000
+// Haiku left-specific: B_LEFT_OPTION_KEY=0x400, B_RIGHT_OPTION_KEY=0x800,
+//                      B_LEFT_SHIFT_KEY=0x1000, B_RIGHT_SHIFT_KEY=0x2000,
+//                      B_LEFT_COMMAND_KEY=0x4000, B_RIGHT_COMMAND_KEY=0x8000,
+//                      B_LEFT_CONTROL_KEY=0x10000, B_RIGHT_CONTROL_KEY=0x20000
 inline uint32 MapModifiers(uint32 macModifiers)
 {
     uint32 haikuModifiers = 0;
@@ -130,8 +132,8 @@ inline uint32 MapModifiers(uint32 macModifiers)
         haikuModifiers |= 0x1000;    // B_LEFT_SHIFT_KEY
     }
     if (macModifiers & 0x02) {
-        haikuModifiers |= 0x40;      // B_OPTION_KEY (was incorrectly 0x80!)
-        haikuModifiers |= 0x40000;   // B_LEFT_OPTION_KEY
+        haikuModifiers |= 0x40;      // B_OPTION_KEY
+        haikuModifiers |= 0x400;     // B_LEFT_OPTION_KEY (was incorrectly 0x40000!)
     }
     if (macModifiers & 0x04) {
         haikuModifiers |= 0x04;      // B_CONTROL_KEY
