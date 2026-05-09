@@ -202,6 +202,20 @@ void SoftKMApp::SetConnected(bool connected)
 // =====================================================================
 void SoftKMApp::MessageReceived(BMessage* message)
 {
+    // Trace any non-input message so we can see queries arriving from
+    // the Deskbar replicant. Skip MSG_INPUT_EVENT which fires per
+    // mouse-move and would flood the log.
+    if (message->what != MSG_INPUT_EVENT) {
+        char fourcc[5] = {
+            (char)((message->what >> 24) & 0xff),
+            (char)((message->what >> 16) & 0xff),
+            (char)((message->what >>  8) & 0xff),
+            (char)((message->what      ) & 0xff),
+            0
+        };
+        LOG("MessageReceived: what='%s' (0x%08x)", fourcc, message->what);
+    }
+
     switch (message->what) {
         // ---------------- Common UI commands ----------------
         case MSG_SHOW_SETTINGS:
