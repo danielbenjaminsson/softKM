@@ -96,6 +96,17 @@ private:
     // robust to whatever the cursor is actually doing.
     BPoint   fLastPos;
 
+    // Most recently observed mouse-button set (currently-held bitmap).
+    // Haiku's B_MOUSE_DOWN/UP report this *post-event* set in the
+    // 'buttons' field, but the wire protocol expects "the button that
+    // changed" (1 bit). We compute the changed bit from
+    // (fLastButtons XOR currentButtons) and update fLastButtons
+    // accordingly. Without this, B_MOUSE_UP arrives with buttons=0
+    // (nothing held), the receiver does fCurrentButtons &= ~0 which
+    // is a no-op, the receiver thinks the button is still held, and
+    // context menus stop dismissing on outside click.
+    int32    fLastButtons;
+
     port_id  FindEventPort();
     void     SendEvent(BMessage* evt);
 };
@@ -109,7 +120,8 @@ SoftKMClientFilter::SoftKMClientFilter()
       fCmdThread(-1),
       fRunning(false),
       fLockedPos(0, 0),
-      fLastPos(0, 0)
+      fLastPos(0, 0),
+      fLastButtons(0)
 {
 }
 
@@ -186,6 +198,7 @@ void SoftKMClientFilter::CmdLoop()
             fLastPos   = locked;  // seed so the very first event's delta
                                   // is computed against the lock point,
                                   // not against (0,0)
+            fLastButtons = 0;     // assume no buttons held at activation
             fEventPort = FindEventPort();
             fActive = true;
             DebugLog("ACTIVATED — event port=%d locked=(%.0f,%.0f)",
@@ -388,9 +401,21 @@ filter_result SoftKMClientFilter::Filter(BMessage* message, BList* outList)
             message->FindInt32("modifiers", &modifiers);
             message->FindInt32("clicks", &clicks);
 
+            // Haiku reports 'buttons' as the post-event held set. The
+            // wire protocol's MouseDown/Up payload uses macOS-style
+            // semantics where 'buttons' is the single bit that just
+            // changed (the receiver does fCurrentButtons |= bit on
+            // down and &= ~bit on up). Compute the bit that newly
+            // turned on as (buttons & ~fLastButtons) — usually one
+            // bit, but if multiple buttons go down in the same event
+            // we still send the union of new bits, which the receiver
+            // will OR in correctly.
+            int32 changed = buttons & ~fLastButtons;
+            fLastButtons = buttons;
+
             BMessage evt(SOFTKM_EVT_MOUSE_DOWN);
             evt.AddPoint("where", where);
-            evt.AddInt32("buttons", buttons);
+            evt.AddInt32("buttons", changed);
             evt.AddInt32("modifiers", modifiers);
             evt.AddInt32("clicks", clicks);
             SendEvent(&evt);
@@ -406,9 +431,14 @@ filter_result SoftKMClientFilter::Filter(BMessage* message, BList* outList)
             message->FindInt32("buttons", &buttons);
             message->FindInt32("modifiers", &modifiers);
 
+            // Bits that were held before but aren't now == bits that
+            // just released. See B_MOUSE_DOWN above for rationale.
+            int32 changed = fLastButtons & ~buttons;
+            fLastButtons = buttons;
+
             BMessage evt(SOFTKM_EVT_MOUSE_UP);
             evt.AddPoint("where", where);
-            evt.AddInt32("buttons", buttons);
+            evt.AddInt32("buttons", changed);
             evt.AddInt32("modifiers", modifiers);
             SendEvent(&evt);
             consumed = true;
