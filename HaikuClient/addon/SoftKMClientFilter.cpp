@@ -327,37 +327,41 @@ filter_result SoftKMClientFilter::Filter(BMessage* message, BList* outList)
             message->FindInt32("buttons", &buttons);
             message->FindInt32("modifiers", &modifiers);
 
-            // Two kinds of events arrive in this handler while we
-            // are capturing:
+            // Compute the user's motion as where - fLockedPos. This
+            // works because we warp the cursor back to fLockedPos on
+            // every event below: in steady state the OS cursor is
+            // sitting at fLockedPos, the user nudges it, and we see
+            // a single B_MOUSE_MOVED with where = lockedPos + delta.
             //
-            //   1. Real user motion: where = lockedPos + small physical
-            //      delta. We want to forward this to the controller.
+            // Two events to be aware of:
+            //   1. Pure warp echoes — when input_server delivers our
+            //      own warp as a B_MOUSE_MOVED, where == fLockedPos
+            //      exactly. dx/dy are zero anyway, but we drop them
+            //      explicitly to avoid spamming the controller.
+            //   2. Coalesced events — input_server may merge the
+            //      warp's position update with subsequent user motion
+            //      into one event. That event reports where = lockedPos
+            //      + (user motion since warp), which is exactly the
+            //      delta we want. So dx = where.x - fLockedPos.x
+            //      gives the user's motion regardless of whether the
+            //      warp's echo arrived as a separate event or got
+            //      coalesced into this one.
             //
-            //   2. Warp echoes: input_server delivers a B_MOUSE_MOVED in
-            //      response to our own set_mouse_position(lockedPos, …)
-            //      call below. Such an event always arrives with
-            //      where == fLockedPos exactly. We MUST drop these,
-            //      otherwise every real +N delta is followed by a
-            //      −N echo (real → warp back → echo → cancel) and the
-            //      receiver never sees net motion.
-            //
-            // Detect the echo by exact equality with fLockedPos rather
-            // than by checking dx/dy magnitudes — a real motion event
-            // could happen to have a small dx/dy too.
-            const float kWarpEpsilon = 0.5f;
-            bool isWarpEcho = (fabsf(where.x - fLockedPos.x) < kWarpEpsilon
-                            && fabsf(where.y - fLockedPos.y) < kWarpEpsilon);
+            // Computing against fLockedPos (rather than fLastPos =
+            // previous reported where) avoids the doubling bug we saw
+            // when y-axis motion made the echo's y fail to match
+            // fLockedPos.y exactly: the echo would slip through as
+            // 'real motion' with dx = fLockedPos.x - lastWhere.x
+            // (a fake negative), and the next user event would then
+            // be lastWhere - fLockedPos (a fake positive of the same
+            // magnitude), doubling X displacement.
+            float dx = where.x - fLockedPos.x;
+            float dy = where.y - fLockedPos.y;
 
-            if (!isWarpEcho) {
-                // Compute event-to-event delta against the *previous*
-                // real-motion event (NOT against fLockedPos, which is
-                // unreliable when the warp doesn't actually move the
-                // OS cursor — see commit fec6dc4). Update fLastPos so
-                // the next event's delta is relative to this one.
-                float dx = where.x - fLastPos.x;
-                float dy = where.y - fLastPos.y;
-                fLastPos = where;
+            const float kEpsilon = 0.5f;
+            bool isZero = (fabsf(dx) < kEpsilon && fabsf(dy) < kEpsilon);
 
+            if (!isZero) {
                 BMessage evt(SOFTKM_EVT_MOUSE_MOVE);
                 evt.AddPoint("where", where);
                 evt.AddFloat("dx", dx);
@@ -365,18 +369,14 @@ filter_result SoftKMClientFilter::Filter(BMessage* message, BList* outList)
                 evt.AddInt32("buttons", buttons);
                 evt.AddInt32("modifiers", modifiers);
                 SendEvent(&evt);
-            } else {
-                // Warp echo: realign fLastPos to the lock point so the
-                // next real-motion delta is computed from there. Don't
-                // forward the event.
-                fLastPos = fLockedPos;
             }
 
-            // Best-effort warp back to the lock position. This works
-            // most of the time (we can see the bounce-back in the log
-            // as 'isWarpEcho' events), but even when input_server
-            // ignores it our delta calc still survives because we
-            // reset fLastPos correctly in either branch above.
+            // Warp cursor back to lock position. This usually works
+            // (the OS cursor visibly stays near fLockedPos in the
+            // logs), so the next event will report a small delta from
+            // the lock again. Even if it occasionally fails, the
+            // worst case is one event with a large dx — not a sustained
+            // doubled-displacement bug.
             set_mouse_position((int32)fLockedPos.x, (int32)fLockedPos.y);
 
             // Replace the original event with one pinned at the lock

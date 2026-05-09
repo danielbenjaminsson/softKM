@@ -525,25 +525,32 @@ void SwitchController::UnlockCursor(float yRatio)
 // ------------------------------------------------------------------
 void SwitchController::SendActivateToFilter(BPoint lockedPos)
 {
+    // Always re-resolve the cmd port. The filter add-on may have been
+    // reloaded by input_server (which destroys and recreates its cmd
+    // port), in which case our cached fCmdPort id is stale and
+    // write_port_etc would fail silently. find_port is cheap, and the
+    // filter is a long-lived registrar entry, so we do it every time.
+    fCmdPort = find_port(kCmdPortName);
     if (fCmdPort < 0) {
-        fCmdPort = find_port(kCmdPortName);
-    }
-    if (fCmdPort < 0) {
-        LOG("SendActivateToFilter: cmd port not found");
+        LOG("SendActivateToFilter: cmd port '%s' not found "
+            "(filter not loaded, or input_server still starting up?)",
+            kCmdPortName);
         return;
     }
     // Send as two floats (x, y) to avoid BPoint memcpy issues in the filter
     float coords[2] = { lockedPos.x, lockedPos.y };
-    write_port_etc(fCmdPort, SOFTKM_FILTER_ACTIVATE,
-                   coords, sizeof(coords),
-                   B_TIMEOUT, 100000);
+    status_t r = write_port_etc(fCmdPort, SOFTKM_FILTER_ACTIVATE,
+                                coords, sizeof(coords),
+                                B_TIMEOUT, 100000);
+    if (r != B_OK) {
+        LOG("SendActivateToFilter: write_port failed: %s", strerror(r));
+    }
 }
 
 void SwitchController::SendDeactivateToFilter()
 {
-    if (fCmdPort < 0) {
-        fCmdPort = find_port(kCmdPortName);
-    }
+    // Same rationale as SendActivateToFilter — always re-resolve.
+    fCmdPort = find_port(kCmdPortName);
     if (fCmdPort < 0) return;
     write_port_etc(fCmdPort, SOFTKM_FILTER_DEACTIVATE, NULL, 0,
                    B_TIMEOUT, 100000);
