@@ -1,69 +1,135 @@
 #include "SoftKMApp.h"
-#include "ui/DeskbarReplicant.h"
-#include "ui/SettingsWindow.h"
-#include "ui/LogWindow.h"
-#include "network/NetworkServer.h"
-#include "input/InputInjector.h"
-#include "clipboard/ClipboardManager.h"
-#include "settings/Settings.h"
+#include "DeskbarReplicant.h"
+#include "SettingsWindow.h"
+#include "LogWindow.h"
+#include "ClipboardManager.h"
+#include "Settings.h"
 #include "Logger.h"
 
-#include <cstdio>  // For fprintf, stderr
+// Server-mode includes
+#include "NetworkServer.h"
+#include "InputInjector.h"
+
+// Client-mode includes
+#include "NetworkClient.h"
+#include "SwitchController.h"
 
 #include <Deskbar.h>
 #include <Roster.h>
 #include <Alert.h>
 #include <AppFileInfo.h>
+#include <File.h>
+#include <Messenger.h>
 #include <private/interface/AboutWindow.h>
+
+#include <cstdio>
+#include <cstring>
+
 
 SoftKMApp* SoftKMApp::sInstance = nullptr;
 
+
+// ---------------------------------------------------------------------
+// Connection callback (client mode)
+//
+// NetworkClient calls this from its receive thread when the TCP state
+// changes. We forward the change to the application's message loop so
+// updates run on the main thread.
+// ---------------------------------------------------------------------
+static void ClientConnectionChanged(bool connected, void* /*cookie*/)
+{
+    BMessenger(be_app).SendMessage(connected
+        ? MSG_PEER_CONNECTED : MSG_PEER_DISCONNECTED);
+}
+
+
+// =====================================================================
+// Construction / destruction
+// =====================================================================
 SoftKMApp::SoftKMApp()
     : BApplication("application/x-vnd.softKM"),
       fNetworkServer(nullptr),
       fInputInjector(nullptr),
+      fNetworkClient(nullptr),
+      fSwitchController(nullptr),
       fClipboardManager(nullptr),
       fSettingsWindow(nullptr),
       fLogWindow(nullptr),
-      fClientConnected(false)
+      fConnected(false)
 {
     sInstance = this;
 
-    // Load settings
+    // Settings come first — we need GetMode() to know which sub-tree
+    // of objects to instantiate.
     Settings::Load();
 
-    // Create log window (user can open it from menu)
+    // Common: log window + on-disk log file. Both modes use this.
     fLogWindow = LogWindow::GetInstance();
-
-    // Set up logger to send to log window
     Logger::Instance().SetLogWindow(BMessenger(fLogWindow));
 
-    // Also persist log to disk next to the user's home, so post-mortem
-    // debugging (e.g. "why did the client disconnect on edge cross?")
-    // doesn't depend on the LogWindow being open at the time.
-    Logger::Instance().Open("/boot/home/softKM_server.log");
+    // Path of the on-disk log depends on mode so the two roles' logs
+    // don't collide if a user briefly tries each one out on the same
+    // machine.
+    const char* logPath = (Settings::GetMode() == MODE_CLIENT)
+        ? "/boot/home/softKM_client.log"
+        : "/boot/home/softKM_server.log";
+    Logger::Instance().Open(logPath);
 
-    // Create input injector
-    fInputInjector = new InputInjector();
+    LOG("=== softKM starting in %s mode ===",
+        Settings::GetMode() == MODE_CLIENT ? "CLIENT" : "SERVER");
 
-    // Create clipboard manager
+    // Common: clipboard works for both modes (server reads/writes for
+    // sync; client reads/writes the same way).
     fClipboardManager = new ClipboardManager();
 
-    // Create network server
+    // Mode-specific construction
+    if (Settings::GetMode() == MODE_CLIENT)
+        ConstructClient();
+    else
+        ConstructServer();
+}
+
+
+void SoftKMApp::ConstructClient()
+{
+    fNetworkClient    = new NetworkClient();
+    fSwitchController = new SwitchController();
+
+    fNetworkClient->SetClipboardManager(fClipboardManager);
+    fNetworkClient->SetConnectionCallback(ClientConnectionChanged, nullptr);
+
+    fSwitchController->SetNetworkClient(fNetworkClient);
+    fSwitchController->SetClipboardManager(fClipboardManager);
+    fSwitchController->SetSwitchEdge(Settings::GetSwitchEdge());
+    fSwitchController->SetReturnEdge(Settings::GetReturnEdge());
+    fSwitchController->SetDwellTime(Settings::GetDwellTime());
+}
+
+
+void SoftKMApp::ConstructServer()
+{
+    fInputInjector = new InputInjector();
     fNetworkServer = new NetworkServer(Settings::GetPort(), fInputInjector);
 
-    // Connect injector to server for edge switching
+    // Two-way wiring: injector needs the server to send back
+    // CONTROL_SWITCH events on return-edge dwell; server needs the
+    // injector for reverse-direction edge handling, and the clipboard
+    // manager for sync passthrough.
     fInputInjector->SetNetworkServer(fNetworkServer);
-
-    // Connect clipboard manager to server for clipboard sync
     fNetworkServer->SetClipboardManager(fClipboardManager);
 }
+
 
 SoftKMApp::~SoftKMApp()
 {
     RemoveDeskbarReplicant();
 
-    delete fNetworkServer;
+    // Order matters: stop network first so no incoming events fire
+    // during destructor races; then stop the input subsystem.
+    if (fNetworkServer)    { fNetworkServer->Stop();    delete fNetworkServer; }
+    if (fNetworkClient)    { fNetworkClient->Disconnect(); delete fNetworkClient; }
+    if (fSwitchController) { fSwitchController->Stop(); delete fSwitchController; }
+
     delete fInputInjector;
     delete fClipboardManager;
 
@@ -71,24 +137,73 @@ SoftKMApp::~SoftKMApp()
     sInstance = nullptr;
 }
 
+
+// =====================================================================
+// Startup
+// =====================================================================
 void SoftKMApp::ReadyToRun()
 {
-    // Start the network server
-    status_t result = fNetworkServer->Start();
-    if (result != B_OK) {
-        BAlert* alert = new BAlert("Error",
-            "Failed to start network server. Check if the port is available.",
-            "OK", nullptr, nullptr, B_WIDTH_AS_USUAL, B_STOP_ALERT);
-        alert->Go();
-    }
+    if (Settings::GetMode() == MODE_CLIENT)
+        StartClient();
+    else
+        StartServer();
 
-    // Install Deskbar replicant
     InstallDeskbarReplicant();
 }
 
+
+void SoftKMApp::StartClient()
+{
+    status_t err = fSwitchController->Start();
+    if (err != B_OK)
+        LOG("SwitchController::Start failed: %s", strerror(err));
+
+    // Don't block ReadyToRun on the connection — it might fail or take
+    // a while; NetworkClient handles reconnect internally.
+    const char* host = Settings::GetHostAddress();
+    uint16 port      = Settings::GetPort();
+    LOG("Connecting to %s:%u", host, port);
+    fNetworkClient->Connect(host, port);
+}
+
+
+void SoftKMApp::StartServer()
+{
+    status_t result = fNetworkServer->Start();
+    if (result != B_OK) {
+        BAlert* alert = new BAlert("softKM",
+            "Failed to start network server. Check if the port is "
+            "available (another softKM instance may already be running).",
+            "OK", nullptr, nullptr,
+            B_WIDTH_AS_USUAL, B_STOP_ALERT);
+        alert->Go();
+    }
+}
+
+
+// =====================================================================
+// Status
+// =====================================================================
+bool SoftKMApp::IsCapturing() const
+{
+    return fSwitchController != nullptr && fSwitchController->IsCapturing();
+}
+
+
+void SoftKMApp::SetConnected(bool connected)
+{
+    fConnected = connected;
+    LOG("Connection state: %s", connected ? "CONNECTED" : "DISCONNECTED");
+}
+
+
+// =====================================================================
+// MessageReceived
+// =====================================================================
 void SoftKMApp::MessageReceived(BMessage* message)
 {
     switch (message->what) {
+        // ---------------- Common UI commands ----------------
         case MSG_SHOW_SETTINGS:
             ShowSettingsWindow();
             break;
@@ -99,11 +214,8 @@ void SoftKMApp::MessageReceived(BMessage* message)
 
         case MSG_TOGGLE_LOG:
             if (fLogWindow != nullptr) {
-                if (fLogWindow->IsHidden()) {
-                    fLogWindow->Show();
-                } else {
-                    fLogWindow->Hide();
-                }
+                if (fLogWindow->IsHidden()) fLogWindow->Show();
+                else                         fLogWindow->Hide();
             }
             break;
 
@@ -114,33 +226,20 @@ void SoftKMApp::MessageReceived(BMessage* message)
         case MSG_QUERY_LOG_VISIBLE:
         {
             BMessage reply(B_REPLY);
-            bool visible = (fLogWindow != nullptr && !fLogWindow->IsHidden());
-            reply.AddBool("visible", visible);
+            reply.AddBool("visible",
+                fLogWindow != nullptr && !fLogWindow->IsHidden());
             message->SendReply(&reply);
             break;
         }
 
-        case MSG_QUERY_CONNECTION_STATUS:
+        case MSG_QUERY_STATUS:
         {
             BMessage reply(B_REPLY);
-            reply.AddBool("connected", fClientConnected);
+            reply.AddBool("connected", fConnected);
+            reply.AddBool("capturing", IsCapturing());
             message->SendReply(&reply);
             break;
         }
-
-        case MSG_CLIENT_CONNECTED:
-            SetClientConnected(true);
-            break;
-
-        case MSG_CLIENT_DISCONNECTED:
-            SetClientConnected(false);
-            break;
-
-        case MSG_INPUT_EVENT:
-            if (fInputInjector != nullptr) {
-                fInputInjector->ProcessEvent(message);
-            }
-            break;
 
         case MSG_INSTALL_REPLICANT:
             InstallDeskbarReplicant();
@@ -150,91 +249,166 @@ void SoftKMApp::MessageReceived(BMessage* message)
             PostMessage(B_QUIT_REQUESTED);
             break;
 
+        // ---------------- Server-mode events ----------------
+        case MSG_CLIENT_CONNECTED:
+            SetConnected(true);
+            break;
+
+        case MSG_CLIENT_DISCONNECTED:
+            SetConnected(false);
+            break;
+
+        case MSG_INPUT_EVENT:
+            if (fInputInjector != nullptr)
+                fInputInjector->ProcessEvent(message);
+            break;
+
+        // ---------------- Client-mode events ----------------
+        case MSG_PEER_CONNECTED:
+            SetConnected(true);
+            // Push our switch-edge config to the server so it knows
+            // which edge to use for return-trip detection.
+            if (fNetworkClient != nullptr) {
+                fNetworkClient->SendSettingsSync(
+                    Settings::GetDwellTime(),
+                    Settings::GetSwitchEdge(),
+                    Settings::GetReturnEdge(),
+                    0.0f);
+            }
+            break;
+
+        case MSG_PEER_DISCONNECTED:
+            SetConnected(false);
+            // If we were mid-capture when the connection dropped, force
+            // local deactivation so the cursor isn't stuck locked.
+            if (fSwitchController != nullptr
+                && fSwitchController->IsCapturing()) {
+                fSwitchController->OnReturnFromRight(0.5f);
+            }
+            break;
+
+        case MSG_SWITCH_TO_LEFT:
+        {
+            float yRatio = 0.5f;
+            message->FindFloat("yRatio", &yRatio);
+            if (fSwitchController != nullptr)
+                fSwitchController->OnReturnFromRight(yRatio);
+            break;
+        }
+
+        case MSG_CAPTURE_ACTIVATED:
+        case MSG_CAPTURE_DEACTIVATED:
+            // No-op for now; the Deskbar replicant polls for state.
+            break;
+
+        case MSG_RECONNECT:
+            // Settings changed — apply to live components and reconnect.
+            // Only meaningful in client mode.
+            if (fSwitchController != nullptr && fNetworkClient != nullptr) {
+                fSwitchController->SetSwitchEdge(Settings::GetSwitchEdge());
+                fSwitchController->SetReturnEdge(Settings::GetReturnEdge());
+                fSwitchController->SetDwellTime(Settings::GetDwellTime());
+                fNetworkClient->Disconnect();
+                fNetworkClient->Connect(
+                    Settings::GetHostAddress(), Settings::GetPort());
+            }
+            break;
+
         default:
             BApplication::MessageReceived(message);
             break;
     }
 }
 
+
+// =====================================================================
+// QuitRequested
+// =====================================================================
 bool SoftKMApp::QuitRequested()
 {
-    // If we're currently capturing input, give control back to macOS first
+    // Server: if we're injecting events for a connected client, return
+    // control to the sender first so its cursor isn't left frozen.
     if (fInputInjector != nullptr && fInputInjector->IsActive()) {
-        LOG("Returning control to macOS before quitting...");
-        fNetworkServer->SendControlSwitch(1, 0.5f);  // 1 = toMac, 0.5 = center
+        LOG("Returning control to peer before quitting...");
+        if (fNetworkServer != nullptr)
+            fNetworkServer->SendControlSwitch(1, 0.5f);
         fInputInjector->SetActive(false);
     }
 
-    fNetworkServer->Stop();
+    // Client: if we're currently capturing, deactivate cleanly.
+    if (fSwitchController != nullptr && fSwitchController->IsCapturing()) {
+        LOG("Deactivating capture before quit");
+        fSwitchController->OnReturnFromRight(0.5f);
+    }
+
+    if (fNetworkServer)    fNetworkServer->Stop();
+    if (fSwitchController) fSwitchController->Stop();
+    if (fNetworkClient)    fNetworkClient->Disconnect();
+
     RemoveDeskbarReplicant();
     return true;
 }
 
-void SoftKMApp::SetClientConnected(bool connected)
-{
-    fClientConnected = connected;
-    // Status will be queried by deskbar replicant via MSG_QUERY_CONNECTION_STATUS
-}
 
+// =====================================================================
+// Deskbar replicant
+// =====================================================================
 void SoftKMApp::InstallDeskbarReplicant()
 {
     BDeskbar deskbar;
 
-    // Remove existing replicant if present
-    if (deskbar.HasItem(REPLICANT_NAME)) {
+    if (deskbar.HasItem(REPLICANT_NAME))
         deskbar.RemoveItem(REPLICANT_NAME);
-    }
 
-    // Create and install the replicant
     DeskbarReplicant* replicant = new DeskbarReplicant(
         BRect(0, 0, 15, 15), REPLICANT_NAME);
 
     status_t result = deskbar.AddItem(replicant);
     delete replicant;
 
-    if (result != B_OK) {
+    if (result != B_OK)
         fprintf(stderr, "Failed to install Deskbar replicant: %s\n",
             strerror(result));
-    }
 }
+
 
 void SoftKMApp::RemoveDeskbarReplicant()
 {
     BDeskbar deskbar;
-    if (deskbar.HasItem(REPLICANT_NAME)) {
+    if (deskbar.HasItem(REPLICANT_NAME))
         deskbar.RemoveItem(REPLICANT_NAME);
-    }
 }
 
+
+// =====================================================================
+// Windows
+// =====================================================================
 void SoftKMApp::ShowSettingsWindow()
 {
-    if (fSettingsWindow == nullptr) {
+    if (fSettingsWindow == nullptr)
         fSettingsWindow = new SettingsWindow();
-    }
 
-    if (fSettingsWindow->IsHidden()) {
+    if (fSettingsWindow->IsHidden())
         fSettingsWindow->Show();
-    } else {
+    else
         fSettingsWindow->Activate();
-    }
 }
+
 
 void SoftKMApp::ShowLogWindow()
 {
-    if (fLogWindow == nullptr) {
+    if (fLogWindow == nullptr)
         fLogWindow = LogWindow::GetInstance();
-    }
 
-    if (fLogWindow->IsHidden()) {
+    if (fLogWindow->IsHidden())
         fLogWindow->Show();
-    } else {
+    else
         fLogWindow->Activate();
-    }
 }
+
 
 void SoftKMApp::ShowAbout()
 {
-    // Get version info from app file
     app_info appInfo;
     GetAppInfo(&appInfo);
     BFile file(&appInfo.ref, B_READ_ONLY);
@@ -243,7 +417,8 @@ void SoftKMApp::ShowAbout()
     version_info versionInfo;
     char versionString[256] = "";
     if (appFileInfo.GetVersionInfo(&versionInfo, B_APP_VERSION_KIND) == B_OK) {
-        snprintf(versionString, sizeof(versionString), "Version %lu.%lu.%lu (%lu)",
+        snprintf(versionString, sizeof(versionString),
+            "Version %lu.%lu.%lu (%lu)",
             (unsigned long)versionInfo.major,
             (unsigned long)versionInfo.middle,
             (unsigned long)versionInfo.minor,
@@ -255,14 +430,17 @@ void SoftKMApp::ShowAbout()
         nullptr
     };
 
-    BAboutWindow* about = new BAboutWindow("softKM", "application/x-vnd.softKM");
+    BAboutWindow* about = new BAboutWindow("softKM",
+        "application/x-vnd.softKM");
     about->SetVersion(versionString);
     about->AddDescription(
         "Software Keyboard/Mouse Switch for Haiku\n\n"
-        "Share keyboard and mouse input between macOS and Haiku OS "
-        "computers over a network.\n\n"
-        "Move your mouse to the screen edge to seamlessly switch "
-        "control between computers.");
+        "Share keyboard and mouse input between two computers over a "
+        "network. One side runs in Client mode (captures input and "
+        "forwards it); the other side runs in Server mode (receives "
+        "and injects).\n\n"
+        "Move your mouse to the configured screen edge to seamlessly "
+        "transfer control between machines.");
     about->AddCopyright(2025, "Microgeni AB");
     about->AddAuthors(authors);
     about->Show();
