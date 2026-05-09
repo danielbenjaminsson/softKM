@@ -8,8 +8,15 @@ resource app_version {
     minor  = 0,
 
     variety = B_APPV_DEVELOPMENT,
-    internal = 0,
+    internal = 21,
 
     short_info = "softKMClient",
     long_info = "softKMClient — Haiku-to-Haiku sender"
 };
+
+/*
+ * Application Icon - shared with the softKM server app so both
+ * Haiku binaries present the same Microgeni branding in Tracker
+ * and the Deskbar.
+ */
+resource(101, "BEOS:ICON") #'VICN' import "../../HaikuOS/resources/softKM_icon.hvif";
