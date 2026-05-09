@@ -565,28 +565,23 @@ bool SwitchController::IsAtEdge(BPoint pos, uint8 edge) const
 
 BPoint SwitchController::EdgeLockPosition(uint8 edge) const
 {
-    // Lock the cursor at the *centre* of the screen rather than at the
-    // physical edge.
-    //
-    // Why not the edge? Because Haiku (like every OS with a visible
-    // cursor) clamps the OS-reported cursor position to the screen
-    // bounds. If we lock at x=fScreenW-1 and the user pushes the mouse
-    // further right, the OS reports where.x = fScreenW-1 and
-    // dx = where.x - lockedX = 0 — the rightward physical motion is
-    // *invisible* to us. Leftward motion still works (where.x can
-    // decrease), so the right Haiku ends up seeing only leftward dx
-    // and the cursor drifts to its left edge and sticks there.
-    //
-    // Locking at the centre means the OS can report motion in *both*
-    // directions: the cursor briefly drifts a few pixels off-centre,
-    // we read the delta, then warp back. The visible cursor still
-    // appears stationary because the filter replaces every B_MOUSE_MOVED
-    // with one pinned at fLockedPos. The 'edge' parameter is now only
-    // used to remember which direction the user came from (for
-    // return-to-sender bookkeeping); the actual lock point is the same
-    // for any switch edge.
-    (void)edge;
-    return BPoint(fScreenW / 2.0f, fScreenH / 2.0f);
+    // Lock the cursor a fixed offset *inside* the screen edge (not on
+    // the edge itself). This is critical: at the literal edge the OS
+    // clamps the cursor, so where.x can never exceed fScreenW-1 and
+    // rightward physical motion produces dx=0 — i.e. the OS literally
+    // cannot tell us the user is pushing right. Locking 100px inside
+    // gives the OS room to report motion in *both* directions, so the
+    // filter sees real signed deltas. The visible cursor still appears
+    // pinned because the filter replaces every B_MOUSE_MOVED with one
+    // pinned at fLockedPos (so the user never sees the cursor wander).
+    const float kEdgeInset = 100.0f;
+    switch (edge) {
+        case EDGE_RIGHT:  return BPoint(fScreenW - 1 - kEdgeInset, fLastMousePos.y);
+        case EDGE_LEFT:   return BPoint(kEdgeInset,                fLastMousePos.y);
+        case EDGE_TOP:    return BPoint(fLastMousePos.x,            kEdgeInset);
+        case EDGE_BOTTOM: return BPoint(fLastMousePos.x, fScreenH - 1 - kEdgeInset);
+    }
+    return BPoint(fScreenW - 1 - kEdgeInset, fLastMousePos.y);
 }
 
 // ------------------------------------------------------------------

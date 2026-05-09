@@ -86,6 +86,15 @@ private:
 
     // Mouse cursor locking (hide+lock to edge pixel while capturing)
     BPoint   fLockedPos;
+    // Most recently observed OS-reported cursor position. Deltas are
+    // computed event-to-event against this, NOT against fLockedPos:
+    // the filter cannot reliably warp the cursor back to fLockedPos
+    // (set_mouse_position races with input_server's own tracking and
+    // its effect is often ignored), so a fixed-reference scheme would
+    // produce huge bogus deltas equal to the distance between the OS
+    // cursor and the lock point. Tracking 'last seen' makes deltas
+    // robust to whatever the cursor is actually doing.
+    BPoint   fLastPos;
 
     port_id  FindEventPort();
     void     SendEvent(BMessage* evt);
@@ -99,7 +108,8 @@ SoftKMClientFilter::SoftKMClientFilter()
       fEventPort(-1),
       fCmdThread(-1),
       fRunning(false),
-      fLockedPos(0, 0)
+      fLockedPos(0, 0),
+      fLastPos(0, 0)
 {
 }
 
@@ -173,6 +183,9 @@ void SoftKMClientFilter::CmdLoop()
                 locked.y = coords[1];
             }
             fLockedPos = locked;
+            fLastPos   = locked;  // seed so the very first event's delta
+                                  // is computed against the lock point,
+                                  // not against (0,0)
             fEventPort = FindEventPort();
             fActive = true;
             DebugLog("ACTIVATED — event port=%d locked=(%.0f,%.0f)",
@@ -301,23 +314,31 @@ filter_result SoftKMClientFilter::Filter(BMessage* message, BList* outList)
             message->FindInt32("buttons", &buttons);
             message->FindInt32("modifiers", &modifiers);
 
-            // Compute the user's movement *relative to the locked
-            // position*. Because we warp the cursor back to fLockedPos
-            // on every real motion event, any reported 'where' that
-            // differs from fLockedPos represents the user's most recent
-            // physical motion. After we warp back, the next event
-            // starts again from fLockedPos, so deltas never need to
-            // accumulate over multiple events.
-            float dx = where.x - fLockedPos.x;
-            float dy = where.y - fLockedPos.y;
+            // Compute the user's movement event-to-event. We used to
+            // compute dx = where - fLockedPos and then warp the cursor
+            // back to fLockedPos, but set_mouse_position from inside
+            // an input_server filter doesn't reliably move the cursor
+            // (the input_server has its own cursor tracking that
+            // races with us), so the warp was a no-op and we ended up
+            // sending dx = (cursor - lockPoint), which is huge whenever
+            // the cursor is far from the lock point — exactly what
+            // happened when locking at the right edge: every event
+            // produced dx = +2559 (≈ half the screen width).
+            //
+            // The fix is to track fLastPos ourselves and compute
+            // dx = where - fLastPos, then update fLastPos = where.
+            // This is independent of where the OS cursor actually is,
+            // so it works whether the warp succeeded or not.
+            float dx = where.x - fLastPos.x;
+            float dy = where.y - fLastPos.y;
+            fLastPos = where;
 
-            // Drop pure warp-echo events (where == fLockedPos) so the
-            // controller doesn't see fake (0,0) deltas that masquerade
-            // as real motion in the per-event log.
-            const float kWarpEpsilon = 0.5f;
-            bool isWarpEcho = (fabsf(dx) < kWarpEpsilon && fabsf(dy) < kWarpEpsilon);
+            // Suppress zero-delta echoes (e.g. modifier-only events
+            // that arrive as B_MOUSE_MOVED with the same position).
+            const float kEpsilon = 0.5f;
+            bool isZero = (fabsf(dx) < kEpsilon && fabsf(dy) < kEpsilon);
 
-            if (!isWarpEcho) {
+            if (!isZero) {
                 BMessage evt(SOFTKM_EVT_MOUSE_MOVE);
                 evt.AddPoint("where", where);
                 evt.AddFloat("dx", dx);
@@ -327,10 +348,11 @@ filter_result SoftKMClientFilter::Filter(BMessage* message, BList* outList)
                 SendEvent(&evt);
             }
 
-            // Warp cursor back to locked position so it never leaves
-            // the edge. The B_MOUSE_MOVED that input_server posts in
-            // response to this warp will arrive here with where ==
-            // fLockedPos and be identified as a warp echo above.
+            // Best-effort warp back to the lock position. Even if the
+            // input_server ignores this call (which it often does), our
+            // delta calculation no longer depends on it succeeding.
+            // It still helps when it works, by preventing the visible
+            // cursor from drifting across the screen on the sender.
             set_mouse_position((int32)fLockedPos.x, (int32)fLockedPos.y);
 
             // Replace the original event with one pinned at the lock
