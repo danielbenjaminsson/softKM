@@ -45,6 +45,7 @@ SoftKMClientApp::SoftKMClientApp()
 
     fLogWindow = LogWindow::GetInstance();
     Logger::Instance().SetLogWindow(BMessenger(fLogWindow));
+    Logger::Instance().Open("/boot/home/softKMClient.log");
 
     fClipboardManager  = new ClipboardManager();
     fClient            = new NetworkClient();

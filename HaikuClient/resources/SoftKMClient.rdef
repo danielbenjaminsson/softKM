@@ -8,7 +8,7 @@ resource app_version {
     minor  = 0,
 
     variety = B_APPV_DEVELOPMENT,
-    internal = 21,
+    internal = 22,
 
     short_info = "softKMClient",
     long_info = "softKMClient — Haiku-to-Haiku sender"

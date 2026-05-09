@@ -38,6 +38,11 @@ SoftKMApp::SoftKMApp()
     // Set up logger to send to log window
     Logger::Instance().SetLogWindow(BMessenger(fLogWindow));
 
+    // Also persist log to disk next to the user's home, so post-mortem
+    // debugging (e.g. "why did the client disconnect on edge cross?")
+    // doesn't depend on the LogWindow being open at the time.
+    Logger::Instance().Open("/boot/home/softKM_server.log");
+
     // Create input injector
     fInputInjector = new InputInjector();
 
