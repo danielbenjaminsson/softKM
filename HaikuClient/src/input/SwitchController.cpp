@@ -321,45 +321,21 @@ void SwitchController::ProcessMouseMove(BPoint where, int32 buttons,
     fHasPending   = true;
     release_sem(fBatchLock);
 
-    // Edge detection for returning to this Haiku
-    // (mirrors InputInjector edge detection on the right Haiku)
+    // Note: return-edge detection is intentionally NOT done here.
     //
-    // When the filter pre-computes deltas, 'where' is whatever the OS
-    // reported as the cursor position before the warp. That may be
-    // briefly outside the screen-clamped range, but for return-edge
-    // detection we want the post-warp position, which is fLockedPos.
-    // Use whichever the caller gave us, but fall back to fLockedPos
-    // if 'where' looks unreliable.
-    BPoint edgeCheck = hasFilterDelta ? fLockedCursorPos : where;
-    if (IsAtEdge(edgeCheck, fReturnEdge)) {
-        if (!fAtSwitchEdge) {
-            fAtSwitchEdge   = true;
-            fEdgeDwellStart = system_time();
-            LOG("At return edge — dwell started");
-        } else if ((system_time() - fEdgeDwellStart) >= fDwellTime) {
-            float yRatio = where.y / (fScreenH - 1);
-            if (yRatio < 0.0f) yRatio = 0.0f;
-            if (yRatio > 1.0f) yRatio = 1.0f;
-            LOG("Dwell complete — returning to left Haiku yRatio=%.2f", yRatio);
-
-            // Send clipboard first
-            if (fClipboard && fClient) {
-                uint32 len = 0;
-                uint8* data = fClipboard->GetClipboardForSync(&len);
-                if (data && len > 0) {
-                    fClient->SendClipboard(data, len);
-                    delete[] data;
-                }
-            }
-            if (fClient)
-                fClient->SendControlSwitch(1, yRatio);  // 1 = return to sender
-
-            DeactivateCapture(yRatio);
-        }
-    } else {
-        fAtSwitchEdge   = false;
-        fEdgeDwellStart = 0;
-    }
+    // With the cursor locked at the *centre* of the screen (see
+    // EdgeLockPosition), the OS-reported 'where' only ever drifts a
+    // few pixels off-centre between warps — we couldn't reliably tell
+    // sustained leftward motion from a brief twitch. Instead, the
+    // *receiving* side (asus's InputInjector) tracks the virtual
+    // cursor position fMousePosition by accumulating deltas, and
+    // detects when *its* virtual cursor reaches the configured return
+    // edge. When that happens, asus sends EVENT_CONTROL_SWITCH back
+    // to us with direction=1, NetworkClient posts 'StoL' to be_app,
+    // and the app calls OnReturnFromRight → DeactivateCapture(). So
+    // the return path still works end-to-end, just driven by the
+    // remote side instead of locally.
+    (void)where;
 }
 
 void SwitchController::ProcessMouseDown(BPoint where, int32 buttons,
@@ -589,13 +565,28 @@ bool SwitchController::IsAtEdge(BPoint pos, uint8 edge) const
 
 BPoint SwitchController::EdgeLockPosition(uint8 edge) const
 {
-    switch (edge) {
-        case EDGE_RIGHT:  return BPoint(fScreenW - 1, fLastMousePos.y);
-        case EDGE_LEFT:   return BPoint(0, fLastMousePos.y);
-        case EDGE_TOP:    return BPoint(fLastMousePos.x, 0);
-        case EDGE_BOTTOM: return BPoint(fLastMousePos.x, fScreenH - 1);
-    }
-    return BPoint(fScreenW - 1, fLastMousePos.y);
+    // Lock the cursor at the *centre* of the screen rather than at the
+    // physical edge.
+    //
+    // Why not the edge? Because Haiku (like every OS with a visible
+    // cursor) clamps the OS-reported cursor position to the screen
+    // bounds. If we lock at x=fScreenW-1 and the user pushes the mouse
+    // further right, the OS reports where.x = fScreenW-1 and
+    // dx = where.x - lockedX = 0 — the rightward physical motion is
+    // *invisible* to us. Leftward motion still works (where.x can
+    // decrease), so the right Haiku ends up seeing only leftward dx
+    // and the cursor drifts to its left edge and sticks there.
+    //
+    // Locking at the centre means the OS can report motion in *both*
+    // directions: the cursor briefly drifts a few pixels off-centre,
+    // we read the delta, then warp back. The visible cursor still
+    // appears stationary because the filter replaces every B_MOUSE_MOVED
+    // with one pinned at fLockedPos. The 'edge' parameter is now only
+    // used to remember which direction the user came from (for
+    // return-to-sender bookkeeping); the actual lock point is the same
+    // for any switch edge.
+    (void)edge;
+    return BPoint(fScreenW / 2.0f, fScreenH / 2.0f);
 }
 
 // ------------------------------------------------------------------
