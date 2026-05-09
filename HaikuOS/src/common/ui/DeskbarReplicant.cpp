@@ -275,9 +275,29 @@ void DeskbarReplicant::ShowPopUpMenu(BPoint where)
 {
     BPopUpMenu* menu = new BPopUpMenu("softKM", false, false);
 
+    // Query the app's live connection state right now, rather than
+    // trusting the cached fIsConnected (which depends on the 1Hz poll
+    // having actually completed a round-trip recently).
+    bool connectedNow = fIsConnected;
+    {
+        BMessenger appMessenger("application/x-vnd.softKM");
+        if (appMessenger.IsValid()) {
+            BMessage query(MSG_QUERY_CONNECTION_STATUS);
+            BMessage reply;
+            if (appMessenger.SendMessage(&query, &reply,
+                    500000, 500000) == B_OK) {
+                bool c;
+                if (reply.FindBool("connected", &c) == B_OK) {
+                    connectedNow = c;
+                    SetConnected(c);  // also refresh the icon
+                }
+            }
+        }
+    }
+
     // Status item (disabled, just for info)
     BMenuItem* statusItem = new BMenuItem(
-        fIsConnected ? "Connected" : "Disconnected", nullptr);
+        connectedNow ? "Connected" : "Disconnected", nullptr);
     statusItem->SetEnabled(false);
     menu->AddItem(statusItem);
 

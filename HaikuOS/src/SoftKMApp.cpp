@@ -238,6 +238,14 @@ void SoftKMApp::MessageReceived(BMessage* message)
             reply.AddBool("connected", fConnected);
             reply.AddBool("capturing", IsCapturing());
             message->SendReply(&reply);
+            // Log only when the reported value changes, so we can see
+            // in the log whether fConnected is tracking reality.
+            static int lastLogged = -1;
+            int now = fConnected ? 1 : 0;
+            if (now != lastLogged) {
+                LOG("MSG_QUERY_STATUS: replying connected=%d", now);
+                lastLogged = now;
+            }
             break;
         }
 
