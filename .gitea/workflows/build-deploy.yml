@@ -366,8 +366,12 @@ jobs:
       # ====================================================================
       # macOS sender app — build, sign, install, launch
       # ====================================================================
+      # Skipped automatically when CERTIFICATE_P12 is not set, which
+      # gives us a Haiku-only release path: just unset the secret in
+      # Gitea (Repo → Settings → Actions → Secrets) to ship an HPKG
+      # without a signed/notarised DMG.
       - name: Setup signing keychain
-        if: steps.changes.outputs.macos_changed != '0'
+        if: steps.changes.outputs.macos_changed != '0' && env.CERTIFICATE_P12 != ''
         env:
           CERTIFICATE_P12: ${{ secrets.CERTIFICATE_P12 }}
         run: |
@@ -395,8 +399,9 @@ jobs:
           security find-identity -v -p codesigning
 
       - name: Build macOS app
-        if: steps.changes.outputs.macos_changed != '0'
+        if: steps.changes.outputs.macos_changed != '0' && env.CERTIFICATE_P12 != ''
         env:
+          CERTIFICATE_P12: ${{ secrets.CERTIFICATE_P12 }}
           BUILD_NUMBER: ${{ github.run_number }}
           IS_RELEASE: ${{ steps.changes.outputs.is_release }}
           VERSION: ${{ steps.changes.outputs.version }}
@@ -429,7 +434,9 @@ jobs:
             clean build
 
       - name: Install and launch macOS app
-        if: steps.changes.outputs.macos_changed != '0' && steps.changes.outputs.is_release != 'true'
+        if: steps.changes.outputs.macos_changed != '0' && steps.changes.outputs.is_release != 'true' && env.CERTIFICATE_P12 != ''
+        env:
+          CERTIFICATE_P12: ${{ secrets.CERTIFICATE_P12 }}
         run: |
           APP_PATH="MacOS/build/Build/Products/Release/softKM.app"
           if [ ! -d "$APP_PATH" ]; then
@@ -452,8 +459,10 @@ jobs:
       # Release-only steps (triggered by tag push refs/tags/v*)
       # ====================================================================
       - name: Create macOS DMG
-        if: steps.changes.outputs.is_release == 'true'
+        if: steps.changes.outputs.is_release == 'true' && env.CERTIFICATE_P12 != ''
         id: macos_dmg
+        env:
+          CERTIFICATE_P12: ${{ secrets.CERTIFICATE_P12 }}
         run: |
           VERSION="${{ steps.changes.outputs.version }}"
           APP_PATH="MacOS/build/Build/Products/Release/softKM.app"
@@ -486,8 +495,9 @@ jobs:
           echo "DMG SHA256: $DMG_SHA256"
 
       - name: Notarize macOS DMG
-        if: steps.changes.outputs.is_release == 'true'
+        if: steps.changes.outputs.is_release == 'true' && env.CERTIFICATE_P12 != ''
         env:
+          CERTIFICATE_P12: ${{ secrets.CERTIFICATE_P12 }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
@@ -657,13 +667,15 @@ jobs:
             cat /tmp/commits.txt
             echo ""
             echo "## Downloads"
-            echo "- **macOS sender**: $DMG_FILE (signed and notarised)"
+            if [ -f "$DMG_FILE" ]; then
+              echo "- **macOS sender**: $DMG_FILE (signed and notarised)"
+            fi
             echo "- **Haiku (sender or receiver)**: $HPKG_FILE"
             echo ""
             echo "## Checksums (SHA256)"
             echo '```'
-            echo "${DMG_SHA256}  $DMG_FILE"
-            echo "${HPKG_SHA256}  $HPKG_FILE"
+            [ -f "$DMG_FILE"  ] && echo "${DMG_SHA256}  $DMG_FILE"
+            [ -f "$HPKG_FILE" ] && echo "${HPKG_SHA256}  $HPKG_FILE"
             echo '```'
           } > /tmp/release_body.txt
 
