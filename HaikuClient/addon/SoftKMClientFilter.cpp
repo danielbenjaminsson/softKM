@@ -84,17 +84,11 @@ private:
     thread_id fCmdThread;
     bool     fRunning;
 
-    // Mouse cursor locking (hide+lock to edge pixel while capturing)
+    // Cursor lock position (where the visual cursor is pinned to
+    // during capture so the user doesn't see it wander on the
+    // sender). Used by the event-replacement code; NOT used to
+    // compute mouse deltas.
     BPoint   fLockedPos;
-    // Most recently observed OS-reported cursor position. Deltas are
-    // computed event-to-event against this, NOT against fLockedPos:
-    // the filter cannot reliably warp the cursor back to fLockedPos
-    // (set_mouse_position races with input_server's own tracking and
-    // its effect is often ignored), so a fixed-reference scheme would
-    // produce huge bogus deltas equal to the distance between the OS
-    // cursor and the lock point. Tracking 'last seen' makes deltas
-    // robust to whatever the cursor is actually doing.
-    BPoint   fLastPos;
 
     // Most recently observed mouse-button set (currently-held bitmap).
     // Haiku's B_MOUSE_DOWN/UP report this *post-event* set in the
@@ -106,6 +100,12 @@ private:
     // is a no-op, the receiver thinks the button is still held, and
     // context menus stop dismissing on outside click.
     int32    fLastButtons;
+
+    // One-shot diagnostic: log the first B_MOUSE_MOVED event's field
+    // names after each ACTIVATE so we can confirm which fields the
+    // input_server attaches in this Haiku build (so a future hrev
+    // change leaves a paper trail in the filter log).
+    bool     fLoggedMouseFields;
 
     port_id  FindEventPort();
     void     SendEvent(BMessage* evt);
@@ -120,8 +120,8 @@ SoftKMClientFilter::SoftKMClientFilter()
       fCmdThread(-1),
       fRunning(false),
       fLockedPos(0, 0),
-      fLastPos(0, 0),
-      fLastButtons(0)
+      fLastButtons(0),
+      fLoggedMouseFields(false)
 {
 }
 
@@ -194,11 +194,9 @@ void SoftKMClientFilter::CmdLoop()
                 locked.x = coords[0];
                 locked.y = coords[1];
             }
-            fLockedPos = locked;
-            fLastPos   = locked;  // seed so the very first event's delta
-                                  // is computed against the lock point,
-                                  // not against (0,0)
+            fLockedPos   = locked;
             fLastButtons = 0;     // assume no buttons held at activation
+            fLoggedMouseFields = false;  // re-arm one-shot diagnostic
             fEventPort = FindEventPort();
             fActive = true;
             DebugLog("ACTIVATED — event port=%d locked=(%.0f,%.0f)",
@@ -378,70 +376,116 @@ filter_result SoftKMClientFilter::Filter(BMessage* message, BList* outList)
         {
             BPoint where;
             int32 buttons = 0, modifiers = 0;
+            int32 dx = 0, dy = 0;
             message->FindPoint("where", &where);
             message->FindInt32("buttons", &buttons);
             message->FindInt32("modifiers", &modifiers);
 
-            // Two kinds of events arrive in this handler while we
-            // are capturing:
+            // Read the *raw* mouse deltas that MouseInputDevice
+            // attached to this message. These come from the kernel
+            // driver's mouse_movement struct (xdelta/ydelta from the
+            // ioctl MS_READ) — i.e. the actual motion the device
+            // reported, BEFORE the input_server turned it into a
+            // cursor position and clamped it to the screen.
             //
-            //   1. Real user motion: where = (cursor's actual current
-            //      position). Forward to the controller as
-            //      dx = where - fLastPos.
+            // Using these raw deltas (the macOS equivalent is
+            // CGEvent's mouseEventDeltaX/Y field) sidesteps every
+            // pain point we hit trying to derive motion from
+            // 'where':
+            //   - no edge-clamping (where the OS pins where.x to
+            //     screenWidth-1 and rightward physical motion
+            //     becomes invisible);
+            //   - no need to set_mouse_position from inside the
+            //     filter (which is racy and sometimes a no-op);
+            //   - no warp-echo or rebound detection;
+            //   - the cursor can be wherever, doesn't matter.
             //
-            //   2. Warp echoes: input_server delivers a B_MOUSE_MOVED in
-            //      response to our own set_mouse_position(lockedPos, …)
-            //      call below. Such an event arrives with where ==
-            //      fLockedPos exactly. We MUST drop these, otherwise
-            //      every real +N delta would be followed by a −N echo
-            //      and the receiver would never see net motion.
-            //
-            // Why event-to-event (where - fLastPos) and not
-            // lock-relative (where - fLockedPos)? Because
-            // set_mouse_position from inside the filter is racy: it
-            // sometimes silently does nothing, leaving the OS cursor
-            // camped wherever it was. With a lock-relative formula
-            // the filter would then forward a constant dx of ~100px
-            // on every event, flooding the receiver with phantom
-            // motion. Event-to-event survives a failed warp because
-            // dx tracks actual motion between consecutive reported
-            // positions regardless of where they are on screen.
-            const float kWarpEpsilon = 0.5f;
-            bool isWarpEcho = (fabsf(where.x - fLockedPos.x) < kWarpEpsilon
-                            && fabsf(where.y - fLockedPos.y) < kWarpEpsilon);
+            // Found by greping Haiku source: src/add-ons/input_server
+            // /devices/mouse/MouseInputDevice.cpp builds the
+            // B_MOUSE_MOVED message with AddInt32("be:delta_x", ...)
+            // / AddInt32("be:delta_y", ...) before EnqueueMessage.
+            // Filters run after the device add-on, so we see those
+            // fields intact.
+            bool haveRawDeltas = (
+                message->FindInt32("be:delta_x", &dx) == B_OK
+             && message->FindInt32("be:delta_y", &dy) == B_OK);
 
-            if (!isWarpEcho) {
-                float dx = where.x - fLastPos.x;
-                float dy = where.y - fLastPos.y;
-                fLastPos = where;
+            // be:delta_y on this Haiku build follows the kernel
+            // driver's PS/2-style convention: positive ydelta means
+            // the user moved the mouse UP on the desk (cursor
+            // toward smaller screen Y). Haiku's screen Y axis is
+            // top-down (positive = down), so we have to negate to
+            // get a screen-convention delta. Confirmed empirically
+            // by per-event logging that compares raw dy to
+            // (where.y - lock.y): when the cursor visibly moves
+            // up on screen, raw dy is positive while whereDy is
+            // negative, so they have opposite signs and we negate
+            // to align with the where-derived sign that the
+            // receiver expects.
+            dy = -dy;
 
-                BMessage evt(SOFTKM_EVT_MOUSE_MOVE);
-                evt.AddPoint("where", where);
-                evt.AddFloat("dx", dx);
-                evt.AddFloat("dy", dy);
-                evt.AddInt32("buttons", buttons);
-                evt.AddInt32("modifiers", modifiers);
-                SendEvent(&evt);
-            } else {
-                // Warp echo: realign fLastPos to the lock point so the
-                // next real-motion delta is computed from there. Don't
-                // forward the event.
-                fLastPos = fLockedPos;
+            // One-shot diagnostic: log the field names of the first
+            // mouse-move event after each activation, so we can see
+            // exactly what the input_server attaches on this hrev.
+            // Keeps a record in the filter log if a future Haiku
+            // revision renames or removes be:delta_x/y.
+            if (!fLoggedMouseFields) {
+                fLoggedMouseFields = true;
+                char nameBuf[256] = "";
+                size_t off = 0;
+                char* name;
+                type_code type;
+                int32 count;
+                for (int32 i = 0; message->GetInfo(B_ANY_TYPE, i,
+                        &name, &type, &count) == B_OK; i++) {
+                    int n = snprintf(nameBuf + off, sizeof(nameBuf) - off,
+                        " %s(0x%x)", name, (unsigned)type);
+                    if (n < 0 || (size_t)n >= sizeof(nameBuf) - off) break;
+                    off += n;
+                }
+                DebugLog("First B_MOUSE_MOVED fields:%s", nameBuf);
+                DebugLog("  haveRawDeltas=%d  raw_dx=%d  raw_dy=%d (after negate)",
+                    (int)haveRawDeltas, (int)dx, (int)dy);
             }
 
-            // Best-effort warp back to the lock position. When it
-            // works, the next event arrives as a warp echo (caught
-            // above) and the cursor stays visually pinned. When it
-            // doesn't, the event-to-event delta calc still produces
-            // correct motion — we just lose the visual pin and the
-            // cursor may drift across the screen on the sender (which
-            // is invisible to the user since the receiver's cursor
-            // is what they're watching).
-            set_mouse_position((int32)fLockedPos.x, (int32)fLockedPos.y);
+            if (haveRawDeltas) {
+                if (dx != 0 || dy != 0) {
+                    BMessage evt(SOFTKM_EVT_MOUSE_MOVE);
+                    evt.AddPoint("where", where);
+                    evt.AddFloat("dx", (float)dx);
+                    evt.AddFloat("dy", (float)dy);
+                    evt.AddInt32("buttons", buttons);
+                    evt.AddInt32("modifiers", modifiers);
+                    SendEvent(&evt);
+                }
+            } else {
+                // Fallback for hrev that doesn't expose be:delta_x/y.
+                // Log once so we know we're on this path; events are
+                // dropped in this mode (we used to derive deltas from
+                // 'where' here but it was so unreliable that losing
+                // mouse motion entirely is preferable to the phantom
+                // drift we used to see).
+                static bool logged = false;
+                if (!logged) {
+                    DebugLog("WARNING: B_MOUSE_MOVED has no be:delta_x — "
+                        "mouse motion forwarding disabled. Update Haiku "
+                        "or fall back to the position-derived delta path.");
+                    logged = true;
+                }
+            }
 
             // Replace the original event with one pinned at the lock
-            // position so downstream handlers (like the desktop) don't
-            // see the cursor moving.
+            // position so downstream apps (Tracker, Deskbar, etc) don't
+            // see the cursor moving across the sender's screen during
+            // capture. We do NOT call set_mouse_position any more — the
+            // physical OS cursor will drift wherever the user pushes it,
+            // but it's still pinned visually because the desktop only
+            // sees the replacement event with where=fLockedPos.
+            //
+            // (When we used to call set_mouse_position here, the warp
+            // was racy and produced echo events that polluted the
+            // delta calculation. Now that deltas come from the driver
+            // directly, we have no need to re-warp.)
             BMessage* replacement = new BMessage(B_MOUSE_MOVED);
             replacement->AddInt64("when", system_time());
             replacement->AddPoint("where", fLockedPos);
