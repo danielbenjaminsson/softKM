@@ -372,6 +372,18 @@ void NetworkClient::SendHeartbeat()
     Send(buf, off);
 }
 
+void NetworkClient::SendTeamMonitor()
+{
+    // Empty payload — receiver opens its own TeamMonitor window
+    // when it sees this event. Used to forward the user's
+    // Ctrl+Alt+Del intent across the wire when Haiku's input_server
+    // intercepts the combo before our filter has a chance to
+    // suppress it locally.
+    uint8 buf[8];
+    size_t off = BuildHeader(buf, EVENT_TEAM_MONITOR, 0);
+    Send(buf, off);
+}
+
 void NetworkClient::SendClipboard(const uint8* data, uint32 length)
 {
     if (data == nullptr || length == 0) return;

@@ -59,6 +59,7 @@ enum {
     SOFTKM_EVT_MOUSE_UP    = 'sMup',
     SOFTKM_EVT_MOUSE_MOVE  = 'sMmv',
     SOFTKM_EVT_MOUSE_WHEEL = 'sMwh',
+    SOFTKM_EVT_TEAM_MONITOR= 'sTMn',  // Ctrl+Alt+Del intent
 };
 
 static const char* kCmdPortName   = "softkm_filter_cmd";
@@ -290,6 +291,46 @@ filter_result SoftKMClientFilter::Filter(BMessage* message, BList* outList)
             message->FindInt32("raw_char", &rawChar);
             const char* bytes = "";
             message->FindString("bytes", &bytes);
+
+            // Special-case Ctrl+Alt+Del.
+            //
+            // On this Haiku build, input_server's hotkey detector
+            // for Team Monitor runs in parallel with the filter
+            // chain — even when we consume the Del key, the local
+            // Team Monitor still opens. We can't prevent that
+            // from inside the filter.
+            //
+            // What we can do: instead of forwarding the Del keypress
+            // (which on the receiver would also open Team Monitor
+            // via the same hotkey detector if the modifier state
+            // matches), we forward a dedicated EVENT_TEAM_MONITOR
+            // signal. softKM in server mode handles it via
+            // InputInjector::InjectTeamMonitor() and reliably opens
+            // the Team Monitor on the receiver side, regardless of
+            // how its keymap interprets modifiers.
+            //
+            // Detection: Del keycode (0x34 on a standard PC keymap;
+            // also rawChar=0x7f as a tell) PLUS at least one of
+            // Ctrl and one of Cmd/Option held. The exact modifier
+            // bits depend on the user's keymap, so we check several
+            // common bit combinations.
+            const int32 kDelKeyCode = 0x34;
+            const int32 kCtrlBits   = 0x004 | 0x10000 | 0x20000;  // generic / left / right Ctrl
+            const int32 kAltBits    = 0x040 | 0x400   | 0x800;    // generic / left / right Option
+            const int32 kCmdBits    = 0x002 | 0x4000  | 0x8000;   // generic / left / right Command
+            bool isCtrlAltDel =
+                (key == kDelKeyCode || rawChar == 0x7f)
+                && (modifiers & kCtrlBits) != 0
+                && ((modifiers & kAltBits) != 0
+                 || (modifiers & kCmdBits) != 0);
+
+            if (isCtrlAltDel) {
+                DebugLog("Ctrl+Alt+Del detected; forwarding as TEAM_MONITOR");
+                BMessage evt(SOFTKM_EVT_TEAM_MONITOR);
+                SendEvent(&evt);
+                consumed = true;
+                break;
+            }
 
             BMessage evt(SOFTKM_EVT_KEY_DOWN);
             evt.AddInt32("key", key);

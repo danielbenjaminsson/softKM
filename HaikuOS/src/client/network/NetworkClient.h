@@ -43,6 +43,7 @@ public:
     void SendSettingsSync(float dwellTime, uint8 leftEdge, uint8 rightReturnEdge,
                           float yOffsetRatio);
     void SendHeartbeat();
+    void SendTeamMonitor();
     void SendClipboard(const uint8* data, uint32 length);
 
     // Batched mouse-move flush (called by a timer)

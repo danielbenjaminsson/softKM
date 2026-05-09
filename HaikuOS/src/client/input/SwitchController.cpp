@@ -34,6 +34,7 @@ enum {
     SOFTKM_EVT_MOUSE_UP    = 'sMup',
     SOFTKM_EVT_MOUSE_MOVE  = 'sMmv',
     SOFTKM_EVT_MOUSE_WHEEL = 'sMwh',
+    SOFTKM_EVT_TEAM_MONITOR= 'sTMn',
 };
 
 // edge threshold in pixels (same as InputInjector)
@@ -235,6 +236,16 @@ void SwitchController::HandleFilterEvent(uint32 what, const char* buf, ssize_t s
             msg.FindInt32("key", &key);
             msg.FindInt32("modifiers", &mods);
             ProcessKeyUp(key, mods);
+            break;
+        }
+        case SOFTKM_EVT_TEAM_MONITOR:
+        {
+            // Filter detected Ctrl+Alt+Del. Forward as a dedicated
+            // wire-protocol message rather than trying to replay the
+            // key combo, since the receiver's Haiku build also
+            // intercepts the combo at input_server level.
+            if (fMode == kCapturing && fClient)
+                fClient->SendTeamMonitor();
             break;
         }
         default:
