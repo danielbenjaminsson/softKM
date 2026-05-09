@@ -1,9 +1,9 @@
 #include "NetworkServer.h"
 #include "Protocol.h"
-#include "../input/InputInjector.h"
-#include "../clipboard/ClipboardManager.h"
-#include "../SoftKMApp.h"
-#include "../Logger.h"
+#include "InputInjector.h"
+#include "ClipboardManager.h"
+#include "SoftKMApp.h"
+#include "Logger.h"
 
 #include <Messenger.h>
 #include <Screen.h>

@@ -1,5 +1,5 @@
 #include "ClipboardManager.h"
-#include "../Logger.h"
+#include "Logger.h"
 
 #include <Clipboard.h>
 #include <Message.h>

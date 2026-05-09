@@ -1,5 +1,5 @@
 #include "DeskbarReplicant.h"
-#include "../SoftKMApp.h"
+#include "SoftKMApp.h"
 
 #include <Dragger.h>
 #include <PopUpMenu.h>

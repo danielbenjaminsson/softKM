@@ -1,8 +1,8 @@
 #include "InputInjector.h"
-#include "../network/NetworkServer.h"
-#include "../network/Protocol.h"
-#include "../Logger.h"
-#include "../ui/TeamMonitorWindow.h"
+#include "NetworkServer.h"
+#include "Protocol.h"
+#include "Logger.h"
+#include "TeamMonitorWindow.h"
 
 #include <Application.h>
 #include <Message.h>

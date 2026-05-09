@@ -1,6 +1,6 @@
 #include "SettingsWindow.h"
-#include "../SoftKMApp.h"
-#include "../settings/Settings.h"
+#include "SoftKMApp.h"
+#include "Settings.h"
 
 #include <LayoutBuilder.h>
 #include <TextControl.h>
