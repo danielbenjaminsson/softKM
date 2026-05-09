@@ -34,6 +34,13 @@ public:
     void SetReturnEdge(uint8 edge) { fReturnEdge = edge; }
     uint8 GetReturnEdge() const { return fReturnEdge; }
 
+    // When the sender announced itself as Haiku in EVENT_SCREEN_INFO
+    // (protocol r2+), we receive native Haiku keycodes and must NOT
+    // run them through the macOS->Haiku translation table — that
+    // would mangle any Haiku keycode that happens to coincide with
+    // a macOS virtual keycode value (e.g. 0x47, 0x4B, …).
+    void SetSenderIsHaiku(bool isHaiku) { fSenderIsHaiku = isHaiku; }
+
 private:
     uint32 TranslateKeyCode(uint32 macKeyCode);
     void UpdateMousePosition(float x, float y, bool relative);
@@ -53,6 +60,7 @@ private:
     bigtime_t fDwellTime;  // configurable dwell time in microseconds
     bool fAtReturnEdge;
     uint8 fReturnEdge;  // Which edge triggers return to Mac (0=right, 1=left, 2=top, 3=bottom)
+    bool fSenderIsHaiku;  // protocol r2: skip TranslateKeyCode when true
 
     // Double-click tracking
     bigtime_t fLastClickTime;

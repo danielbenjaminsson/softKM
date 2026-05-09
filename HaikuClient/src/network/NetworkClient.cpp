@@ -342,8 +342,12 @@ void NetworkClient::SendScreenInfo(float width, float height)
                              (uint32)sizeof(ScreenInfoPayload));
     AppendFloat(buf, off, width);
     AppendFloat(buf, off, height);
+    // Tell the receiver we're a Haiku sender. On the receiving side
+    // this disables the macOS->Haiku keycode translation table, since
+    // we already produce native Haiku keycodes.
+    buf[off++] = SENDER_HAIKU;
     Send(buf, off);
-    LOG("NetworkClient: sent screen info %.0fx%.0f", width, height);
+    LOG("NetworkClient: sent screen info %.0fx%.0f (sender=Haiku)", width, height);
 }
 
 void NetworkClient::SendSettingsSync(float dwellTime, uint8 leftEdge,

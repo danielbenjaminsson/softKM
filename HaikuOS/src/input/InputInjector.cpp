@@ -160,6 +160,7 @@ InputInjector::InputInjector()
       fDwellTime(300000),  // default 300ms
       fAtReturnEdge(false),
       fReturnEdge(EDGE_LEFT),  // default: left edge returns to Mac
+      fSenderIsHaiku(false),
       fLastClickTime(0),
       fLastClickPosition(0, 0),
       fClickCount(0),
@@ -336,6 +337,15 @@ void InputInjector::SetActive(bool active, float yRatio)
 
 uint32 InputInjector::TranslateKeyCode(uint32 macKeyCode)
 {
+    // If the sender is another Haiku box (announced via the
+    // senderPlatform byte in EVENT_SCREEN_INFO), the incoming keycode
+    // is already a native Haiku keycode. Running it through the
+    // macOS->Haiku table would mistranslate any value that happens
+    // to coincide with a macOS virtual keycode (e.g. Haiku 0x47
+    // would be silently rewritten to Haiku 0x22).
+    if (fSenderIsHaiku)
+        return macKeyCode;
+
     for (size_t i = 0; i < kKeyMapSize; i++) {
         if (kKeyMap[i].macKey == macKeyCode) {
             return kKeyMap[i].haikuKey;

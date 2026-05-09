@@ -75,7 +75,20 @@ struct ControlSwitchPayload {
 struct ScreenInfoPayload {
     float   width;
     float   height;
+    // Optional trailing byte added in protocol r2: sender platform
+    // (0 = macOS, 1 = Haiku). Receivers MUST check header->length to
+    // decide whether this byte is present; older clients (~1.0.x)
+    // send a payload of exactly 8 bytes with no platform byte, in
+    // which case the receiver should default senderPlatform = 0
+    // (macOS) for backwards compatibility.
+    uint8   senderPlatform;
 } __attribute__((packed));
+
+// senderPlatform values
+enum SenderPlatform {
+    SENDER_MAC   = 0,
+    SENDER_HAIKU = 1
+};
 
 struct SettingsSyncPayload {
     float   edgeDwellTime;

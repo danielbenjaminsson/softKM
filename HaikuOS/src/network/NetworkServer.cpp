@@ -29,7 +29,8 @@ NetworkServer::NetworkServer(uint16 port, InputInjector* injector)
       fLocalWidth(0),
       fLocalHeight(0),
       fRemoteWidth(0),
-      fRemoteHeight(0)
+      fRemoteHeight(0),
+      fSenderIsHaiku(false)
 {
     // Get local screen size
     BScreen screen;
@@ -297,6 +298,14 @@ void NetworkServer::ProcessMessage(const uint8* data, size_t length)
         LOG("Received: HEARTBEAT");
     }
 
+    // Modifier translation: macOS senders use macOS modifier bits and we
+    // must convert via MapModifiers; Haiku senders already use Haiku
+    // modifier bits and we pass them through unchanged. This lambda
+    // captures fSenderIsHaiku once per ProcessMessage call.
+    auto xlatMods = [this](uint32 m) -> uint32 {
+        return fSenderIsHaiku ? m : MapModifiers(m);
+    };
+
     switch (header->eventType) {
         case EVENT_KEY_DOWN:
         {
@@ -313,7 +322,7 @@ void NetworkServer::ProcessMessage(const uint8* data, size_t length)
                 LOG("KEY_DOWN: macKey=0x%02X macMods=0x%02X numBytes=%d bytes=[%s]",
                     keyPayload->keyCode, keyPayload->modifiers, keyPayload->numBytes, bytesHex);
                 fInputInjector->InjectKeyDown(keyPayload->keyCode,
-                    MapModifiers(keyPayload->modifiers),
+                    xlatMods(keyPayload->modifiers),
                     bytes, keyPayload->numBytes);
             }
             break;
@@ -327,7 +336,7 @@ void NetworkServer::ProcessMessage(const uint8* data, size_t length)
                 uint32 keyCode = data[0];
                 uint32 modifiers = data[1];
                 LOG("KEY_UP: macKey=0x%02X macMods=0x%02X", keyCode, modifiers);
-                fInputInjector->InjectKeyUp(keyCode, MapModifiers(modifiers));
+                fInputInjector->InjectKeyUp(keyCode, xlatMods(modifiers));
             }
             break;
         }
@@ -337,7 +346,7 @@ void NetworkServer::ProcessMessage(const uint8* data, size_t length)
             if (header->length >= sizeof(MouseMovePayload)) {
                 const MouseMovePayload* movePayload = (const MouseMovePayload*)payload;
                 fInputInjector->InjectMouseMove(movePayload->x, movePayload->y,
-                    movePayload->relative != 0, MapModifiers(movePayload->modifiers));
+                    movePayload->relative != 0, xlatMods(movePayload->modifiers));
             }
             break;
         }
@@ -347,7 +356,7 @@ void NetworkServer::ProcessMessage(const uint8* data, size_t length)
             if (header->length >= sizeof(MouseDownPayload)) {
                 const MouseDownPayload* btnPayload = (const MouseDownPayload*)payload;
                 fInputInjector->InjectMouseDown(btnPayload->buttons,
-                    btnPayload->x, btnPayload->y, MapModifiers(btnPayload->modifiers),
+                    btnPayload->x, btnPayload->y, xlatMods(btnPayload->modifiers),
                     btnPayload->clicks);
             }
             break;
@@ -358,7 +367,7 @@ void NetworkServer::ProcessMessage(const uint8* data, size_t length)
             if (header->length >= sizeof(MouseButtonPayload)) {
                 const MouseButtonPayload* btnPayload = (const MouseButtonPayload*)payload;
                 fInputInjector->InjectMouseUp(btnPayload->buttons,
-                    btnPayload->x, btnPayload->y, MapModifiers(btnPayload->modifiers));
+                    btnPayload->x, btnPayload->y, xlatMods(btnPayload->modifiers));
             }
             break;
         }
@@ -368,7 +377,7 @@ void NetworkServer::ProcessMessage(const uint8* data, size_t length)
             if (header->length >= sizeof(MouseWheelPayload)) {
                 const MouseWheelPayload* wheelPayload = (const MouseWheelPayload*)payload;
                 fInputInjector->InjectMouseWheel(wheelPayload->deltaX,
-                    wheelPayload->deltaY, MapModifiers(wheelPayload->modifiers));
+                    wheelPayload->deltaY, xlatMods(wheelPayload->modifiers));
             }
             break;
         }
@@ -394,11 +403,27 @@ void NetworkServer::ProcessMessage(const uint8* data, size_t length)
 
         case EVENT_SCREEN_INFO:
         {
-            if (header->length >= sizeof(ScreenInfoPayload)) {
-                const ScreenInfoPayload* screenPayload = (const ScreenInfoPayload*)payload;
-                fRemoteWidth = screenPayload->width;
-                fRemoteHeight = screenPayload->height;
-                LOG("Remote (macOS) screen size: %.0fx%.0f", fRemoteWidth, fRemoteHeight);
+            // Accept both the original 8-byte payload (macOS sender,
+            // protocol r1) and the 9-byte payload (Haiku sender,
+            // protocol r2 with trailing senderPlatform byte). Read the
+            // platform byte only if it's present, default to MAC for
+            // back-compat.
+            const uint32 kOldSize = 2 * sizeof(float);          // 8
+            const uint32 kNewSize = sizeof(ScreenInfoPayload);  // 9
+            if (header->length >= kOldSize) {
+                fRemoteWidth  = *(const float*)(payload + 0);
+                fRemoteHeight = *(const float*)(payload + 4);
+
+                uint8 platform = SENDER_MAC;
+                if (header->length >= kNewSize)
+                    platform = payload[8];
+                fSenderIsHaiku = (platform == SENDER_HAIKU);
+                if (fInputInjector != nullptr)
+                    fInputInjector->SetSenderIsHaiku(fSenderIsHaiku);
+
+                LOG("Remote (%s) screen size: %.0fx%.0f",
+                    fSenderIsHaiku ? "Haiku" : "macOS",
+                    fRemoteWidth, fRemoteHeight);
             }
             break;
         }

@@ -53,6 +53,11 @@ private:
     float fLocalHeight;
     float fRemoteWidth;
     float fRemoteHeight;
+    bool  fSenderIsHaiku;  // protocol r2: set from EVENT_SCREEN_INFO's
+                           // senderPlatform byte. Receiver uses this
+                           // to decide whether to translate keycodes
+                           // (macOS sender → translate; Haiku sender →
+                           // pass through unchanged).
 };
 
 #endif // NETWORK_SERVER_H
