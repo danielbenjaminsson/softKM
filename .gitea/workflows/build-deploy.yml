@@ -210,6 +210,15 @@ jobs:
             mimeset -F "$INSTALL_PATH" || true
             echo "Installed $INSTALL_PATH (size $(stat -c%s "$INSTALL_PATH") bytes)"
 
+            # Force Deskbar to drop any cached copy of the replicant
+            # add-on. Without this, Deskbar may keep the OLD softKM
+            # binary's image mapped in its address space; even after
+            # the new app reinstalls the replicant via BDeskbar::AddItem,
+            # the on-disk binary read by Deskbar can be stale. Removing
+            # the replicant here forces Deskbar to release it.
+            desklink --remove=softKM 2>/dev/null || true
+            sleep 1
+
             echo "Launching softKM..."
             nohup "$INSTALL_PATH" > /dev/null 2>&1 &
             disown
@@ -334,6 +343,11 @@ jobs:
             cp -f "$PROJECT/HaikuOS/$BINARY" "$INSTALL_PATH"
             mimeset -F "$INSTALL_PATH" || true
             echo "Installed $INSTALL_PATH (size $(stat -c%s "$INSTALL_PATH") bytes)"
+
+            # Force Deskbar to drop any cached copy of the replicant
+            # add-on so it reloads from the fresh binary on next add.
+            desklink --remove=softKM 2>/dev/null || true
+            sleep 1
 
             echo "Launching softKM..."
             nohup "$INSTALL_PATH" > /dev/null 2>&1 &
