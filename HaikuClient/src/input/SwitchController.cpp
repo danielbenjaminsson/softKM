@@ -572,15 +572,22 @@ bool SwitchController::IsAtEdge(BPoint pos, uint8 edge) const
 
 BPoint SwitchController::EdgeLockPosition(uint8 edge) const
 {
-    // Lock the cursor a fixed offset *inside* the screen edge (not on
-    // the edge itself). This is critical: at the literal edge the OS
-    // clamps the cursor, so where.x can never exceed fScreenW-1 and
-    // rightward physical motion produces dx=0 — i.e. the OS literally
-    // cannot tell us the user is pushing right. Locking 100px inside
-    // gives the OS room to report motion in *both* directions, so the
-    // filter sees real signed deltas. The visible cursor still appears
-    // pinned because the filter replaces every B_MOUSE_MOVED with one
-    // pinned at fLockedPos (so the user never sees the cursor wander).
+    // Lock the cursor a fixed offset *inside* the screen edge.
+    //
+    // When the filter's set_mouse_position warp works, the cursor
+    // sits at this inset point and the OS can report motion in both
+    // X directions (we see real signed dx). When the warp fails, the
+    // cursor stays clamped at wherever it was — typically the literal
+    // edge — and dx becomes a constant 100px on every event. The
+    // filter has a per-axis sanity check that zeroes any |delta| > 50
+    // before forwarding, so the failed-warp case degrades gracefully
+    // to 'X axis dead, Y axis still works' rather than flooding the
+    // receiver with phantom motion.
+    //
+    // 100px is large enough to leave room for fast bidirectional
+    // motion between warps, and small enough that an unwarped
+    // cursor's stuck dx (≈100) lands cleanly above the 50px filter
+    // threshold and gets dropped.
     const float kEdgeInset = 100.0f;
     switch (edge) {
         case EDGE_RIGHT:  return BPoint(fScreenW - 1 - kEdgeInset, fLastMousePos.y);

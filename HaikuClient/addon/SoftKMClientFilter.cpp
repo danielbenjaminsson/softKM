@@ -312,8 +312,63 @@ filter_result SoftKMClientFilter::Filter(BMessage* message, BList* outList)
 
         case B_MODIFIERS_CHANGED:
         {
-            // Forward as key-down/up for each changed modifier
-            // (handled in SwitchController via the key events above)
+            // Haiku reports modifier-key transitions (Shift, Ctrl, Alt,
+            // etc.) only via B_MODIFIERS_CHANGED — *not* as B_KEY_DOWN /
+            // B_KEY_UP — so without forwarding these the receiver never
+            // learns that a modifier is held. That breaks any
+            // modifier-only press (e.g. Ctrl alone to a CAD app), and
+            // also means that combos like Ctrl+Alt+T arrive on the
+            // receiver as a bare 'T' because the receiver's input_server
+            // never saw the matching modifier-down events.
+            //
+            // We translate each toggled bit into a synthetic
+            // SOFTKM_EVT_KEY_DOWN or _KEY_UP carrying the corresponding
+            // Haiku keycode, so the receiver can inject a real
+            // KEY_DOWN/UP for that physical modifier key.
+            int32 newMods = 0, oldMods = 0;
+            message->FindInt32("modifiers", &newMods);
+            message->FindInt32("be:old_modifiers", &oldMods);
+            int32 changed = newMods ^ oldMods;
+
+            // Modifier bit -> Haiku raw keycode mapping. Pairs of
+            // (modifier_mask, keycode); see InterfaceDefs.h for the
+            // mask values. Using the left-specific masks rather than
+            // the generic ones (B_SHIFT_KEY, B_CONTROL_KEY, …) gives
+            // us per-side resolution so left/right Ctrl etc. inject
+            // as the correct physical key on the receiver.
+            static const struct { int32 mask; int32 keycode; } kModMap[] = {
+                { 0x1000,  0x4b },  // B_LEFT_SHIFT_KEY
+                { 0x2000,  0x56 },  // B_RIGHT_SHIFT_KEY
+                { 0x10000, 0x5c },  // B_LEFT_CONTROL_KEY
+                { 0x20000, 0x60 },  // B_RIGHT_CONTROL_KEY
+                { 0x40000, 0x5d },  // B_LEFT_OPTION_KEY  (Alt)
+                { 0x80000, 0x5f },  // B_RIGHT_OPTION_KEY (Alt Gr)
+                { 0x4000,  0x66 },  // B_LEFT_COMMAND_KEY (Win/Cmd)
+                { 0x8000,  0x67 },  // B_RIGHT_COMMAND_KEY
+                { 0x08,    0x3b },  // B_CAPS_LOCK
+                { 0x20,    0x22 },  // B_NUM_LOCK
+                { 0x10,    0x0f },  // B_SCROLL_LOCK
+            };
+
+            for (size_t i = 0; i < sizeof(kModMap) / sizeof(kModMap[0]); i++) {
+                if ((changed & kModMap[i].mask) == 0)
+                    continue;
+                bool pressed = (newMods & kModMap[i].mask) != 0;
+
+                BMessage evt(pressed ? SOFTKM_EVT_KEY_DOWN
+                                     : SOFTKM_EVT_KEY_UP);
+                evt.AddInt32("key", kModMap[i].keycode);
+                evt.AddInt32("modifiers", newMods);
+                if (pressed) {
+                    // Pressing a modifier produces no character, but
+                    // SwitchController unconditionally reads raw_char /
+                    // bytes for KEY_DOWN — populate them explicitly so
+                    // we don't end up with stale stack values.
+                    evt.AddInt32("raw_char", 0);
+                    evt.AddString("bytes", "");
+                }
+                SendEvent(&evt);
+            }
             consumed = true;
             break;
         }
@@ -327,41 +382,39 @@ filter_result SoftKMClientFilter::Filter(BMessage* message, BList* outList)
             message->FindInt32("buttons", &buttons);
             message->FindInt32("modifiers", &modifiers);
 
-            // Compute the user's motion as where - fLockedPos. This
-            // works because we warp the cursor back to fLockedPos on
-            // every event below: in steady state the OS cursor is
-            // sitting at fLockedPos, the user nudges it, and we see
-            // a single B_MOUSE_MOVED with where = lockedPos + delta.
+            // Two kinds of events arrive in this handler while we
+            // are capturing:
             //
-            // Two events to be aware of:
-            //   1. Pure warp echoes — when input_server delivers our
-            //      own warp as a B_MOUSE_MOVED, where == fLockedPos
-            //      exactly. dx/dy are zero anyway, but we drop them
-            //      explicitly to avoid spamming the controller.
-            //   2. Coalesced events — input_server may merge the
-            //      warp's position update with subsequent user motion
-            //      into one event. That event reports where = lockedPos
-            //      + (user motion since warp), which is exactly the
-            //      delta we want. So dx = where.x - fLockedPos.x
-            //      gives the user's motion regardless of whether the
-            //      warp's echo arrived as a separate event or got
-            //      coalesced into this one.
+            //   1. Real user motion: where = (cursor's actual current
+            //      position). Forward to the controller as
+            //      dx = where - fLastPos.
             //
-            // Computing against fLockedPos (rather than fLastPos =
-            // previous reported where) avoids the doubling bug we saw
-            // when y-axis motion made the echo's y fail to match
-            // fLockedPos.y exactly: the echo would slip through as
-            // 'real motion' with dx = fLockedPos.x - lastWhere.x
-            // (a fake negative), and the next user event would then
-            // be lastWhere - fLockedPos (a fake positive of the same
-            // magnitude), doubling X displacement.
-            float dx = where.x - fLockedPos.x;
-            float dy = where.y - fLockedPos.y;
+            //   2. Warp echoes: input_server delivers a B_MOUSE_MOVED in
+            //      response to our own set_mouse_position(lockedPos, …)
+            //      call below. Such an event arrives with where ==
+            //      fLockedPos exactly. We MUST drop these, otherwise
+            //      every real +N delta would be followed by a −N echo
+            //      and the receiver would never see net motion.
+            //
+            // Why event-to-event (where - fLastPos) and not
+            // lock-relative (where - fLockedPos)? Because
+            // set_mouse_position from inside the filter is racy: it
+            // sometimes silently does nothing, leaving the OS cursor
+            // camped wherever it was. With a lock-relative formula
+            // the filter would then forward a constant dx of ~100px
+            // on every event, flooding the receiver with phantom
+            // motion. Event-to-event survives a failed warp because
+            // dx tracks actual motion between consecutive reported
+            // positions regardless of where they are on screen.
+            const float kWarpEpsilon = 0.5f;
+            bool isWarpEcho = (fabsf(where.x - fLockedPos.x) < kWarpEpsilon
+                            && fabsf(where.y - fLockedPos.y) < kWarpEpsilon);
 
-            const float kEpsilon = 0.5f;
-            bool isZero = (fabsf(dx) < kEpsilon && fabsf(dy) < kEpsilon);
+            if (!isWarpEcho) {
+                float dx = where.x - fLastPos.x;
+                float dy = where.y - fLastPos.y;
+                fLastPos = where;
 
-            if (!isZero) {
                 BMessage evt(SOFTKM_EVT_MOUSE_MOVE);
                 evt.AddPoint("where", where);
                 evt.AddFloat("dx", dx);
@@ -369,14 +422,21 @@ filter_result SoftKMClientFilter::Filter(BMessage* message, BList* outList)
                 evt.AddInt32("buttons", buttons);
                 evt.AddInt32("modifiers", modifiers);
                 SendEvent(&evt);
+            } else {
+                // Warp echo: realign fLastPos to the lock point so the
+                // next real-motion delta is computed from there. Don't
+                // forward the event.
+                fLastPos = fLockedPos;
             }
 
-            // Warp cursor back to lock position. This usually works
-            // (the OS cursor visibly stays near fLockedPos in the
-            // logs), so the next event will report a small delta from
-            // the lock again. Even if it occasionally fails, the
-            // worst case is one event with a large dx — not a sustained
-            // doubled-displacement bug.
+            // Best-effort warp back to the lock position. When it
+            // works, the next event arrives as a warp echo (caught
+            // above) and the cursor stays visually pinned. When it
+            // doesn't, the event-to-event delta calc still produces
+            // correct motion — we just lose the visual pin and the
+            // cursor may drift across the screen on the sender (which
+            // is invisible to the user since the receiver's cursor
+            // is what they're watching).
             set_mouse_position((int32)fLockedPos.x, (int32)fLockedPos.y);
 
             // Replace the original event with one pinned at the lock
